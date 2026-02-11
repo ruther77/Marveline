@@ -96,7 +96,8 @@ class Customer(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     reservations: Mapped[list["Reservation"]] = relationship(
         "Reservation",
         back_populates="customer",
-        cascade="all, delete-orphan"
+        passive_deletes=True  # Laisse PostgreSQL gérer DELETE (FK RESTRICT)
+        # Pas de cascade - respecte RESTRICT de la FK pour protéger l'historique
     )
 
     # Contraintes CHECK

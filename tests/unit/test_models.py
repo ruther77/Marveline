@@ -129,6 +129,38 @@ class TestCustomerModel:
 
         assert customer.is_active is True
 
+    def test_customer_delete_with_reservations_fails(self, test_db):
+        """Test que la suppression d'un customer avec réservations échoue (RESTRICT)."""
+        # Créer customer
+        customer = Customer(
+            tenant_id=1,
+            customer_type="individual",
+            first_name="Jean",
+            last_name="Martin",
+            email="jean.martin@example.com"
+        )
+        test_db.add(customer)
+        test_db.commit()
+
+        # Créer réservation associée
+        reservation = Reservation(
+            tenant_id=1,
+            customer_id=customer.id,
+            reference="RES-TEST-001",
+            event_date=date.today() + timedelta(days=7),
+            delivery_date=date.today() + timedelta(days=6),
+            return_date=date.today() + timedelta(days=8),
+            status="confirmed"
+        )
+        test_db.add(reservation)
+        test_db.commit()
+
+        # Tenter de supprimer le customer avec réservation
+        # Doit échouer avec IntegrityError (FK RESTRICT)
+        test_db.delete(customer)
+        with pytest.raises(IntegrityError, match="reservations_customer_id_fkey"):
+            test_db.commit()
+
 
 class TestProductModel:
     """Tests du modèle Product."""

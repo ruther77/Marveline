@@ -156,7 +156,7 @@ display_price = price_per_day / 100  # 250 → 2.50€
 
 ## 🧪 Tests Unitaires
 
-### Résultats : 21/21 (100%)
+### Résultats : 22/22 (100%) ✅
 
 ```bash
 tests/unit/test_models.py::TestCustomerModel::test_create_individual_customer PASSED
@@ -166,6 +166,7 @@ tests/unit/test_models.py::TestCustomerModel::test_customer_data_coherence_indiv
 tests/unit/test_models.py::TestCustomerModel::test_customer_data_coherence_company PASSED
 tests/unit/test_models.py::TestCustomerModel::test_customer_email_unique_per_tenant PASSED
 tests/unit/test_models.py::TestCustomerModel::test_customer_soft_delete PASSED
+tests/unit/test_models.py::TestCustomerModel::test_customer_delete_with_reservations_fails PASSED
 tests/unit/test_models.py::TestProductModel::test_create_product PASSED
 tests/unit/test_models.py::TestProductModel::test_product_category_invalid PASSED
 tests/unit/test_models.py::TestProductModel::test_product_available_lte_stock PASSED
@@ -181,14 +182,14 @@ tests/unit/test_models.py::TestInvoiceModel::test_invoice_is_paid_property PASSE
 tests/unit/test_models.py::TestInvoiceModel::test_invoice_paid_lte_total PASSED
 tests/unit/test_models.py::TestInvoiceModel::test_invoice_due_after_issue PASSED
 
-============================== 21 passed in 0.80s ==============================
+============================== 22 passed in 0.42s ==============================
 ```
 
 ### Couverture Tests
 
 | Modèle | Couverture | Tests |
 |--------|------------|-------|
-| Customer | 96% | 7 tests |
+| Customer | 96% | 8 tests |
 | Product | 95% | 5 tests |
 | Reservation | 95% | 3 tests |
 | ReservationLine | 95% | 2 tests |
@@ -329,8 +330,8 @@ Reservation (N) ───┬─→ Invoice (1) [one-to-one]
 |----------|--------|
 | **Modèles créés** | 5 + 1 mixin |
 | **Tables PostgreSQL** | 5 |
-| **Contraintes CHECK** | 22 |
-| **Tests unitaires** | 21/21 (100%) |
+| **Contraintes CHECK** | 18 CHECK + 7 UNIQUE |
+| **Tests unitaires** | 22/22 (100%) |
 | **Couverture modèles** | 95.8% |
 | **Tests E2E** | 1/1 (100%) |
 | **Lignes de code** | ~1300 |
@@ -362,11 +363,43 @@ Reservation (N) ───┬─→ Invoice (1) [one-to-one]
 
 ---
 
+## 🔧 Corrections Post-Validation (2026-02-11)
+
+### Problème Critique : Cascade DELETE sur Customer.reservations
+
+**Détecté lors vérification 5 rounds** :
+- `Customer.reservations` avait `cascade="all, delete-orphan"` ❌
+- Contredisait l'intention RESTRICT pour protéger l'historique client
+- SQLAlchemy supprimait les réservations avant le customer, contournant la FK RESTRICT
+
+**Correction appliquée** :
+```python
+# AVANT (incorrect)
+reservations: Mapped[list["Reservation"]] = relationship(
+    "Reservation",
+    back_populates="customer",
+    cascade="all, delete-orphan"  # ❌ Contourne RESTRICT !
+)
+
+# APRÈS (correct)
+reservations: Mapped[list["Reservation"]] = relationship(
+    "Reservation",
+    back_populates="customer",
+    passive_deletes=True  # ✅ Laisse PostgreSQL gérer DELETE (FK RESTRICT)
+)
+```
+
+**Test ajouté** :
+- `test_customer_delete_with_reservations_fails` : Vérifie que la suppression d'un customer avec réservations échoue (FK RESTRICT)
+- **Total tests : 22/22 (100%)** ✅
+
+---
+
 ## 🏆 Conclusion
 
 **La Phase 2 de CaroCorp est COMPLÉTÉE avec succès à 100% !**
 
-Tous les modèles métier sont implémentés, testés et validés. La base de données PostgreSQL est structurée de manière robuste avec 22 contraintes CHECK pour garantir l'intégrité des données.
+Tous les modèles métier sont implémentés, testés et validés. La base de données PostgreSQL est structurée de manière robuste avec 18 contraintes CHECK et 7 contraintes UNIQUE pour garantir l'intégrité des données.
 
 Le système peut maintenant gérer :
 - ✅ Clients B2B et B2C
