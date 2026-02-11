@@ -1,0 +1,8 @@
+{
+  "name": "carocorp-frontend",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "echo 'TODO: Setup Vite/React'",
+    "build": "mkdir -p dist && echo '<h1>CaroCorp - Frontend TODO</h1>' > dist/index.html"
+  }
+}

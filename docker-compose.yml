@@ -1,0 +1,79 @@
+services:
+  db:
+    image: postgres:16
+    container_name: carocorp_db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-CaroCorp}
+      POSTGRES_USER: ${POSTGRES_USER:-caro}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requis}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - carocorp_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U caro -d CaroCorp"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: .
+    container_name: carocorp_api
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "8001:8000"
+    volumes:
+      - .:/app
+    command: >
+      bash -lc "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+  redis:
+    image: redis:7-alpine
+    container_name: carocorp_redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD requis}
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - carocorp_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build: ./frontend
+    container_name: carocorp_frontend
+    depends_on:
+      - api
+    ports:
+      - "3002:80"
+    environment:
+      - VITE_API_URL=/api/v1
+
+  celery-worker:
+    build: .
+    container_name: carocorp_celery_worker
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    command: >
+      celery -A app.tasks.celery_app:celery_app worker
+      --loglevel=info
+      --queues=default,reservations,invoicing,notifications
+
+volumes:
+  carocorp_pgdata:
+  carocorp_redisdata:

@@ -1,0 +1,117 @@
+"""Middlewares de sécurité pour CaroCorp."""
+from fastapi import Request, HTTPException, status
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from typing import Callable
+import secrets
+import hashlib
+
+from app.core.config import settings
+
+
+class CSRFProtectionMiddleware(BaseHTTPMiddleware):
+    """Middleware CSRF pour protéger contre les attaques Cross-Site Request Forgery.
+
+    Pour les requêtes modifiantes (POST, PUT, PATCH, DELETE), vérifie la présence
+    d'un token CSRF valide dans les headers.
+    """
+
+    SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+    async def dispatch(self, request: Request, call_next: Callable):
+        """Vérifie le token CSRF pour les méthodes non-sûres."""
+
+        # Skip CSRF pour les méthodes sûres
+        if request.method in self.SAFE_METHODS:
+            return await call_next(request)
+
+        # Skip CSRF pour les endpoints publics (docs, health)
+        if request.url.path in ["/health", "/api/docs", "/api/redoc", "/openapi.json"]:
+            return await call_next(request)
+
+        # Vérifier le token CSRF
+        csrf_token = request.headers.get("X-CSRF-Token")
+
+        if not csrf_token:
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={"detail": "CSRF token manquant"},
+            )
+
+        # Valider le token (à implémenter avec Redis/session)
+        if not self._validate_csrf_token(csrf_token):
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={"detail": "CSRF token invalide"},
+            )
+
+        response = await call_next(request)
+        return response
+
+    def _validate_csrf_token(self, token: str) -> bool:
+        """Valide le token CSRF.
+
+        TODO: Implémenter validation avec Redis/session storage.
+        Pour l'instant, validation basique.
+        """
+        if not token or len(token) < 32:
+            return False
+
+        # TODO: Vérifier le token dans Redis avec la session utilisateur
+        # redis_client.get(f"csrf:{session_id}") == token
+        return True
+
+    @staticmethod
+    def generate_csrf_token() -> str:
+        """Génère un nouveau token CSRF."""
+        return secrets.token_urlsafe(32)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Middleware pour ajouter les headers de sécurité recommandés."""
+
+    async def dispatch(self, request: Request, call_next: Callable):
+        """Ajoute les headers de sécurité à la réponse."""
+        response = await call_next(request)
+
+        # Headers de sécurité
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+        # Content Security Policy
+        if not settings.DEBUG:
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data: https:; "
+                "font-src 'self'; "
+                "connect-src 'self';"
+            )
+
+        return response
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Middleware basique de rate limiting.
+
+    TODO: Implémenter avec Redis pour un rate limiting distribué.
+    """
+
+    async def dispatch(self, request: Request, call_next: Callable):
+        """Vérifie le rate limit pour l'IP."""
+
+        # TODO: Implémenter rate limiting avec Redis
+        # client_ip = request.client.host
+        # redis_key = f"rate_limit:{client_ip}"
+        # requests_count = redis_client.incr(redis_key)
+        # if requests_count == 1:
+        #     redis_client.expire(redis_key, 60)  # 1 minute
+        # if requests_count > 100:  # 100 requêtes/minute
+        #     raise HTTPException(status_code=429, detail="Too many requests")
+
+        response = await call_next(request)
+        return response
