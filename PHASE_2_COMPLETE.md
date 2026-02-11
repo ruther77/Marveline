@@ -414,4 +414,3 @@ Le système peut maintenant gérer :
 
 **Commit** : `feat: Phase 2 - Modèles métier CaroCorp 100% validés ✅`
 **Date** : 2026-02-11
-**Auteur** : Claude Sonnet 4.5

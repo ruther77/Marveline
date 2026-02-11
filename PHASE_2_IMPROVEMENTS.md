@@ -299,4 +299,3 @@ Les fondations sont :
 
 **Commit** : `feat: Phase 2 Améliorations - Indexes, Defaults, Tests E2E ✅`
 **Date** : 2026-02-12
-**Auteur** : Claude Sonnet 4.5
