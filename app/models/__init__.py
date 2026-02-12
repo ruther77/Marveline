@@ -5,6 +5,7 @@ from app.models.customer import Customer
 from app.models.product import Product
 from app.models.reservation import Reservation, ReservationLine
 from app.models.invoice import Invoice
+from app.models.audit_log import AuditLog
 
 __all__ = [
     # Base classes
@@ -20,4 +21,6 @@ __all__ = [
     "Reservation",
     "ReservationLine",
     "Invoice",
+    # Audit & Security
+    "AuditLog",
 ]

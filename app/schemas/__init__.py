@@ -53,6 +53,11 @@ from app.schemas.auth import (
     UserInfo,
     ChangePasswordRequest,
 )
+from app.schemas.audit import (
+    AuditLogResponse,
+    AuditLogList,
+    AuditLogFilters,
+)
 
 __all__ = [
     # Base schemas
@@ -102,4 +107,8 @@ __all__ = [
     "RefreshTokenRequest",
     "UserInfo",
     "ChangePasswordRequest",
+    # Audit schemas
+    "AuditLogResponse",
+    "AuditLogList",
+    "AuditLogFilters",
 ]
