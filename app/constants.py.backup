@@ -1,0 +1,481 @@
+"""Constantes globales de l'application CaroCorp.
+
+Ce module centralise TOUTES les constantes de l'application pour :
+- Éviter les typos et erreurs de frappe
+- Faciliter la maintenance et les modifications
+- Améliorer l'autocomplétion IDE
+- Assurer la cohérence dans toute la codebase
+
+Organisation :
+    1. Constantes Métier (Business Logic)
+    2. Messages d'Erreur (Error Messages)
+    3. Sécurité & Authentification (Security & Auth)
+    4. HTTP & API (HTTP & API)
+    5. Limites & Configurations (Limits & Config)
+"""
+
+from enum import Enum
+from fastapi import status
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 1. CONSTANTES MÉTIER (Business Logic)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class ProductCategory(str, Enum):
+    """Catégories de produits disponibles à la location.
+
+    Utilisé dans :
+        - models.Product.category
+        - schemas.ProductCreate.category
+        - Filtres API GET /products?category=...
+    """
+
+    ASSIETTE = "assiette"
+    VERRE = "verre"
+    COUVERT = "couvert"
+    NAPPE = "nappe"
+    DECO = "deco"
+    AUTRE = "autre"
+
+
+class ProductCondition(str, Enum):
+    """État physique d'un produit.
+
+    Utilisé dans :
+        - models.Product.condition
+        - schemas.ProductCreate.condition
+        - Filtres de qualité pour réservations
+    """
+
+    NEUF = "neuf"
+    BON = "bon"
+    USE = "use"
+    HORS_SERVICE = "hors_service"
+
+
+class CustomerType(str, Enum):
+    """Type de client (particulier ou entreprise).
+
+    Utilisé dans :
+        - models.Customer.customer_type
+        - schemas.CustomerCreate.customer_type
+        - Logique de validation (SIRET obligatoire si COMPANY)
+    """
+
+    INDIVIDUAL = "individual"
+    COMPANY = "company"
+
+
+class ReservationStatus(str, Enum):
+    """Statut du cycle de vie d'une réservation.
+
+    Workflow :
+        DRAFT → CONFIRMED → DELIVERED → RETURNED
+                         ↘ CANCELLED
+
+    Utilisé dans :
+        - models.Reservation.status
+        - services.ReservationService (transitions de statut)
+        - Filtres API GET /reservations?status=...
+    """
+
+    DRAFT = "draft"
+    CONFIRMED = "confirmed"
+    DELIVERED = "delivered"
+    RETURNED = "returned"
+    CANCELLED = "cancelled"
+
+
+class InvoiceStatus(str, Enum):
+    """Statut du cycle de vie d'une facture.
+
+    Workflow :
+        DRAFT → SENT → PAID
+                    ↘ OVERDUE
+        Tout statut → CANCELLED
+
+    Utilisé dans :
+        - models.Invoice.status
+        - services.InvoiceService (calcul auto-overdue)
+        - Filtres API GET /invoices?status=...
+    """
+
+    DRAFT = "draft"
+    SENT = "sent"
+    PAID = "paid"
+    OVERDUE = "overdue"
+    CANCELLED = "cancelled"
+
+
+class PaymentMethod(str, Enum):
+    """Méthodes de paiement acceptées.
+
+    Utilisé dans :
+        - models.Payment.payment_method
+        - schemas.AddPaymentRequest.payment_method
+        - Rapports comptables par méthode
+    """
+
+    CASH = "cash"
+    CARD = "card"
+    TRANSFER = "transfer"
+    CHECK = "check"
+
+
+class UserRole(str, Enum):
+    """Rôles utilisateur pour contrôle d'accès (RBAC).
+
+    Hiérarchie :
+        ADMIN > MANAGER > STAFF
+
+    Permissions :
+        - ADMIN : Tous droits + gestion users
+        - MANAGER : CRUD réservations/factures/clients
+        - STAFF : Read-only
+
+    Utilisé dans :
+        - models.User.role
+        - core.deps.require_role (décorateur endpoints)
+        - Middleware RBAC
+    """
+
+    ADMIN = "admin"
+    MANAGER = "manager"
+    STAFF = "staff"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 2. MESSAGES D'ERREUR (Error Messages)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class ErrorMessages:
+    """Messages d'erreur HTTP standardisés.
+
+    Usage :
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ErrorMessages.PRODUCT_NOT_FOUND
+        )
+    """
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Ressources non trouvées (404 NOT FOUND)
+    # ─────────────────────────────────────────────────────────────────────
+
+    PRODUCT_NOT_FOUND = "Product not found"
+    RESERVATION_NOT_FOUND = "Reservation not found"
+    INVOICE_NOT_FOUND = "Invoice not found"
+    CUSTOMER_NOT_FOUND = "Customer not found"
+    USER_NOT_FOUND = "User not found"
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Validation métier (400 BAD REQUEST)
+    # ─────────────────────────────────────────────────────────────────────
+
+    INSUFFICIENT_STOCK = "Insufficient stock available"
+    SKU_ALREADY_EXISTS = "Product with this SKU already exists"
+    EMAIL_ALREADY_EXISTS = "Email already registered"
+    AVAILABLE_EXCEEDS_STOCK = "available_quantity cannot exceed stock_quantity"
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Authentification & Autorisation (401 UNAUTHORIZED / 403 FORBIDDEN)
+    # ─────────────────────────────────────────────────────────────────────
+
+    INVALID_CREDENTIALS = "Invalid email or password"
+    ACCOUNT_INACTIVE = "Account is inactive"
+    INVALID_TOKEN = "Could not validate credentials"
+    TOKEN_EXPIRED = "Token has expired"
+    INSUFFICIENT_PERMISSIONS = "Insufficient permissions for this action"
+
+    # ─────────────────────────────────────────────────────────────────────
+    # CSRF Protection (403 FORBIDDEN)
+    # ─────────────────────────────────────────────────────────────────────
+
+    CSRF_TOKEN_MISSING = "CSRF token manquant"
+    CSRF_TOKEN_INVALID = "CSRF token invalide"
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Rate Limiting (429 TOO MANY REQUESTS)
+    # ─────────────────────────────────────────────────────────────────────
+
+    TOO_MANY_REQUESTS = "Too many requests"
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Logique métier réservations (400 BAD REQUEST)
+    # ─────────────────────────────────────────────────────────────────────
+
+    RESERVATION_NOT_DRAFT = "Reservation must be in draft status to be modified"
+    RESERVATION_ALREADY_CONFIRMED = "Reservation is already confirmed"
+    RESERVATION_ALREADY_CANCELLED = "Reservation is already cancelled"
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Logique métier factures (400 BAD REQUEST)
+    # ─────────────────────────────────────────────────────────────────────
+
+    INVOICE_ALREADY_PAID = "Invoice is already paid"
+    INVOICE_ALREADY_EXISTS = "Invoice already exists for this reservation"
+    PAYMENT_EXCEEDS_TOTAL = "Payment amount exceeds invoice total"
+    PAYMENT_AMOUNT_INVALID = "Payment amount must be positive"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 3. SÉCURITÉ & AUTHENTIFICATION (Security & Auth)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class SecurityHeaders:
+    """Headers HTTP de sécurité (SecurityHeadersMiddleware).
+
+    Usage :
+        response.headers[SecurityHeaders.X_CONTENT_TYPE_OPTIONS] = SecurityHeaders.NOSNIFF
+    """
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Header names
+    # ─────────────────────────────────────────────────────────────────────
+
+    X_CONTENT_TYPE_OPTIONS = "X-Content-Type-Options"
+    X_FRAME_OPTIONS = "X-Frame-Options"
+    X_XSS_PROTECTION = "X-XSS-Protection"
+    STRICT_TRANSPORT_SECURITY = "Strict-Transport-Security"
+    REFERRER_POLICY = "Referrer-Policy"
+    CONTENT_SECURITY_POLICY = "Content-Security-Policy"
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Header values
+    # ─────────────────────────────────────────────────────────────────────
+
+    NOSNIFF = "nosniff"
+    DENY = "DENY"
+    XSS_BLOCK = "1; mode=block"
+    HSTS_ONE_YEAR = "max-age=31536000; includeSubDomains"
+    STRICT_ORIGIN_CROSS_ORIGIN = "strict-origin-when-cross-origin"
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Content Security Policy (production only)
+    # ─────────────────────────────────────────────────────────────────────
+
+    CSP_DEFAULT = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: https:; "
+        "font-src 'self'; "
+        "connect-src 'self';"
+    )
+
+
+class RedisKeys:
+    """Préfixes pour les clés Redis.
+
+    Usage :
+        key = RedisKeys.refresh_token(user_id=123)
+        # → "refresh_token:123"
+    """
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Préfixes bruts
+    # ─────────────────────────────────────────────────────────────────────
+
+    REFRESH_TOKEN = "refresh_token:"
+    CSRF_TOKEN = "csrf:"
+    SESSION = "session:"
+    RATE_LIMIT = "rate_limit:"
+    RESERVATION_COUNTER = "reservation_counter:"
+    INVOICE_COUNTER = "invoice_counter:"
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Helpers pour générer clés complètes
+    # ─────────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def refresh_token(user_id: int) -> str:
+        """Génère clé Redis pour refresh token d'un user."""
+        return f"{RedisKeys.REFRESH_TOKEN}{user_id}"
+
+    @staticmethod
+    def csrf_token(session_id: str) -> str:
+        """Génère clé Redis pour token CSRF d'une session."""
+        return f"{RedisKeys.CSRF_TOKEN}{session_id}"
+
+    @staticmethod
+    def rate_limit(ip: str) -> str:
+        """Génère clé Redis pour rate limiting d'une IP."""
+        return f"{RedisKeys.RATE_LIMIT}{ip}"
+
+    @staticmethod
+    def reservation_counter(year: int) -> str:
+        """Génère clé Redis pour compteur réservations par année."""
+        return f"{RedisKeys.RESERVATION_COUNTER}{year}"
+
+    @staticmethod
+    def invoice_counter(year: int) -> str:
+        """Génère clé Redis pour compteur factures par année."""
+        return f"{RedisKeys.INVOICE_COUNTER}{year}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 4. HTTP & API (HTTP & API)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class HTTPMethods:
+    """Méthodes HTTP standardisées.
+
+    Usage :
+        if request.method in HTTPMethods.SAFE_METHODS:
+            # Skip CSRF validation
+    """
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Méthodes individuelles
+    # ─────────────────────────────────────────────────────────────────────
+
+    GET = "GET"
+    POST = "POST"
+    PUT = "PUT"
+    PATCH = "PATCH"
+    DELETE = "DELETE"
+    HEAD = "HEAD"
+    OPTIONS = "OPTIONS"
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Groupes de méthodes
+    # ─────────────────────────────────────────────────────────────────────
+
+    SAFE_METHODS = frozenset([GET, HEAD, OPTIONS])
+    UNSAFE_METHODS = frozenset([POST, PUT, PATCH, DELETE])
+
+
+class PublicEndpoints:
+    """Endpoints publics (pas d'authentification / CSRF requis).
+
+    Usage :
+        if request.url.path in PublicEndpoints.all():
+            # Skip CSRF validation
+    """
+
+    HEALTH = "/health"
+    DOCS = "/api/docs"
+    REDOC = "/api/redoc"
+    OPENAPI = "/openapi.json"
+
+    @classmethod
+    def all(cls) -> set[str]:
+        """Retourne tous les endpoints publics sous forme de set."""
+        return {cls.HEALTH, cls.DOCS, cls.REDOC, cls.OPENAPI}
+
+
+class HTTPStatusMessages:
+    """Messages HTTP pour réponses structurées.
+
+    Usage :
+        return JSONResponse(
+            status_code=200,
+            content={"message": HTTPStatusMessages.SUCCESS}
+        )
+    """
+
+    SUCCESS = "Operation successful"
+    CREATED = "Resource created successfully"
+    UPDATED = "Resource updated successfully"
+    DELETED = "Resource deleted successfully"
+    NO_CONTENT = "No content"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 5. LIMITES & CONFIGURATIONS (Limits & Config)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class Limits:
+    """Limites et seuils de l'application.
+
+    Centralise tous les magic numbers pour faciliter le tuning.
+    """
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Pagination
+    # ─────────────────────────────────────────────────────────────────────
+
+    MAX_PAGE_SIZE = 1000
+    """Nombre maximum d'items par page (évite surcharge serveur)."""
+
+    DEFAULT_PAGE_SIZE = 100
+    """Nombre d'items par défaut si non spécifié."""
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Sécurité
+    # ─────────────────────────────────────────────────────────────────────
+
+    CSRF_TOKEN_MIN_LENGTH = 32
+    """Longueur minimale d'un token CSRF (256 bits)."""
+
+    PASSWORD_MIN_LENGTH = 8
+    """Longueur minimale d'un mot de passe."""
+
+    JWT_SECRET_MIN_LENGTH = 32
+    """Longueur minimale du secret JWT (256 bits)."""
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Rate Limiting
+    # ─────────────────────────────────────────────────────────────────────
+
+    REQUESTS_PER_MINUTE = 100
+    """Nombre max de requêtes par minute par IP."""
+
+    RATE_LIMIT_WINDOW_SECONDS = 60
+    """Fenêtre de temps pour le rate limiting (1 minute)."""
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Sessions & Tokens
+    # ─────────────────────────────────────────────────────────────────────
+
+    SESSION_TIMEOUT_SECONDS = 3600
+    """Timeout de session (1 heure)."""
+
+    ACCESS_TOKEN_EXPIRE_MINUTES = 30
+    """Durée de validité d'un access token JWT."""
+
+    REFRESH_TOKEN_EXPIRE_DAYS = 7
+    """Durée de validité d'un refresh token."""
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Business Logic
+    # ─────────────────────────────────────────────────────────────────────
+
+    RESERVATION_REFERENCE_PADDING = 4
+    """Nombre de zéros pour padding des références (RES-2026-0001)."""
+
+    INVOICE_NUMBER_PADDING = 5
+    """Nombre de zéros pour padding des numéros de facture (INV-2026-00001)."""
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EXPORTS (pour faciliter les imports)
+# ═══════════════════════════════════════════════════════════════════════════
+
+__all__ = [
+    # Enums métier
+    "ProductCategory",
+    "ProductCondition",
+    "CustomerType",
+    "ReservationStatus",
+    "InvoiceStatus",
+    "PaymentMethod",
+    "UserRole",
+    # Messages & Erreurs
+    "ErrorMessages",
+    "HTTPStatusMessages",
+    # Sécurité
+    "SecurityHeaders",
+    "RedisKeys",
+    # HTTP
+    "HTTPMethods",
+    "PublicEndpoints",
+    # Configuration
+    "Limits",
+]

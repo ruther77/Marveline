@@ -7,6 +7,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, TenantMixin
+from app.constants import ReservationStatus
 
 
 class Reservation(Base, TimestampMixin, TenantMixin):
@@ -76,7 +77,7 @@ class Reservation(Base, TimestampMixin, TenantMixin):
     status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default="draft",
+        default=ReservationStatus.DRAFT,
         comment="Statut de la réservation"
     )
 

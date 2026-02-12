@@ -4,6 +4,7 @@ from typing import Optional
 from sqlalchemy import BigInteger, CheckConstraint, Date, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, TenantMixin
+from app.constants import ReservationStatus
 
 
 class Invoice(Base, TimestampMixin, TenantMixin):
@@ -73,7 +74,7 @@ class Invoice(Base, TimestampMixin, TenantMixin):
     status: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default="draft",
+        default=ReservationStatus.DRAFT,
         comment="Statut de la facture"
     )
 

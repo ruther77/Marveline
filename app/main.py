@@ -36,9 +36,11 @@ def create_application() -> FastAPI:
     )
 
     # Trusted Host Middleware (protection contre Host Header Injection)
+    # Note: "testserver" est ajouté pour compatibilité avec TestClient
+    allowed_hosts = ["localhost", "127.0.0.1", "*.carocorp.local", "testserver"]
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1", "*.carocorp.local"],
+        allowed_hosts=allowed_hosts,
     )
 
     # CSRF Protection Middleware

@@ -3,6 +3,7 @@ from typing import Optional
 from sqlalchemy import CheckConstraint, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, TenantMixin, SoftDeleteMixin
+from app.constants import CustomerType
 
 
 class Customer(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
@@ -109,8 +110,8 @@ class Customer(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
         ),
         # Cohérence données individual vs company
         CheckConstraint(
-            "(customer_type = 'individual' AND first_name IS NOT NULL AND last_name IS NOT NULL) "
-            "OR (customer_type = 'company' AND company_name IS NOT NULL)",
+            "(customer_type='individual' AND first_name IS NOT NULL AND last_name IS NOT NULL) "
+            "OR (customer_type='company' AND company_name IS NOT NULL)",
             name="check_customer_data_coherence"
         ),
         # Email unique par tenant

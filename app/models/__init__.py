@@ -1,5 +1,6 @@
 """Modèles SQLAlchemy CaroCorp - Import centralisé pour Alembic autogenerate."""
 from app.models.base import Base, TimestampMixin, TenantMixin, SoftDeleteMixin
+from app.models.user import User
 from app.models.customer import Customer
 from app.models.product import Product
 from app.models.reservation import Reservation, ReservationLine
@@ -11,6 +12,8 @@ __all__ = [
     "TimestampMixin",
     "TenantMixin",
     "SoftDeleteMixin",
+    # Auth models
+    "User",
     # Business models
     "Customer",
     "Product",

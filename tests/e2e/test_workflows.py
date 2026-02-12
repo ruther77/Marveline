@@ -10,6 +10,7 @@ import pytest
 from datetime import date, timedelta
 from sqlalchemy.exc import IntegrityError
 from app.models import Customer, Product, Reservation, ReservationLine, Invoice
+from app.constants import CustomerType, InvoiceStatus, PaymentMethod, ProductCategory, ProductCondition, ReservationStatus
 
 
 class TestCancelReservationWorkflow:
@@ -20,7 +21,7 @@ class TestCancelReservationWorkflow:
         # 1. Créer customer
         customer = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Jean",
             last_name="Martin",
             email="jean.martin@test.com"
@@ -33,12 +34,12 @@ class TestCancelReservationWorkflow:
             tenant_id=1,
             name="Assiette blanche",
             sku="ASS-001",
-            category="assiette",
+            category=ProductCategory.ASSIETTE,
             price_per_day=200,
             deposit_amount=500,
             stock_quantity=100,
             available_quantity=100,
-            condition="bon"
+            condition=ProductCondition.BON
         )
         test_db.add(product)
         test_db.flush()
@@ -52,7 +53,7 @@ class TestCancelReservationWorkflow:
             event_date=today + timedelta(days=10),
             delivery_date=today + timedelta(days=9),
             return_date=today + timedelta(days=11),
-            status="confirmed",
+            status=ReservationStatus.CONFIRMED,
             total_amount=4000,  # 20 assiettes × 200
             deposit_amount=10000
         )
@@ -79,7 +80,7 @@ class TestCancelReservationWorkflow:
             due_date=today + timedelta(days=15),
             total_amount=4000,
             paid_amount=0,
-            status="sent"
+            status=InvoiceStatus.SENT
         )
         test_db.add(invoice)
         test_db.commit()
@@ -90,8 +91,8 @@ class TestCancelReservationWorkflow:
         assert product.available_quantity == 100
 
         # 6. ANNULER la réservation
-        reservation.status = "cancelled"
-        invoice.status = "cancelled"
+        reservation.status=ReservationStatus.CANCELLED
+        invoice.status=ReservationStatus.CANCELLED
         test_db.commit()
 
         # Vérifier état après annulation
@@ -108,7 +109,7 @@ class TestPartialPaymentWorkflow:
         # 1. Créer customer
         customer = Customer(
             tenant_id=1,
-            customer_type="company",
+            customer_type=CustomerType.COMPANY,
             company_name="EventCorp",
             email="contact@eventcorp.com"
         )
@@ -124,7 +125,7 @@ class TestPartialPaymentWorkflow:
             event_date=today + timedelta(days=7),
             delivery_date=today + timedelta(days=6),
             return_date=today + timedelta(days=8),
-            status="confirmed",
+            status=ReservationStatus.CONFIRMED,
             total_amount=100000,  # 1000€
             deposit_amount=0
         )
@@ -140,7 +141,7 @@ class TestPartialPaymentWorkflow:
             due_date=today + timedelta(days=30),
             total_amount=100000,
             paid_amount=0,
-            status="sent"
+            status=InvoiceStatus.SENT
         )
         test_db.add(invoice)
         test_db.commit()
@@ -151,7 +152,7 @@ class TestPartialPaymentWorkflow:
 
         # 4. Premier paiement partiel : 30%
         invoice.paid_amount = 30000
-        invoice.payment_method = "transfer"
+        invoice.payment_method=PaymentMethod.TRANSFER
         test_db.commit()
 
         assert invoice.is_paid is False
@@ -167,7 +168,7 @@ class TestPartialPaymentWorkflow:
 
         # 6. Paiement final : solde complet
         invoice.paid_amount = 100000
-        invoice.status = "paid"
+        invoice.status=InvoiceStatus.PAID
         invoice.payment_date = today
         test_db.commit()
 
@@ -187,12 +188,12 @@ class TestProductSoftDelete:
             tenant_id=1,
             name="Verre à champagne",
             sku="VERR-CHAMP-001",
-            category="verre",
+            category=ProductCategory.VERRE,
             price_per_day=150,
             deposit_amount=400,
             stock_quantity=50,
             available_quantity=50,
-            condition="bon",
+            condition=ProductCondition.BON,
             is_active=True
         )
         test_db.add(product)
@@ -223,7 +224,7 @@ class TestProductSoftDelete:
         # Créer customer
         customer = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Marie",
             last_name="Dubois",
             email="marie.dubois@test.com"
@@ -240,7 +241,7 @@ class TestProductSoftDelete:
             event_date=today + timedelta(days=5),
             delivery_date=today + timedelta(days=4),
             return_date=today + timedelta(days=6),
-            status="confirmed",
+            status=ReservationStatus.CONFIRMED,
             total_amount=750
         )
         test_db.add(reservation)
@@ -278,14 +279,14 @@ class TestMultiTenantIsolation:
         # 1. Créer 2 customers dans 2 tenants différents
         customer_tenant1 = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Alice",
             last_name="Tenant1",
             email="alice@tenant1.com"
         )
         customer_tenant2 = Customer(
             tenant_id=2,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Bob",
             last_name="Tenant2",
             email="bob@tenant2.com"
@@ -298,7 +299,7 @@ class TestMultiTenantIsolation:
             tenant_id=1,
             name="Assiette Tenant 1",
             sku="ASS-T1-001",
-            category="assiette",
+            category=ProductCategory.ASSIETTE,
             price_per_day=100,
             stock_quantity=10,
             available_quantity=10
@@ -307,7 +308,7 @@ class TestMultiTenantIsolation:
             tenant_id=2,
             name="Assiette Tenant 2",
             sku="ASS-T2-001",  # Même SKU dans tenant différent = OK
-            category="assiette",
+            category=ProductCategory.ASSIETTE,
             price_per_day=200,
             stock_quantity=20,
             available_quantity=20
@@ -324,7 +325,7 @@ class TestMultiTenantIsolation:
             event_date=today + timedelta(days=5),
             delivery_date=today + timedelta(days=4),
             return_date=today + timedelta(days=6),
-            status="confirmed",
+            status=ReservationStatus.CONFIRMED,
             total_amount=500
         )
         reservation_tenant2 = Reservation(
@@ -334,7 +335,7 @@ class TestMultiTenantIsolation:
             event_date=today + timedelta(days=5),
             delivery_date=today + timedelta(days=4),
             return_date=today + timedelta(days=6),
-            status="confirmed",
+            status=ReservationStatus.CONFIRMED,
             total_amount=1000
         )
         test_db.add_all([reservation_tenant1, reservation_tenant2])
@@ -375,7 +376,7 @@ class TestMultiTenantIsolation:
         # 7. Vérifier qu'on ne peut pas dupliquer email dans même tenant
         duplicate_customer = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Alice2",
             last_name="Duplicate",
             email="alice@tenant1.com"  # Email déjà utilisé dans tenant 1
@@ -390,7 +391,7 @@ class TestMultiTenantIsolation:
         # Mais même email dans tenant différent = OK
         customer_tenant3 = Customer(
             tenant_id=3,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Alice3",
             last_name="Tenant3",
             email="alice@tenant1.com"  # Même email mais tenant 3 = OK

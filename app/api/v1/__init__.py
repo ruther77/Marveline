@@ -1,17 +1,16 @@
 """Routeur principal API v1."""
 from fastapi import APIRouter
+from app.api.v1.endpoints import auth, products, customers, reservations, invoices
 
 # Routeur principal v1
 api_router = APIRouter()
 
-# Import des endpoints (à décommenter au fur et à mesure)
-# from app.api.v1.endpoints import auth, reservations, products, invoices
-
 # Inclusion des sous-routeurs
-# api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
-# api_router.include_router(reservations.router, prefix="/reservations", tags=["reservations"])
-# api_router.include_router(products.router, prefix="/products", tags=["products"])
-# api_router.include_router(invoices.router, prefix="/invoices", tags=["invoices"])
+api_router.include_router(auth.router)  # Prefix déjà défini dans auth.router
+api_router.include_router(products.router)
+api_router.include_router(customers.router)
+api_router.include_router(reservations.router)
+api_router.include_router(invoices.router)
 
 
 @api_router.get("/")

@@ -3,6 +3,7 @@ from typing import Optional
 from sqlalchemy import BigInteger, CheckConstraint, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, TenantMixin, SoftDeleteMixin
+from app.constants import ProductCondition
 
 
 class Product(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
@@ -78,7 +79,7 @@ class Product(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     condition: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default="bon",
+        default=ProductCondition.BON,
         comment="État du produit (neuf, bon, use, hors_service)"
     )
 

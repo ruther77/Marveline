@@ -3,6 +3,7 @@ import pytest
 from datetime import date, timedelta
 from sqlalchemy.exc import IntegrityError
 from app.models import Customer, Product, Reservation, ReservationLine, Invoice
+from app.constants import CustomerType, ProductCategory, ProductCondition, ReservationStatus
 
 
 class TestCustomerModel:
@@ -12,7 +13,7 @@ class TestCustomerModel:
         """Test création client particulier."""
         customer = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Marie",
             last_name="Dupont",
             email="marie.dupont@example.com",
@@ -29,7 +30,7 @@ class TestCustomerModel:
         """Test création client entreprise."""
         customer = Customer(
             tenant_id=1,
-            customer_type="company",
+            customer_type=CustomerType.COMPANY,
             company_name="EventCo SAS",
             email="contact@eventco.fr",
             phone="0143000000"
@@ -44,7 +45,7 @@ class TestCustomerModel:
         """Test contrainte CHECK customer_type valide."""
         customer = Customer(
             tenant_id=1,
-            customer_type="autre",  # Invalide
+            customer_type=ProductCategory.AUTRE,  # Invalide
             company_name="Test Company",  # Fournir company_name pour éviter check_data_coherence
             email="test@example.com"
         )
@@ -58,7 +59,7 @@ class TestCustomerModel:
         """Test contrainte CHECK cohérence données individual."""
         customer = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             # Manque first_name et last_name
             email="test@example.com"
         )
@@ -71,7 +72,7 @@ class TestCustomerModel:
         """Test contrainte CHECK cohérence données company."""
         customer = Customer(
             tenant_id=1,
-            customer_type="company",
+            customer_type=CustomerType.COMPANY,
             # Manque company_name
             email="test@example.com"
         )
@@ -84,7 +85,7 @@ class TestCustomerModel:
         """Test contrainte UNIQUE email par tenant."""
         customer1 = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Alice",
             last_name="Martin",
             email="alice@example.com"
@@ -95,7 +96,7 @@ class TestCustomerModel:
         # Même email, même tenant → erreur
         customer2 = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Bob",
             last_name="Durand",
             email="alice@example.com"
@@ -109,7 +110,7 @@ class TestCustomerModel:
         """Test suppression logique."""
         customer = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Test",
             last_name="Delete",
             email="delete@example.com"
@@ -134,7 +135,7 @@ class TestCustomerModel:
         # Créer customer
         customer = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Jean",
             last_name="Martin",
             email="jean.martin@example.com"
@@ -150,7 +151,7 @@ class TestCustomerModel:
             event_date=date.today() + timedelta(days=7),
             delivery_date=date.today() + timedelta(days=6),
             return_date=date.today() + timedelta(days=8),
-            status="confirmed"
+            status=ReservationStatus.CONFIRMED
         )
         test_db.add(reservation)
         test_db.commit()
@@ -171,12 +172,12 @@ class TestProductModel:
             tenant_id=1,
             name="Assiette plate blanche 28cm",
             sku="ASS-PLATE-28-WHI",
-            category="assiette",
+            category=ProductCategory.ASSIETTE,
             price_per_day=250,  # 2.50€
             deposit_amount=500,  # 5€
             stock_quantity=100,
             available_quantity=100,
-            condition="neuf"
+            condition=ProductCondition.NEUF
         )
         test_db.add(product)
         test_db.commit()
@@ -207,7 +208,7 @@ class TestProductModel:
             tenant_id=1,
             name="Test Product",
             sku="TEST-002",
-            category="verre",
+            category=ProductCategory.VERRE,
             price_per_day=100,
             stock_quantity=50,
             available_quantity=60  # > stock_quantity → erreur
@@ -223,7 +224,7 @@ class TestProductModel:
             tenant_id=1,
             name="Test",
             sku="TEST-003",
-            category="couvert",
+            category=ProductCategory.COUVERT,
             price_per_day=-100,  # Négatif → erreur
             stock_quantity=10,
             available_quantity=10
@@ -239,7 +240,7 @@ class TestProductModel:
             tenant_id=1,
             name="Produit 1",
             sku="UNIQUE-SKU",
-            category="nappe",
+            category=ProductCategory.NAPPE,
             price_per_day=100,
             stock_quantity=10,
             available_quantity=10
@@ -252,7 +253,7 @@ class TestProductModel:
             tenant_id=1,
             name="Produit 2",
             sku="UNIQUE-SKU",
-            category="deco",
+            category=ProductCategory.DECO,
             price_per_day=200,
             stock_quantity=5,
             available_quantity=5
@@ -271,7 +272,7 @@ class TestReservationModel:
         # Créer customer
         customer = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Jean",
             last_name="Pierre",
             email="jean.pierre@example.com"
@@ -303,7 +304,7 @@ class TestReservationModel:
         """Test contrainte CHECK delivery_date <= event_date."""
         customer = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Test",
             last_name="User",
             email="test@example.com"
@@ -329,7 +330,7 @@ class TestReservationModel:
         """Test contrainte CHECK return_date >= event_date."""
         customer = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Test",
             last_name="User",
             email="test2@example.com"
@@ -360,7 +361,7 @@ class TestReservationLineModel:
         # Setup customer, product, reservation
         customer = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Line",
             last_name="Test",
             email="line.test@example.com"
@@ -372,7 +373,7 @@ class TestReservationLineModel:
             tenant_id=1,
             name="Verre à vin",
             sku="VERRE-VIN-001",
-            category="verre",
+            category=ProductCategory.VERRE,
             price_per_day=150,
             stock_quantity=200,
             available_quantity=200
@@ -412,7 +413,7 @@ class TestReservationLineModel:
         """Test contrainte CHECK quantity > 0."""
         customer = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Qty",
             last_name="Test",
             email="qty.test@example.com"
@@ -424,7 +425,7 @@ class TestReservationLineModel:
             tenant_id=1,
             name="Test Product",
             sku="QTY-001",
-            category="autre",
+            category=ProductCategory.AUTRE,
             price_per_day=100,
             stock_quantity=10,
             available_quantity=10
@@ -465,7 +466,7 @@ class TestInvoiceModel:
         """Test création facture."""
         customer = Customer(
             tenant_id=1,
-            customer_type="company",
+            customer_type=CustomerType.COMPANY,
             company_name="Test Company",
             email="invoice.test@example.com"
         )
@@ -504,7 +505,7 @@ class TestInvoiceModel:
         """Test property is_paid."""
         customer = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Paid",
             last_name="Test",
             email="paid.test@example.com"
@@ -543,7 +544,7 @@ class TestInvoiceModel:
         """Test contrainte CHECK paid_amount <= total_amount."""
         customer = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Over",
             last_name="Paid",
             email="over.paid@example.com"
@@ -581,7 +582,7 @@ class TestInvoiceModel:
         """Test contrainte CHECK due_date >= issue_date."""
         customer = Customer(
             tenant_id=1,
-            customer_type="individual",
+            customer_type=CustomerType.INDIVIDUAL,
             first_name="Date",
             last_name="Test",
             email="date.test@example.com"
