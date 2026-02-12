@@ -164,8 +164,8 @@ class TestAuditLogModel:
         assert audit_log.changes["status"]["before"] == "draft"
         assert audit_log.changes["metadata"]["after"]["vip"] is True
 
-    def test_audit_log_inet_ipv4_ipv6(self, test_db):
-        """INET column accepte IPv4 et IPv6."""
+    def test_audit_log_ip_address_ipv4_ipv6_string(self, test_db):
+        """String(45) column accepte IPv4, IPv6 et valeurs test."""
         # IPv4
         log_ipv4 = AuditLog(
             tenant_id=1,
@@ -174,7 +174,7 @@ class TestAuditLogModel:
         )
         test_db.add(log_ipv4)
 
-        # IPv6
+        # IPv6 (stockée telle quelle, pas de normalisation PostgreSQL)
         log_ipv6 = AuditLog(
             tenant_id=1,
             action="LOGIN_SUCCESS",
@@ -182,13 +182,23 @@ class TestAuditLogModel:
         )
         test_db.add(log_ipv6)
 
+        # Valeur test (testclient)
+        log_test = AuditLog(
+            tenant_id=1,
+            action="LOGIN_SUCCESS",
+            ip_address="testclient"
+        )
+        test_db.add(log_test)
+
         test_db.commit()
         test_db.refresh(log_ipv4)
         test_db.refresh(log_ipv6)
+        test_db.refresh(log_test)
 
         assert log_ipv4.ip_address == "192.168.1.100"
-        # PostgreSQL normalise IPv6 en format court (RFC 5952)
-        assert log_ipv6.ip_address == "2001:db8:85a3::8a2e:370:7334"
+        # String(45) : pas de normalisation, stocké tel quel
+        assert log_ipv6.ip_address == "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
+        assert log_test.ip_address == "testclient"
 
     def test_audit_log_created_at_auto_timestamp(self, test_db):
         """created_at généré automatiquement par PostgreSQL (server_default)."""

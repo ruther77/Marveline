@@ -1,7 +1,7 @@
 """Modèle AuditLog pour conformité RGPD et traçabilité complète."""
 from datetime import datetime
 from sqlalchemy import BigInteger, String, Text, Index, text
-from sqlalchemy.dialects.postgresql import JSONB, INET
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
 
@@ -27,7 +27,7 @@ class AuditLog(Base):
         entity_id: ID de l'entité impactée (NULL pour actions globales)
         changes: JSONB avant/après pour UPDATE, données complètes pour CREATE/DELETE
         description: Description humaine de l'action
-        ip_address: IP du client (IPv4/IPv6 via INET)
+        ip_address: IP du client (IPv4/IPv6 ou valeur test, String(45))
         user_agent: User-Agent du navigateur/client
         request_id: UUID de requête pour corrélation logs applicatifs
         created_at: Timestamp immuable (server_default=now())
@@ -152,9 +152,9 @@ class AuditLog(Base):
 
     # ===== Contexte requête HTTP =====
     ip_address: Mapped[str | None] = mapped_column(
-        INET,
+        String(45),
         nullable=True,
-        comment="Adresse IP du client (IPv4/IPv6 via type INET PostgreSQL)"
+        comment="Adresse IP du client (IPv4/IPv6) ou valeur test (max 45 chars)"
     )
 
     user_agent: Mapped[str | None] = mapped_column(
