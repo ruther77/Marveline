@@ -1,7 +1,7 @@
 """Repository pour l'entité Reservation."""
 from datetime import date
 from typing import Optional
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import Session, joinedload
 from app.models.reservation import Reservation, ReservationLine
 from app.repositories.base import BaseRepository
@@ -105,17 +105,17 @@ class ReservationRepository(BaseRepository[Reservation]):
         tenant_id: int,
         skip: int = 0,
         limit: int = 100
-    ) -> list[Reservation]:
+    ) -> tuple[list[Reservation], int]:
         """Liste les réservations filtrées par statut.
 
         Args:
-            status: Statut ('draft', 'confirmed', 'in_progress', 'completed', 'cancelled')
+            status: Statut ('draft', 'confirmed', 'delivered', 'returned', 'cancelled')
             tenant_id: ID du tenant (OBLIGATOIRE)
             skip: Offset pour pagination
             limit: Limite pour pagination
 
         Returns:
-            Liste des réservations du statut spécifié
+            Tuple (items, total) des réservations du statut spécifié
         """
         return self.list(
             tenant_id=tenant_id,
@@ -132,7 +132,7 @@ class ReservationRepository(BaseRepository[Reservation]):
         skip: int = 0,
         limit: int = 100,
         status: Optional[str] = None
-    ) -> list[Reservation]:
+    ) -> tuple[list[Reservation], int]:
         """Liste les réservations dans une plage de dates (event_date).
 
         Args:
@@ -144,11 +144,27 @@ class ReservationRepository(BaseRepository[Reservation]):
             status: Filtrer par statut (optionnel)
 
         Returns:
-            Liste des réservations dans la plage de dates
+            Tuple (items, total) des réservations dans la plage de dates
 
         Security:
             - Filtre tenant_id automatique
         """
+        # Compter le total d'abord
+        count_query = select(func.count()).select_from(Reservation).filter(
+            and_(
+                Reservation.event_date >= start_date,
+                Reservation.event_date <= end_date
+            )
+        )
+        count_query = self._apply_tenant_filter(count_query, tenant_id)
+        count_query = self._apply_active_filter(count_query)
+
+        if status:
+            count_query = count_query.filter(Reservation.status == status)
+
+        total = self.db.execute(count_query).scalar() or 0
+
+        # Requête paginée
         query = select(Reservation).filter(
             and_(
                 Reservation.event_date >= start_date,
@@ -165,7 +181,7 @@ class ReservationRepository(BaseRepository[Reservation]):
         query = query.offset(skip).limit(min(limit, 1000))
 
         result = self.db.execute(query).scalars().all()
-        return list(result)
+        return (list(result), total)
 
     def list_by_customer(
         self,
@@ -232,7 +248,7 @@ class ReservationRepository(BaseRepository[Reservation]):
             and_(
                 Reservation.event_date >= today,
                 Reservation.event_date <= future_date,
-                Reservation.status.in_(["draft", "confirmed", "in_progress"])
+                Reservation.status.in_(["draft", "confirmed", "delivered"])
             )
         )
         query = self._apply_tenant_filter(query, tenant_id)

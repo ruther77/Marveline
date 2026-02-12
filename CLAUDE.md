@@ -617,3 +617,83 @@ Détection → Containment → Correction → Root cause analysis → Post-morte
 - Aucun déploiement sans CI verte.
 - Aucune migration destructive directe.
 - **Aucune mention du nom de l'IA dans les fichiers, commits ou documentation.**
+
+---
+
+# PARTIE O — Discipline Opérationnelle (Ajouté 2026-02-12)
+
+Issue de l'audit rétrospectif des 5 premiers jours de développement (CaroCorp + CaroCorp_new).
+Chaque règle adresse un anti-pattern observé et documenté.
+
+## O.1 Ordre de priorité des tâches
+
+```
+1. Corriger les bugs connus (P0/P1)
+2. Nettoyer les fichiers orphelins/backup
+3. Écrire les tests manquants pour le code existant
+4. Organiser la documentation existante
+5. Seulement ensuite : nouvelles features
+```
+
+## O.2 Définition de "Terminé" (Definition of Done)
+
+Une feature est terminée si et seulement si TOUS ces critères sont remplis :
+
+| # | Critère | Preuve exigée |
+|---|---------|---------------|
+| 1 | Code produit écrit | Fichiers dans `app/` |
+| 2 | Tests unitaires écrits ET persistés | `tests/test_<feature>.py` existe |
+| 3 | Tests passent | Sortie `pytest` avec 0 failures |
+| 4 | Endpoint vérifié | Pas de 500 sur les routes touchées |
+| 5 | `__init__.py` à jour | Exports vérifiés |
+| 6 | Migration appliquée (si applicable) | `alembic upgrade head` sans erreur |
+| 7 | Constantes utilisées | Pas de strings hardcodées (cf. Partie A.6) |
+| 8 | Fichiers backup nettoyés | Pas de `.bak`, `.backup`, `.new` dans le repo |
+| 9 | MEMORY.md mis à jour | Avec chemins de fichiers réels et date de vérification |
+
+## O.3 Cadence de livraison
+
+- Maximum 2 features par session de travail
+- Chaque feature est complétée (tous critères O.2) avant de passer à la suivante
+- Si une feature dépasse 10 fichiers modifiés : la découper en incréments
+
+## O.4 Vérifiabilité de la mémoire
+
+Toute information écrite dans MEMORY.md doit être :
+- **Datée** : `(vérifié YYYY-MM-DD)`
+- **Sourcée** : chemin du fichier ou commande de vérification
+- **Scopée** : strictement limitée à CaroCorp_new (pas de cross-projet)
+
+Format obligatoire pour les résultats de tests :
+```
+Tests: N/N pass — fichier: tests/test_X.py (vérifié YYYY-MM-DD)
+```
+
+## O.5 Hygiène du repo
+
+- Pas de fichiers `.bak`, `.backup`, `.bak2` dans le repo
+- `htmlcov/` dans `.gitignore` (artefact de build)
+- Documentation dans `docs/` (pas à la racine)
+- Pas de `__pycache__` commités
+
+## O.6 Anti-patterns interdits
+
+| Anti-pattern | Description | Remédiation |
+|-------------|-------------|-------------|
+| Documentation-fleuve | 16 fichiers .md (5168 lignes) à la racine | Organiser dans docs/ par thème |
+| Backup oubliés | 9 fichiers .bak/.backup laissés dans le repo | Nettoyer après chaque refactoring |
+| Plan verbal | Plan en chat → oublié par compression | TaskCreate ou fichier persistant |
+| Vélocité > Qualité | Features livrées sans vérification complète | DoD complet avant passage |
+| Doctrine ≠ Pratique | Règles écrites non appliquées | Appliquer ou supprimer |
+
+## O.7 Backlog technique actuel (2026-02-12)
+
+**P1 — Nettoyage :**
+- [ ] Supprimer 9 fichiers .bak/.backup orphelins
+- [ ] Déplacer 16 fichiers .md racine → `docs/` organisé
+- [ ] Ajouter `htmlcov/` au .gitignore
+- [ ] Vérifier que les 318 tests passent réellement (run pytest)
+
+**P2 — Améliorations :**
+- [ ] Couverture cible 90% (actuellement reporté 88.88%, non vérifié live)
+- [ ] Supprimer `app/constants.py.backup`

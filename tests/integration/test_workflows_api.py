@@ -14,7 +14,6 @@ def workflow_customer(test_db):
         tenant_id=1,
         customer_type=CustomerType.COMPANY,
         company_name="Mariage & Co",
-        siret="12345678901234",
         email="contact@mariageco.fr",
         phone="+33123456789",
         address="10 rue du Bonheur",

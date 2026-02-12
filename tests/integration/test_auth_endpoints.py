@@ -136,7 +136,7 @@ def test_jwt_token_contains_correct_claims(client: TestClient, test_user):
     payload = decode_token(access_token)
 
     assert payload is not None
-    assert payload["sub"] == test_user.id
+    assert payload["sub"] == str(test_user.id)  # sub est une string selon RFC 7519
     assert payload["tenant_id"] == test_user.tenant_id
     assert payload["email"] == test_user.email
     assert payload["role"] == test_user.role

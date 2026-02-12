@@ -61,39 +61,48 @@ def staff_user(test_db):
 
 
 @pytest.fixture
-def admin_headers(admin_user):
-    """Headers avec token admin."""
+def admin_headers(admin_user, csrf_token):
+    """Headers avec token admin + CSRF."""
     token = create_access_token({
         "sub": admin_user.id,
         "tenant_id": admin_user.tenant_id,
         "email": admin_user.email,
         "role": admin_user.role
     })
-    return {"Authorization": f"Bearer {token}"}
+    return {
+        "Authorization": f"Bearer {token}",
+        "X-CSRF-Token": csrf_token
+    }
 
 
 @pytest.fixture
-def manager_headers(manager_user):
-    """Headers avec token manager."""
+def manager_headers(manager_user, csrf_token):
+    """Headers avec token manager + CSRF."""
     token = create_access_token({
         "sub": manager_user.id,
         "tenant_id": manager_user.tenant_id,
         "email": manager_user.email,
         "role": manager_user.role
     })
-    return {"Authorization": f"Bearer {token}"}
+    return {
+        "Authorization": f"Bearer {token}",
+        "X-CSRF-Token": csrf_token
+    }
 
 
 @pytest.fixture
-def staff_headers(staff_user):
-    """Headers avec token staff."""
+def staff_headers(staff_user, csrf_token):
+    """Headers avec token staff + CSRF."""
     token = create_access_token({
         "sub": staff_user.id,
         "tenant_id": staff_user.tenant_id,
         "email": staff_user.email,
         "role": staff_user.role
     })
-    return {"Authorization": f"Bearer {token}"}
+    return {
+        "Authorization": f"Bearer {token}",
+        "X-CSRF-Token": csrf_token
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -105,12 +114,12 @@ def test_admin_can_create_product(client: TestClient, admin_headers):
     product_data = {
         "name": "Admin Product",
         "sku": "ADMIN-SKU-001",
-        "category": "test",
+        "category": "autre",
         "price_per_day_cents": 1000,
         "deposit_amount_cents": 2000,
         "stock_quantity": 10,
         "available_quantity": 10,
-        "condition": "good"
+        "condition": "bon"
     }
 
     response = client.post("/api/v1/products", json=product_data, headers=admin_headers)
@@ -123,12 +132,12 @@ def test_manager_cannot_create_product(client: TestClient, manager_headers):
     product_data = {
         "name": "Manager Product",
         "sku": "MANAGER-SKU-001",
-        "category": "test",
+        "category": "autre",
         "price_per_day_cents": 1000,
         "deposit_amount_cents": 2000,
         "stock_quantity": 10,
         "available_quantity": 10,
-        "condition": "good"
+        "condition": "bon"
     }
 
     response = client.post("/api/v1/products", json=product_data, headers=manager_headers)
@@ -142,12 +151,12 @@ def test_staff_cannot_create_product(client: TestClient, staff_headers):
     product_data = {
         "name": "Staff Product",
         "sku": "STAFF-SKU-001",
-        "category": "test",
+        "category": "autre",
         "price_per_day_cents": 1000,
         "deposit_amount_cents": 2000,
         "stock_quantity": 10,
         "available_quantity": 10,
-        "condition": "good"
+        "condition": "bon"
     }
 
     response = client.post("/api/v1/products", json=product_data, headers=staff_headers)

@@ -2,6 +2,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.models.user import User
@@ -78,16 +79,13 @@ def list_products(
     if not is_active:
         filters["include_inactive"] = True
 
-    # Récupérer produits
-    products = repo.list(
+    # Récupérer produits avec total
+    products, total = repo.list(
         tenant_id=current_user.tenant_id,
         skip=pagination.skip,
         limit=pagination.limit,
         filters=filters
     )
-
-    # Compter total
-    total = repo.count(tenant_id=current_user.tenant_id, filters=filters)
 
     return PaginatedResponse(
         items=[ProductList.model_validate(p) for p in products],
@@ -211,10 +209,19 @@ def create_product(
         return ProductResponse.model_validate(product)
 
     except HTTPException:
-        db.rollback()
         raise
+    except IntegrityError as e:
+        # Race condition : SKU déjà créé par thread concurrent
+        if "unique constraint" in str(e).lower() or "sku" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Product with SKU '{product_data.sku}' already exists"
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database integrity error: {str(e)}"
+        )
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while creating product: {str(e)}"
@@ -273,10 +280,8 @@ def update_product(
         return ProductResponse.model_validate(product)
 
     except HTTPException:
-        db.rollback()
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while updating product: {str(e)}"
@@ -325,10 +330,8 @@ def delete_product(
         db.commit()
 
     except HTTPException:
-        db.rollback()
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while deleting product: {str(e)}"

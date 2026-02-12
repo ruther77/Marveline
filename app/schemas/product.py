@@ -167,7 +167,7 @@ class ProductList(EntityResponseSchema):
     name: str
     sku: str
     category: str
-    price_per_day_cents: int = Field(alias="price_per_day")
+    price_per_day_cents: int = Field(validation_alias="price_per_day")
     stock_quantity: int
     available_quantity: int
     condition: str
@@ -191,8 +191,8 @@ class ProductResponse(EntityResponseSchema):
     name: str
     sku: str
     category: str
-    price_per_day_cents: int = Field(alias="price_per_day")
-    deposit_amount_cents: int = Field(alias="deposit_amount")
+    price_per_day_cents: int = Field(validation_alias="price_per_day")
+    deposit_amount_cents: int = Field(validation_alias="deposit_amount")
     stock_quantity: int
     available_quantity: int
     condition: str

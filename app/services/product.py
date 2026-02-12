@@ -1,6 +1,7 @@
 """Service métier pour les produits."""
 from typing import Optional
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status
 from app.models.product import Product
 from app.repositories.product import ProductRepository
@@ -88,7 +89,16 @@ class ProductService:
                 detail="available_quantity cannot exceed stock_quantity"
             )
 
-        return self.repo.create(product)
+        try:
+            return self.repo.create(product)
+        except IntegrityError as e:
+            # Race condition : SKU déjà créé par thread concurrent
+            if "unique constraint" in str(e).lower() or "sku" in str(e).lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Product with SKU '{product.sku}' already exists"
+                )
+            raise
 
     def update_product(
         self,

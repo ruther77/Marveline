@@ -75,24 +75,22 @@ def list_reservations(
 
     # Filtre par statut si fourni
     if status_filter:
-        reservations = repo.list_by_status(
+        reservations, total = repo.list_by_status(
             status=status_filter,
             tenant_id=current_user.tenant_id,
             skip=pagination.skip,
             limit=pagination.limit
         )
-        total = repo.count(tenant_id=current_user.tenant_id, filters={"status": status_filter})
 
     # Filtre par plage de dates si fourni
     elif start_date or end_date:
-        reservations = repo.list_by_date_range(
+        reservations, total = repo.list_by_date_range(
             start_date=start_date,
             end_date=end_date,
             tenant_id=current_user.tenant_id,
             skip=pagination.skip,
             limit=pagination.limit
         )
-        total = len(reservations) + pagination.skip  # Approximation
 
     # Liste standard
     else:
@@ -100,13 +98,12 @@ def list_reservations(
         if customer_id:
             filters["customer_id"] = customer_id
 
-        reservations = repo.list(
+        reservations, total = repo.list(
             tenant_id=current_user.tenant_id,
             skip=pagination.skip,
             limit=pagination.limit,
             filters=filters
         )
-        total = repo.count(tenant_id=current_user.tenant_id, filters=filters)
 
     return PaginatedResponse(
         items=[ReservationList.model_validate(r) for r in reservations],
@@ -254,10 +251,8 @@ def create_reservation(
         return ReservationResponse.model_validate(reservation)
 
     except HTTPException:
-        db.rollback()
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while creating reservation: {str(e)}"
@@ -318,10 +313,8 @@ def update_reservation(
         return ReservationResponse.model_validate(reservation)
 
     except HTTPException:
-        db.rollback()
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while updating reservation: {str(e)}"
@@ -387,10 +380,8 @@ def confirm_reservation(
         return ReservationResponse.model_validate(reservation)
 
     except HTTPException:
-        db.rollback()
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while confirming reservation: {str(e)}"
@@ -415,7 +406,7 @@ def cancel_reservation(
 
     Raises:
         HTTPException 404: Si réservation non trouvée
-        HTTPException 400: Si status = 'completed' ou 'cancelled'
+        HTTPException 400: Si status = 'returned' ou 'cancelled'
 
     Example:
         POST /api/v1/reservations/1/cancel
@@ -429,8 +420,8 @@ def cancel_reservation(
         }
 
     Business Rules:
-        - Statut ne peut pas être 'completed' ou 'cancelled'
-        - Libère stock si status était 'confirmed' ou 'in_progress'
+        - Statut ne peut pas être 'returned' ou 'cancelled'
+        - Libère stock si status était 'confirmed' ou 'delivered'
         - Change status → 'cancelled'
         - Transaction atomique
 
@@ -455,10 +446,8 @@ def cancel_reservation(
         return ReservationResponse.model_validate(reservation)
 
     except HTTPException:
-        db.rollback()
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while cancelling reservation: {str(e)}"

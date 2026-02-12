@@ -40,16 +40,16 @@ def test_get_nonexistent_invoice_returns_404(client: TestClient, auth_headers_re
     assert response.status_code == 404
 
 
-def test_update_nonexistent_product_returns_404(client: TestClient, auth_headers_real):
+def test_update_nonexistent_product_returns_404(client: TestClient, auth_headers_admin):
     """Test PATCH produit inexistant → 404."""
-    response = client.patch("/api/v1/products/999999", json={"name": "Updated"}, headers=auth_headers_real)
+    response = client.patch("/api/v1/products/999999", json={"name": "Updated"}, headers=auth_headers_admin)
 
     assert response.status_code == 404
 
 
-def test_delete_nonexistent_product_returns_404(client: TestClient, auth_headers_real):
+def test_delete_nonexistent_product_returns_404(client: TestClient, auth_headers_admin):
     """Test DELETE produit inexistant → 404."""
-    response = client.delete("/api/v1/products/999999", headers=auth_headers_real)
+    response = client.delete("/api/v1/products/999999", headers=auth_headers_admin)
 
     assert response.status_code == 404
 
@@ -70,12 +70,12 @@ def test_create_product_without_auth_returns_401(client: TestClient):
     product_data = {
         "name": "Unauthorized Product",
         "sku": "UNAUTH-SKU",
-        "category": "test",
+        "category": "autre",
         "price_per_day_cents": 1000,
         "deposit_amount_cents": 2000,
         "stock_quantity": 10,
         "available_quantity": 10,
-        "condition": "good"
+        "condition": "bon"
     }
 
     response = client.post("/api/v1/products", json=product_data)
@@ -113,35 +113,35 @@ def test_expired_token_returns_401(client: TestClient):
 # Tests 422 Validation Errors
 # ═══════════════════════════════════════════════════════════════════════════
 
-def test_create_product_missing_required_field_returns_422(client: TestClient, auth_headers_real):
+def test_create_product_missing_required_field_returns_422(client: TestClient, auth_headers_admin):
     """Test créer produit sans champ requis → 422."""
     product_data = {
         "name": "Incomplete Product",
         # sku manquant (requis)
-        "category": "test",
+        "category": "autre",
         "price_per_day_cents": 1000,
         "deposit_amount_cents": 2000
     }
 
-    response = client.post("/api/v1/products", json=product_data, headers=auth_headers_real)
+    response = client.post("/api/v1/products", json=product_data, headers=auth_headers_admin)
 
     assert response.status_code == 422
 
 
-def test_create_product_negative_price_returns_422(client: TestClient, auth_headers_real):
+def test_create_product_negative_price_returns_422(client: TestClient, auth_headers_admin):
     """Test créer produit avec prix négatif → 422."""
     product_data = {
         "name": "Negative Price Product",
         "sku": "NEGATIVE-SKU",
-        "category": "test",
+        "category": "autre",
         "price_per_day_cents": -1000,  # Négatif
         "deposit_amount_cents": 2000,
         "stock_quantity": 10,
         "available_quantity": 10,
-        "condition": "good"
+        "condition": "bon"
     }
 
-    response = client.post("/api/v1/products", json=product_data, headers=auth_headers_real)
+    response = client.post("/api/v1/products", json=product_data, headers=auth_headers_admin)
 
     assert response.status_code == 422
 
@@ -210,7 +210,7 @@ def test_create_reservation_invalid_dates_returns_422(client: TestClient, test_d
 # Tests 400 Bad Request (Business Logic)
 # ═══════════════════════════════════════════════════════════════════════════
 
-def test_create_product_duplicate_sku_returns_400(client: TestClient, test_db, auth_headers_real):
+def test_create_product_duplicate_sku_returns_400(client: TestClient, test_db, auth_headers_admin):
     """Test créer produit avec SKU dupliqué → 400."""
     existing_product = Product(
         tenant_id=1,
@@ -230,15 +230,15 @@ def test_create_product_duplicate_sku_returns_400(client: TestClient, test_db, a
     product_data = {
         "name": "New Product",
         "sku": "DUPLICATE-SKU",  # Déjà existant
-        "category": "test",
+        "category": "autre",
         "price_per_day_cents": 1000,
         "deposit_amount_cents": 2000,
         "stock_quantity": 10,
         "available_quantity": 10,
-        "condition": "good"
+        "condition": "bon"
     }
 
-    response = client.post("/api/v1/products", json=product_data, headers=auth_headers_real)
+    response = client.post("/api/v1/products", json=product_data, headers=auth_headers_admin)
 
     assert response.status_code == 400
     assert "already exists" in response.json()["detail"].lower()

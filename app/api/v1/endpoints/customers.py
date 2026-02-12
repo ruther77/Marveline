@@ -68,16 +68,14 @@ def list_customers(
     """
     repo = CustomerRepository(db)
 
-    # Utiliser la méthode search_by_name si search_query fourni
+    # Utiliser la méthode search si search_query fourni
     if search_query:
-        customers = repo.search_by_name(
-            search_query=search_query,
+        customers, total = repo.search(
+            search_term=search_query,
             tenant_id=current_user.tenant_id,
             skip=pagination.skip,
             limit=pagination.limit
         )
-        # Count approximatif (pour performance, pas de count exact avec LIKE)
-        total = len(customers) + pagination.skip  # Approximation
     else:
         # Liste standard
         filters = {}
@@ -86,13 +84,12 @@ def list_customers(
         if not is_active:
             filters["include_inactive"] = True
 
-        customers = repo.list(
+        customers, total = repo.list(
             tenant_id=current_user.tenant_id,
             skip=pagination.skip,
             limit=pagination.limit,
             filters=filters
         )
-        total = repo.count(tenant_id=current_user.tenant_id, filters=filters)
 
     return PaginatedResponse(
         items=[CustomerList.model_validate(c) for c in customers],
@@ -226,9 +223,8 @@ def create_customer(
             address=customer_data.address,
             city=customer_data.city,
             postal_code=customer_data.postal_code,
+            country=customer_data.country,
             company_name=customer_data.company_name,
-            siret=customer_data.siret,
-            notes=customer_data.notes,
             is_active=True
         )
 
@@ -240,10 +236,8 @@ def create_customer(
         return CustomerResponse.model_validate(customer)
 
     except HTTPException:
-        db.rollback()
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while creating customer: {str(e)}"
@@ -322,10 +316,8 @@ def update_customer(
         return CustomerResponse.model_validate(customer)
 
     except HTTPException:
-        db.rollback()
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while updating customer: {str(e)}"
@@ -382,10 +374,8 @@ def delete_customer(
         db.commit()
 
     except HTTPException:
-        db.rollback()
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while deleting customer: {str(e)}"

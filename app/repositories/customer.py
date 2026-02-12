@@ -1,6 +1,6 @@
 """Repository pour l'entité Customer."""
 from typing import Optional
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from app.models.customer import Customer
 from app.repositories.base import BaseRepository
@@ -105,13 +105,13 @@ class CustomerRepository(BaseRepository[Customer]):
             filters={"customer_type": customer_type}
         )
 
-    def search_by_name(
+    def search(
         self,
         search_term: str,
         tenant_id: int,
         skip: int = 0,
         limit: int = 100
-    ) -> list[Customer]:
+    ) -> tuple[list[Customer], int]:
         """Recherche des clients par nom/prénom/raison sociale.
 
         Args:
@@ -121,13 +121,24 @@ class CustomerRepository(BaseRepository[Customer]):
             limit: Limite pour pagination
 
         Returns:
-            Liste des clients correspondants
+            Tuple (items, total) où items est la liste paginée et total le nombre total
 
         Security:
             - Filtre tenant_id automatique
         """
         search_pattern = f"%{search_term.lower()}%"
 
+        # Compter le total d'abord
+        count_query = select(func.count()).select_from(Customer).filter(
+            (Customer.first_name.ilike(search_pattern)) |
+            (Customer.last_name.ilike(search_pattern)) |
+            (Customer.company_name.ilike(search_pattern))
+        )
+        count_query = self._apply_tenant_filter(count_query, tenant_id)
+        count_query = self._apply_active_filter(count_query)
+        total = self.db.execute(count_query).scalar() or 0
+
+        # Requête paginée
         query = select(Customer).filter(
             (Customer.first_name.ilike(search_pattern)) |
             (Customer.last_name.ilike(search_pattern)) |
@@ -139,4 +150,4 @@ class CustomerRepository(BaseRepository[Customer]):
         query = query.offset(skip).limit(min(limit, 1000))
 
         result = self.db.execute(query).scalars().all()
-        return list(result)
+        return (list(result), total)

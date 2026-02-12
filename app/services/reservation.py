@@ -28,6 +28,9 @@ class ReservationService:
         - Rollback automatique si exception
     """
 
+    # Compteur de références générées (persiste dans le processus)
+    _generated_references: set[str] = set()
+
     def __init__(self, db: Session):
         """Initialise le service réservation.
 
@@ -65,19 +68,46 @@ class ReservationService:
 
         # Trouver le prochain numéro disponible
         # En production : utiliser Redis INCR pour atomicité distribuée
-        counter = 1
-        while True:
-            reference = f"RES-{year}-{counter:04d}"
-            if not self.repo.reference_exists(reference):
-                return reference
-            counter += 1
 
-            # Sécurité : éviter boucle infinie
-            if counter > 9999:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Cannot generate unique reference (counter overflow)"
-                )
+        # Trouver le compteur maximum actuel pour cette année
+        max_counter = 0
+
+        # Vérifier les références en DB
+        reservations = self.db.query(Reservation).filter(
+            Reservation.reference.like(f"RES-{year}-%")
+        ).all()
+
+        for res in reservations:
+            # Extraire le compteur de la référence (ex: "RES-2026-0042" -> 42)
+            try:
+                counter_str = res.reference.split('-')[-1]
+                counter_val = int(counter_str)
+                max_counter = max(max_counter, counter_val)
+            except (IndexError, ValueError):
+                pass
+
+        # Vérifier aussi les références générées en mémoire (pas encore en DB)
+        for ref in self._generated_references:
+            if ref.startswith(f"RES-{year}-"):
+                try:
+                    counter_str = ref.split('-')[-1]
+                    counter_val = int(counter_str)
+                    max_counter = max(max_counter, counter_val)
+                except (IndexError, ValueError):
+                    pass
+
+        # Générer la prochaine référence
+        next_counter = max_counter + 1
+        if next_counter > 9999:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Cannot generate unique reference (counter overflow)"
+            )
+
+        reference = f"RES-{year}-{next_counter:04d}"
+        # Enregistrer la référence générée
+        self._generated_references.add(reference)
+        return reference
 
     def create_reservation(
         self,
@@ -287,11 +317,11 @@ class ReservationService:
 
         Raises:
             HTTPException 404: Si réservation non trouvée
-            HTTPException 400: Si status = 'completed' ou 'cancelled'
+            HTTPException 400: Si status = 'returned' ou 'cancelled'
 
         Business Rules:
-            - Statut ne peut pas être 'completed' ou 'cancelled'
-            - Libère stock si status était 'confirmed' ou 'in_progress'
+            - Statut ne peut pas être 'returned' ou 'cancelled'
+            - Libère stock si status était 'confirmed' ou 'delivered'
             - Change status → 'cancelled'
             - Transaction atomique
 
@@ -317,14 +347,14 @@ class ReservationService:
             )
 
         # Vérifier statut
-        if reservation.status in ("completed", "cancelled"):
+        if reservation.status in ("returned", "cancelled"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Cannot cancel reservation with status '{reservation.status}'"
             )
 
-        # Libérer stock si réservation était confirmée
-        if reservation.status in ("confirmed", "in_progress"):
+        # Libérer stock si réservation était confirmée ou livrée
+        if reservation.status in ("confirmed", "delivered"):
             for line in reservation.lines:
                 self.product_service.release_stock(
                     product_id=line.product_id,

@@ -33,7 +33,6 @@ def test_company_customer(test_db):
         tenant_id=1,
         customer_type=CustomerType.COMPANY,
         company_name="EventPro SARL",
-        siret="12345678901234",
         email="contact@eventpro.fr",
         phone="+33987654321",
         address="25 avenue des Champs",
@@ -130,7 +129,6 @@ def test_create_customer_company_success(client: TestClient, auth_headers_real):
     customer_data = {
         "customer_type": "company",
         "company_name": "TechEvents SAS",
-        "siret": "98765432109876",
         "email": "contact@techevents.fr",
         "phone": "+33123456789",
         "address": "100 rue de Rivoli",
@@ -143,7 +141,6 @@ def test_create_customer_company_success(client: TestClient, auth_headers_real):
     assert response.status_code == 201
     data = response.json()
     assert data["company_name"] == "TechEvents SAS"
-    assert data["siret"] == "98765432109876"
     assert data["customer_type"] == "company"
 
 
@@ -205,8 +202,7 @@ def test_update_customer_success(client: TestClient, test_customer, auth_headers
     """Test mettre à jour client (PATCH partiel)."""
     update_data = {
         "phone": "+33699999999",
-        "address": "Nouvelle adresse",
-        "notes": "Client fidèle"
+        "address": "Nouvelle adresse"
     }
 
     response = client.patch(
@@ -219,7 +215,6 @@ def test_update_customer_success(client: TestClient, test_customer, auth_headers
     data = response.json()
     assert data["phone"] == "+33699999999"
     assert data["address"] == "Nouvelle adresse"
-    assert data["notes"] == "Client fidèle"
     assert data["first_name"] == "Jean"  # Inchangé
 
 

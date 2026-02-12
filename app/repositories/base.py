@@ -125,7 +125,7 @@ class BaseRepository(Generic[T]):
             order_by: Nom de la colonne pour tri (défaut: "id")
 
         Returns:
-            Liste des entités (sans pagination info - voir count() pour total)
+            Tuple (items, total) où items est la liste paginée et total le nombre total d'entités
 
         Security:
             - Filtre tenant_id automatique
@@ -133,6 +133,9 @@ class BaseRepository(Generic[T]):
         """
         # Limite max sécurité
         limit = min(limit, 1000)
+
+        # Compter le total d'abord
+        total = self.count(tenant_id=tenant_id, filters=filters, include_inactive=include_inactive)
 
         query = select(self.model_class)
         query = self._apply_tenant_filter(query, tenant_id)
@@ -143,7 +146,29 @@ class BaseRepository(Generic[T]):
         # Filtres additionnels
         if filters:
             for key, value in filters.items():
-                if hasattr(self.model_class, key):
+                # Parser les opérateurs de comparaison (ex: "available_quantity__gt")
+                if "__" in key:
+                    field_name, operator = key.rsplit("__", 1)
+                    if not hasattr(self.model_class, field_name):
+                        continue
+
+                    field = getattr(self.model_class, field_name)
+
+                    # Appliquer l'opérateur approprié
+                    if operator == "gt":
+                        query = query.filter(field > value)
+                    elif operator == "gte":
+                        query = query.filter(field >= value)
+                    elif operator == "lt":
+                        query = query.filter(field < value)
+                    elif operator == "lte":
+                        query = query.filter(field <= value)
+                    elif operator == "ne":
+                        query = query.filter(field != value)
+                    else:
+                        # Opérateur inconnu, ignorer
+                        continue
+                elif hasattr(self.model_class, key):
                     query = query.filter(getattr(self.model_class, key) == value)
 
         # Tri
@@ -156,7 +181,7 @@ class BaseRepository(Generic[T]):
         query = query.offset(skip).limit(limit)
 
         result = self.db.execute(query).scalars().all()
-        return list(result)
+        return (list(result), total)
 
     def count(
         self,
@@ -186,7 +211,29 @@ class BaseRepository(Generic[T]):
         # Filtres additionnels
         if filters:
             for key, value in filters.items():
-                if hasattr(self.model_class, key):
+                # Parser les opérateurs de comparaison (ex: "available_quantity__gt")
+                if "__" in key:
+                    field_name, operator = key.rsplit("__", 1)
+                    if not hasattr(self.model_class, field_name):
+                        continue
+
+                    field = getattr(self.model_class, field_name)
+
+                    # Appliquer l'opérateur approprié
+                    if operator == "gt":
+                        query = query.filter(field > value)
+                    elif operator == "gte":
+                        query = query.filter(field >= value)
+                    elif operator == "lt":
+                        query = query.filter(field < value)
+                    elif operator == "lte":
+                        query = query.filter(field <= value)
+                    elif operator == "ne":
+                        query = query.filter(field != value)
+                    else:
+                        # Opérateur inconnu, ignorer
+                        continue
+                elif hasattr(self.model_class, key):
                     query = query.filter(getattr(self.model_class, key) == value)
 
         result = self.db.execute(query).scalar()

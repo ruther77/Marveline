@@ -69,8 +69,8 @@ class ReservationLineResponse(EntityResponseSchema):
     reservation_id: int
     product_id: int
     quantity: int
-    unit_price_cents: int = Field(alias="unit_price")
-    subtotal_cents: int = Field(alias="subtotal")
+    unit_price_cents: int = Field(validation_alias="unit_price")
+    subtotal_cents: int = Field(validation_alias="subtotal")
 
     # Relation nested optionnelle (product info)
     product: Optional["ProductList"] = None
@@ -221,7 +221,7 @@ class ReservationList(EntityResponseSchema):
     reference: str
     event_date: date
     status: str
-    total_amount_cents: int = Field(alias="total_amount")
+    total_amount_cents: int = Field(validation_alias="total_amount")
 
     @computed_field
     @property
@@ -239,9 +239,9 @@ class ReservationResponse(EntityResponseSchema):
     delivery_date: date
     return_date: date
     event_location: Optional[str] = None
-    status: Literal["draft", "confirmed", "in_progress", "completed", "cancelled"]
-    total_amount_cents: int = Field(alias="total_amount")
-    deposit_amount_cents: int = Field(alias="deposit_amount")
+    status: Literal["draft", "confirmed", "delivered", "returned", "cancelled"]
+    total_amount_cents: int = Field(validation_alias="total_amount")
+    deposit_amount_cents: int = Field(validation_alias="deposit_amount")
     deposit_paid: bool
 
     # Relations nested

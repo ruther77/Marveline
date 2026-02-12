@@ -4,7 +4,8 @@ from datetime import date, timedelta
 from app.repositories.reservation import ReservationRepository
 from app.models.reservation import Reservation
 from app.models.customer import Customer
-from app.constants import CustomerType, ReservationStatus
+from app.models.product import Product
+from app.constants import CustomerType, ReservationStatus, ProductCategory
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -29,6 +30,25 @@ def test_customer(test_db):
     test_db.commit()
     test_db.refresh(customer)
     return customer
+
+
+@pytest.fixture
+def test_product(test_db):
+    """Fixture produit pour tests."""
+    product = Product(
+        tenant_id=1,
+        name="Test Product Reservation",
+        sku="TEST-PROD-RES",
+        category=ProductCategory.ASSIETTE,
+        price_per_day=100,
+        stock_quantity=100,
+        available_quantity=80,
+        is_active=True
+    )
+    test_db.add(product)
+    test_db.commit()
+    test_db.refresh(product)
+    return product
 
 
 @pytest.fixture
@@ -86,7 +106,7 @@ def test_reservation_past(test_db, test_customer):
         delivery_date=date.today() - timedelta(days=11),
         return_date=date.today() - timedelta(days=9),
         event_location="Past Event",
-        status="completed",  # Use DB value directly
+        status="returned",  # Réservation terminée (vaisselle retournée)
         total_amount=5000,
         deposit_amount=2500,
         deposit_paid=True
@@ -408,3 +428,256 @@ def test_list_by_status_cross_tenant_isolation(test_db, test_reservation_draft):
 
     assert all(r.tenant_id == 1 for r in results)
     assert reservation_tenant2.id not in [r.id for r in results]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Tests get_by_reference()
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_get_by_reference_success(test_db, test_reservation_draft):
+    """Récupère réservation par référence."""
+    repo = ReservationRepository(test_db)
+
+    result = repo.get_by_reference("RES-TEST-DRAFT", tenant_id=1)
+
+    assert result is not None
+    assert result.id == test_reservation_draft.id
+    assert result.reference == "RES-TEST-DRAFT"
+
+
+def test_get_by_reference_not_found(test_db):
+    """Référence inexistante retourne None."""
+    repo = ReservationRepository(test_db)
+
+    result = repo.get_by_reference("RES-INEXISTANT", tenant_id=1)
+
+    assert result is None
+
+
+def test_get_by_reference_case_insensitive_whitespace(test_db, test_reservation_draft):
+    """Recherche insensible à la casse avec whitespace."""
+    repo = ReservationRepository(test_db)
+
+    # Minuscules + espaces
+    result = repo.get_by_reference(" res-test-draft ", tenant_id=1)
+
+    assert result is not None
+    assert result.id == test_reservation_draft.id
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Tests list_upcoming()
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_list_upcoming_days_ahead(test_db, test_customer):
+    """Liste réservations à venir dans les N prochains jours."""
+    repo = ReservationRepository(test_db)
+
+    # Créer 3 réservations à dates différentes
+    res_tomorrow = Reservation(
+        tenant_id=1,
+        customer_id=test_customer.id,
+        reference="RES-TOMORROW",
+        event_date=date.today() + timedelta(days=1),
+        delivery_date=date.today(),
+        return_date=date.today() + timedelta(days=2),
+        event_location="Tomorrow",
+        status=ReservationStatus.CONFIRMED,
+        total_amount=10000,
+        deposit_amount=5000,
+        deposit_paid=True
+    )
+
+    res_week = Reservation(
+        tenant_id=1,
+        customer_id=test_customer.id,
+        reference="RES-WEEK",
+        event_date=date.today() + timedelta(days=7),
+        delivery_date=date.today() + timedelta(days=6),
+        return_date=date.today() + timedelta(days=8),
+        event_location="Next Week",
+        status=ReservationStatus.DRAFT,
+        total_amount=15000,
+        deposit_amount=7500,
+        deposit_paid=False
+    )
+
+    res_month = Reservation(
+        tenant_id=1,
+        customer_id=test_customer.id,
+        reference="RES-MONTH",
+        event_date=date.today() + timedelta(days=30),
+        delivery_date=date.today() + timedelta(days=29),
+        return_date=date.today() + timedelta(days=31),
+        event_location="Next Month",
+        status=ReservationStatus.CONFIRMED,
+        total_amount=20000,
+        deposit_amount=10000,
+        deposit_paid=True
+    )
+
+    test_db.add_all([res_tomorrow, res_week, res_month])
+    test_db.commit()
+
+    # Liste 10 jours à venir (inclut tomorrow + week, exclut month)
+    results = repo.list_upcoming(days_ahead=10, tenant_id=1)
+
+    assert len(results) == 2
+    assert res_tomorrow.id in [r.id for r in results]
+    assert res_week.id in [r.id for r in results]
+    assert res_month.id not in [r.id for r in results]
+
+
+def test_list_upcoming_excludes_cancelled_returned(test_db, test_customer):
+    """list_upcoming exclut réservations annulées et retournées."""
+    repo = ReservationRepository(test_db)
+
+    # Réservation cancelled
+    res_cancelled = Reservation(
+        tenant_id=1,
+        customer_id=test_customer.id,
+        reference="RES-CANCELLED-UP",
+        event_date=date.today() + timedelta(days=5),
+        delivery_date=date.today() + timedelta(days=4),
+        return_date=date.today() + timedelta(days=6),
+        event_location="Cancelled",
+        status="cancelled",  # Valide selon contrainte DB
+        total_amount=10000,
+        deposit_amount=5000,
+        deposit_paid=False
+    )
+
+    # Réservation returned (terminée, ne devrait pas être upcoming)
+    res_returned = Reservation(
+        tenant_id=1,
+        customer_id=test_customer.id,
+        reference="RES-RETURNED-UP",
+        event_date=date.today() + timedelta(days=5),
+        delivery_date=date.today() + timedelta(days=4),
+        return_date=date.today() + timedelta(days=6),
+        event_location="Returned",
+        status="returned",  # Réservation terminée (vaisselle retournée)
+        total_amount=10000,
+        deposit_amount=5000,
+        deposit_paid=True
+    )
+
+    test_db.add_all([res_cancelled, res_returned])
+    test_db.commit()
+
+    results = repo.list_upcoming(days_ahead=10, tenant_id=1)
+
+    # Aucune réservation cancelled/returned dans upcoming
+    assert res_cancelled.id not in [r.id for r in results]
+    assert res_returned.id not in [r.id for r in results]
+
+
+def test_list_upcoming_empty(test_db):
+    """list_upcoming retourne liste vide si aucune réservation à venir."""
+    repo = ReservationRepository(test_db)
+
+    results = repo.list_upcoming(days_ahead=30, tenant_id=1)
+
+    assert results == []
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Tests ReservationLineRepository - list_by_reservation()
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_list_by_reservation_with_lines(test_db, test_reservation_draft, test_product):
+    """Liste lignes d'une réservation."""
+    from app.repositories.reservation import ReservationLineRepository
+    from app.models.reservation import ReservationLine
+
+    # Créer un second produit (contrainte unique reservation_id + product_id)
+    product2 = Product(
+        tenant_id=1,
+        name="Test Product 2 Reservation",
+        sku="TEST-PROD-RES-2",
+        category=ProductCategory.VERRE,
+        price_per_day=150,
+        stock_quantity=50,
+        available_quantity=40,
+        is_active=True
+    )
+    test_db.add(product2)
+    test_db.flush()
+
+    # Créer 2 lignes pour la réservation avec produits différents
+    line1 = ReservationLine(
+        tenant_id=1,
+        reservation_id=test_reservation_draft.id,
+        product_id=test_product.id,
+        quantity=5,
+        unit_price=100,
+        subtotal=500
+    )
+    line2 = ReservationLine(
+        tenant_id=1,
+        reservation_id=test_reservation_draft.id,
+        product_id=product2.id,  # Produit différent
+        quantity=3,
+        unit_price=150,
+        subtotal=450
+    )
+    test_db.add_all([line1, line2])
+    test_db.commit()
+
+    repo = ReservationLineRepository(test_db)
+    results, total = repo.list_by_reservation(test_reservation_draft.id, tenant_id=1)
+
+    assert len(results) == 2
+    assert total == 2
+    assert all(line.reservation_id == test_reservation_draft.id for line in results)
+
+
+def test_list_by_reservation_empty(test_db, test_reservation_draft):
+    """Liste lignes d'une réservation sans lignes retourne vide."""
+    from app.repositories.reservation import ReservationLineRepository
+
+    repo = ReservationLineRepository(test_db)
+    results, total = repo.list_by_reservation(test_reservation_draft.id, tenant_id=1)
+
+    assert results == []
+    assert total == 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Tests ReservationLineRepository - list_by_product()
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_list_by_product_with_lines(test_db, test_reservation_draft, test_product):
+    """Liste lignes contenant un produit spécifique."""
+    from app.repositories.reservation import ReservationLineRepository
+    from app.models.reservation import ReservationLine
+
+    # Créer ligne avec test_product
+    line = ReservationLine(
+        tenant_id=1,
+        reservation_id=test_reservation_draft.id,
+        product_id=test_product.id,
+        quantity=10,
+        unit_price=100,
+        subtotal=1000
+    )
+    test_db.add(line)
+    test_db.commit()
+
+    repo = ReservationLineRepository(test_db)
+    results, total = repo.list_by_product(test_product.id, tenant_id=1)
+
+    assert len(results) >= 1
+    assert total >= 1
+    assert all(line.product_id == test_product.id for line in results)
+
+
+def test_list_by_product_empty(test_db, test_product):
+    """Liste lignes d'un produit jamais réservé retourne vide."""
+    from app.repositories.reservation import ReservationLineRepository
+
+    repo = ReservationLineRepository(test_db)
+    results, total = repo.list_by_product(test_product.id, tenant_id=1)
+
+    assert results == []
+    assert total == 0

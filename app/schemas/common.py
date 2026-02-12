@@ -29,17 +29,14 @@ class PaginationParams(BaseModel):
     limit: int = Field(
         default=100,
         ge=1,
-        le=1000,
-        description="Nombre maximum d'éléments à retourner"
+        description="Nombre maximum d'éléments à retourner (cappé à 1000)"
     )
 
     @field_validator('limit')
     @classmethod
     def limit_max_1000(cls, v: int) -> int:
-        """Validation explicite du max 1000 (redondant mais clair)."""
-        if v > 1000:
-            raise ValueError('limit cannot exceed 1000')
-        return v
+        """Plafonne automatiquement à 1000 pour protection contre abus."""
+        return min(v, 1000)
 
 
 class PaginatedResponse(BaseSchema, Generic[T]):

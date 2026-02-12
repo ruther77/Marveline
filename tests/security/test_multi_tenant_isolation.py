@@ -339,12 +339,12 @@ def test_cannot_create_resource_for_another_tenant_via_payload(
         "tenant_id": 1,  # Tentative d'usurpation
         "name": "Produit malveillant",
         "sku": "MALICIOUS-SKU",
-        "category": "test",
+        "category": "autre",
         "price_per_day_cents": 1000,
         "deposit_amount_cents": 2000,
         "stock_quantity": 10,
         "available_quantity": 10,
-        "condition": "good"
+        "condition": "bon"
     }
 
     # Créer admin tenant2 pour avoir permission de créer produits

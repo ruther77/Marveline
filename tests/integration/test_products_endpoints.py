@@ -42,13 +42,13 @@ def test_list_products_success(client: TestClient, test_product, auth_headers_re
 
 def test_list_products_filter_by_category(client: TestClient, test_product, auth_headers_real):
     """Test filtrer produits par catégorie."""
-    response = client.get("/api/v1/products?category=tables", headers=auth_headers_real)
+    response = client.get("/api/v1/products?category=nappe", headers=auth_headers_real)
 
     assert response.status_code == 200
     data = response.json()
     assert data["total"] >= 1
     for item in data["items"]:
-        assert item["category"] == "tables"
+        assert item["category"] == "nappe"
 
 
 def test_list_products_filter_available_only(client: TestClient, test_db, auth_headers_real):
@@ -111,12 +111,12 @@ def test_create_product_as_admin_success(client: TestClient, auth_headers_admin)
     product_data = {
         "name": "Chaise Napoléon dorée",
         "sku": "CHAISE-NAP-OR",
-        "category": "chaises",
+        "category": "autre",
         "price_per_day_cents": 500,
         "deposit_amount_cents": 1000,
         "stock_quantity": 50,
         "available_quantity": 50,
-        "condition": "excellent",
+        "condition": "neuf",
         "image_url": "https://example.com/chaise.jpg"
     }
 
@@ -135,12 +135,12 @@ def test_create_product_as_staff_forbidden(client: TestClient, auth_headers_real
     product_data = {
         "name": "Table test",
         "sku": "TABLE-TEST",
-        "category": "tables",
+        "category": "nappe",
         "price_per_day_cents": 1000,
         "deposit_amount_cents": 2000,
         "stock_quantity": 5,
         "available_quantity": 5,
-        "condition": "good"
+        "condition": "bon"
     }
 
     response = client.post("/api/v1/products", json=product_data, headers=auth_headers_real)
@@ -153,12 +153,12 @@ def test_create_product_duplicate_sku(client: TestClient, test_product, auth_hea
     product_data = {
         "name": "Autre table",
         "sku": "TABLE-RONDE-150",  # SKU déjà utilisé par test_product
-        "category": "tables",
+        "category": "nappe",
         "price_per_day_cents": 1500,
         "deposit_amount_cents": 3000,
         "stock_quantity": 3,
         "available_quantity": 3,
-        "condition": "good"
+        "condition": "bon"
     }
 
     response = client.post("/api/v1/products", json=product_data, headers=auth_headers_admin)

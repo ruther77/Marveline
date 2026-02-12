@@ -264,7 +264,7 @@ def test_product_repository_get_by_sku_success(test_db):
     test_db.add(product)
     test_db.commit()
 
-    repo = ProductRepository(test_db, Product)
+    repo = ProductRepository(test_db)
     result = repo.get_by_sku("UNIQUE-SKU-001", tenant_id=1)
 
     assert result is not None
@@ -273,12 +273,13 @@ def test_product_repository_get_by_sku_success(test_db):
 
 def test_product_repository_list_by_category(test_db):
     """Test list_by_category filtre correctement."""
-    # Créer produits de différentes catégories
-    for cat in ["tables", "tables", "chaises", "chaises", "nappes"]:
+    # Créer produits de différentes catégories (utiliser vraies valeurs enum)
+    categories = [ProductCategory.ASSIETTE, ProductCategory.ASSIETTE, ProductCategory.VERRE, ProductCategory.VERRE, ProductCategory.NAPPE]
+    for idx, cat in enumerate(categories):
         product = Product(
             tenant_id=1,
-            name=f"{cat} product",
-            sku=f"SKU-{cat}-{id(cat)}",
+            name=f"{cat.value} product {idx}",
+            sku=f"SKU-{cat.value}-{idx}",
             category=cat,
             price_per_day=1000,
             deposit_amount=2000,
@@ -290,11 +291,12 @@ def test_product_repository_list_by_category(test_db):
         test_db.add(product)
     test_db.commit()
 
-    repo = ProductRepository(test_db, Product)
-    tables, total = repo.list(tenant_id=1, filters={"category": "tables"})
+    repo = ProductRepository(test_db)
+    assiettes, total = repo.list(tenant_id=1, filters={"category": ProductCategory.ASSIETTE})
 
+    assert len(assiettes) == 2
     assert total == 2
-    assert all(p.category == "tables" for p in tables)
+    assert all(p.category == ProductCategory.ASSIETTE for p in assiettes)
 
 
 def test_product_repository_check_availability_success(test_db):
@@ -314,7 +316,7 @@ def test_product_repository_check_availability_success(test_db):
     test_db.add(product)
     test_db.commit()
 
-    repo = ProductRepository(test_db, Product)
+    repo = ProductRepository(test_db)
     result = repo.check_availability(product.id, quantity=5, tenant_id=1)
 
     assert result is True
@@ -337,7 +339,7 @@ def test_product_repository_check_availability_insufficient(test_db):
     test_db.add(product)
     test_db.commit()
 
-    repo = ProductRepository(test_db, Product)
+    repo = ProductRepository(test_db)
     result = repo.check_availability(product.id, quantity=5, tenant_id=1)
 
     assert result is False
@@ -360,7 +362,7 @@ def test_product_repository_reserve_stock_success(test_db):
     test_db.add(product)
     test_db.commit()
 
-    repo = ProductRepository(test_db, Product)
+    repo = ProductRepository(test_db)
     result = repo.reserve_stock(product.id, quantity=3, tenant_id=1)
 
     assert result is True
@@ -385,7 +387,7 @@ def test_product_repository_reserve_stock_insufficient(test_db):
     test_db.add(product)
     test_db.commit()
 
-    repo = ProductRepository(test_db, Product)
+    repo = ProductRepository(test_db)
     result = repo.reserve_stock(product.id, quantity=5, tenant_id=1)
 
     assert result is False
@@ -410,7 +412,7 @@ def test_product_repository_release_stock_success(test_db):
     test_db.add(product)
     test_db.commit()
 
-    repo = ProductRepository(test_db, Product)
+    repo = ProductRepository(test_db)
     result = repo.release_stock(product.id, quantity=3, tenant_id=1)
 
     assert result is True
@@ -438,7 +440,7 @@ def test_customer_repository_get_by_email_success(test_db):
     test_db.add(customer)
     test_db.commit()
 
-    repo = CustomerRepository(test_db, Customer)
+    repo = CustomerRepository(test_db)
     result = repo.get_by_email("john.doe@example.com", tenant_id=1)
 
     assert result is not None
@@ -461,7 +463,7 @@ def test_customer_repository_get_by_email_case_insensitive(test_db):
     test_db.add(customer)
     test_db.commit()
 
-    repo = CustomerRepository(test_db, Customer)
+    repo = CustomerRepository(test_db)
     result = repo.get_by_email("jane.doe@example.com", tenant_id=1)  # Lowercase
 
     assert result is not None
@@ -487,7 +489,7 @@ def test_customer_repository_search_by_name(test_db):
     test_db.add_all(customers)
     test_db.commit()
 
-    repo = CustomerRepository(test_db, Customer)
+    repo = CustomerRepository(test_db)
     results, total = repo.search("Alice", tenant_id=1)
 
     assert total == 3

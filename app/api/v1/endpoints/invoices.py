@@ -78,16 +78,13 @@ def list_invoices(
     if reservation_id:
         filters["reservation_id"] = reservation_id
 
-    # Récupérer factures
-    invoices = repo.list(
+    # Récupérer factures avec total
+    invoices, total = repo.list(
         tenant_id=current_user.tenant_id,
         skip=pagination.skip,
         limit=pagination.limit,
         filters=filters
     )
-
-    # Compter total
-    total = repo.count(tenant_id=current_user.tenant_id, filters=filters)
 
     return PaginatedResponse(
         items=[InvoiceList.model_validate(i) for i in invoices],
@@ -274,10 +271,8 @@ def create_invoice(
         return InvoiceResponse.model_validate(invoice)
 
     except HTTPException:
-        db.rollback()
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while creating invoice: {str(e)}"
@@ -334,10 +329,8 @@ def update_invoice(
         return InvoiceResponse.model_validate(invoice)
 
     except HTTPException:
-        db.rollback()
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while updating invoice: {str(e)}"
@@ -399,10 +392,8 @@ def add_payment(
         return InvoiceResponse.model_validate(invoice)
 
     except HTTPException:
-        db.rollback()
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while adding payment: {str(e)}"
@@ -461,10 +452,8 @@ def cancel_invoice(
         return InvoiceResponse.model_validate(invoice)
 
     except HTTPException:
-        db.rollback()
         raise
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while cancelling invoice: {str(e)}"

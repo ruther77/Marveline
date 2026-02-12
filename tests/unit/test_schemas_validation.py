@@ -35,7 +35,6 @@ def test_customer_create_company_requires_company_name():
         CustomerCreate(
             customer_type=CustomerType.COMPANY,
             # company_name manquant
-            siret="12345678901234",
             email="test@company.com",
             phone="+33612345678",
             city="Paris",

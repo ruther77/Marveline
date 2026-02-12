@@ -18,6 +18,12 @@ class CustomerBase(BaseSchema):
         description="Email de contact (unique par tenant)"
     )
 
+    @field_validator('email')
+    @classmethod
+    def email_lowercase(cls, v: str) -> str:
+        """Normaliser email en minuscules."""
+        return v.lower()
+
     phone: Optional[str] = Field(
         default=None,
         max_length=20,

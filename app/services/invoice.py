@@ -374,3 +374,21 @@ class InvoiceService:
         # Annuler
         invoice.status=ReservationStatus.CANCELLED
         return self.repo.update(invoice)
+
+    def list_overdue(self, tenant_id: int) -> list[Invoice]:
+        """Liste les factures en retard de paiement.
+
+        Args:
+            tenant_id: ID du tenant (OBLIGATOIRE)
+
+        Returns:
+            Liste des factures en retard
+
+        Note:
+            - Facture en retard si: due_date < today AND paid_amount < total_amount
+            - Exclut les factures annulées
+
+        Example:
+            overdue_invoices = invoice_service.list_overdue(tenant_id=1)
+        """
+        return self.repo.list_overdue(tenant_id=tenant_id)

@@ -119,8 +119,8 @@ class InvoiceList(EntityResponseSchema):
     issue_date: date
     due_date: date
     status: str
-    total_amount_cents: int = Field(alias="total_amount")
-    paid_amount_cents: int = Field(alias="paid_amount")
+    total_amount_cents: int = Field(validation_alias="total_amount")
+    paid_amount_cents: int = Field(validation_alias="paid_amount")
 
     @computed_field
     @property
@@ -159,8 +159,8 @@ class InvoiceResponse(EntityResponseSchema):
     invoice_number: str
     issue_date: date
     due_date: date
-    total_amount_cents: int = Field(alias="total_amount")
-    paid_amount_cents: int = Field(alias="paid_amount")
+    total_amount_cents: int = Field(validation_alias="total_amount")
+    paid_amount_cents: int = Field(validation_alias="paid_amount")
     status: Literal["draft", "sent", "paid", "overdue", "cancelled"]
     payment_method: Optional[str] = None
     payment_date: Optional[date] = None
