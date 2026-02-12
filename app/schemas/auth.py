@@ -151,3 +151,27 @@ class ChangePasswordRequest(BaseSchema):
         max_length=100,
         description="Nouveau mot de passe"
     )
+
+
+class CSRFTokenResponse(BaseSchema):
+    """Schema pour réponse de génération de token CSRF.
+
+    Example:
+        GET /auth/csrf
+        Response:
+        {
+            "csrf_token": "abc123xyz789...",
+            "expires_in": 900
+        }
+    """
+
+    csrf_token: str = Field(
+        ...,
+        min_length=32,
+        description="Token CSRF unique pour cet utilisateur"
+    )
+
+    expires_in: int = Field(
+        default=900,
+        description="Durée de validité en secondes (15 minutes)"
+    )

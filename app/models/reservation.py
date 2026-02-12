@@ -135,9 +135,9 @@ class Reservation(Base, TimestampMixin, TenantMixin):
             "return_date >= delivery_date",
             name="check_reservation_return_after_delivery"
         ),
-        # Statut valide
+        # Statut valide (synchronisé avec ReservationStatus enum)
         CheckConstraint(
-            "status IN ('draft', 'confirmed', 'in_progress', 'completed', 'cancelled')",
+            "status IN ('draft', 'confirmed', 'delivered', 'returned', 'cancelled')",
             name="check_reservation_status_valid"
         ),
         # Montants positifs

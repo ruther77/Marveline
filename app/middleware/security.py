@@ -6,6 +6,8 @@ from typing import Callable
 import secrets
 
 from app.core.config import settings
+from app.core.redis import redis_client
+from app.core.security import decode_token
 
 
 class CSRFProtectionMiddleware(BaseHTTPMiddleware):
@@ -24,8 +26,26 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         if request.method in self.SAFE_METHODS:
             return await call_next(request)
 
-        # Skip CSRF pour les endpoints publics (docs, health)
-        if request.url.path in ["/health", "/api/docs", "/api/redoc", "/openapi.json"]:
+        # Skip CSRF pour les endpoints publics (docs, health, auth)
+        if request.url.path in [
+            "/health",
+            "/api/docs",
+            "/api/redoc",
+            "/openapi.json",
+            "/api/v1/auth/login",
+            "/api/v1/auth/refresh"
+        ]:
+            return await call_next(request)
+
+        # Skip CSRF pour requêtes sans authentification (JWT retournera 401)
+        authorization = request.headers.get("Authorization")
+        if not authorization:
+            return await call_next(request)
+
+        # Extraire user_id depuis le JWT Bearer token
+        user_id = self._extract_user_id_from_jwt(authorization)
+        if not user_id:
+            # Token JWT invalide, laisser le endpoint gérer la 401
             return await call_next(request)
 
         # Vérifier le token CSRF
@@ -37,28 +57,68 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
                 content={"detail": "CSRF token manquant"},
             )
 
-        # Valider le token (à implémenter avec Redis/session)
-        if not self._validate_csrf_token(csrf_token):
+        # Valider le token avec Redis
+        if not self._validate_csrf_token(user_id, csrf_token):
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
-                content={"detail": "CSRF token invalide"},
+                content={"detail": "CSRF token invalide ou expiré"},
             )
 
         response = await call_next(request)
         return response
 
-    def _validate_csrf_token(self, token: str) -> bool:
-        """Valide le token CSRF.
+    def _extract_user_id_from_jwt(self, authorization: str) -> int | None:
+        """Extrait le user_id depuis le header Authorization (JWT Bearer token).
 
-        TODO: Implémenter validation avec Redis/session storage.
-        Pour l'instant, validation basique.
+        Args:
+            authorization: Header Authorization (format: "Bearer <token>")
+
+        Returns:
+            user_id si JWT valide, None sinon
+
+        Security:
+            - Pas d'exception levée (silent fail)
+            - Laisse le endpoint gérer la 401 si JWT invalide
+        """
+        if not authorization or not authorization.startswith("Bearer "):
+            return None
+
+        try:
+            token = authorization.replace("Bearer ", "")
+            payload = decode_token(token)
+            if not payload:
+                return None
+
+            # JWT spec: "sub" est une string, convertir en int
+            user_id_str = payload.get("sub")
+            return int(user_id_str) if user_id_str else None
+        except (ValueError, TypeError):
+            return None
+
+    def _validate_csrf_token(self, user_id: int, token: str) -> bool:
+        """Valide le token CSRF avec Redis.
+
+        Args:
+            user_id: ID de l'utilisateur (extrait du JWT)
+            token: Token CSRF à valider
+
+        Returns:
+            True si token valide (existe dans Redis), False sinon
+
+        Implementation:
+            - Vérifie longueur token (anti bruteforce basique)
+            - Vérifie existence dans Redis : csrf:{user_id}:{token}
+            - TTL automatique géré par Redis (15 min)
+
+        Security:
+            - Pas d'exception levée (silent fail)
+            - Timing attack protection (constant time check)
         """
         if not token or len(token) < 32:
             return False
 
-        # TODO: Vérifier le token dans Redis avec la session utilisateur
-        # redis_client.get(f"csrf:{session_id}") == token
-        return True
+        # Valider avec Redis
+        return redis_client.validate_csrf_token(user_id, token)
 
     @staticmethod
     def generate_csrf_token() -> str:

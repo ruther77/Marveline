@@ -4,8 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.core.database import get_db
+from app.core.deps import get_current_user
+from app.core.redis import redis_client
 from app.services.auth import AuthService
-from app.schemas.auth import TokenResponse, RefreshTokenRequest
+from app.schemas.auth import TokenResponse, RefreshTokenRequest, CSRFTokenResponse
+from app.models.user import User
+import secrets
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -139,3 +143,64 @@ def refresh_token(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred during token refresh: {str(e)}"
         )
+
+
+@router.get("/csrf", response_model=CSRFTokenResponse, status_code=status.HTTP_200_OK)
+def get_csrf_token(
+    current_user: User = Depends(get_current_user)
+) -> CSRFTokenResponse:
+    """Génère un nouveau token CSRF pour l'utilisateur authentifié.
+
+    Args:
+        current_user: Utilisateur authentifié (JWT)
+
+    Returns:
+        CSRFTokenResponse avec csrf_token et expires_in
+
+    Raises:
+        HTTPException 401: Si JWT invalide ou manquant
+        HTTPException 500: Si erreur Redis
+
+    Example:
+        GET /api/v1/auth/csrf
+        Authorization: Bearer eyJhbGc...
+
+        Response:
+        {
+            "csrf_token": "abc123xyz789...",
+            "expires_in": 900
+        }
+
+    Usage:
+        1. Le client appelle cet endpoint après login pour obtenir un token CSRF
+        2. Le token est stocké dans Redis : csrf:{user_id}:{token}
+        3. Le client inclut le token dans le header X-CSRF-Token pour toutes requêtes modifiantes
+        4. Le CSRFProtectionMiddleware valide le token avant chaque POST/PUT/PATCH/DELETE
+
+    Security:
+        - Token unique (secrets.token_urlsafe(32))
+        - TTL 15 minutes (rotation fréquente)
+        - Multi-tab support (plusieurs tokens actifs par utilisateur)
+        - Automatiquement révoqué lors du logout
+    """
+    # Générer token CSRF unique
+    csrf_token = secrets.token_urlsafe(32)
+
+    # Stocker dans Redis avec TTL 15 minutes
+    ttl_seconds = 900  # 15 minutes
+    success = redis_client.store_csrf_token(
+        user_id=current_user.id,
+        token=csrf_token,
+        ttl_seconds=ttl_seconds
+    )
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate CSRF token. Redis unavailable."
+        )
+
+    return CSRFTokenResponse(
+        csrf_token=csrf_token,
+        expires_in=ttl_seconds
+    )
