@@ -4,6 +4,7 @@ from typing import Optional
 from sqlalchemy import select, and_
 from sqlalchemy.orm import Session, joinedload
 from app.models.invoice import Invoice
+from app.models.reservation import Reservation
 from app.repositories.base import BaseRepository
 
 
@@ -39,7 +40,7 @@ class InvoiceRepository(BaseRepository[Invoice]):
             - Charge: reservation, reservation.customer
         """
         query = select(Invoice).options(
-            joinedload(Invoice.reservation).joinedload("customer")
+            joinedload(Invoice.reservation).joinedload(Reservation.customer)
         ).filter(Invoice.id == id)
 
         query = self._apply_tenant_filter(query, tenant_id)

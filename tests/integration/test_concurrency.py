@@ -76,7 +76,7 @@ def test_concurrent_stock_reservation_race_condition(client: TestClient, test_db
     assert 400 in results or len([r for r in results if r == 200]) == 1
 
 
-def test_concurrent_product_creation_duplicate_sku(client: TestClient, auth_headers_real):
+def test_concurrent_product_creation_duplicate_sku(client: TestClient, auth_headers_admin):
     """Test créations concurrentes avec même SKU."""
     results = []
 
@@ -85,15 +85,15 @@ def test_concurrent_product_creation_duplicate_sku(client: TestClient, auth_head
         product_data = {
             "name": "Concurrent Product",
             "sku": "CONCURRENT-SKU",  # Même SKU
-            "category": "test",
+            "category": "autre",
             "price_per_day_cents": 1000,
             "deposit_amount_cents": 2000,
             "stock_quantity": 10,
             "available_quantity": 10,
-            "condition": "good"
+            "condition": "bon"
         }
 
-        response = client.post("/api/v1/products", json=product_data, headers=auth_headers_real)
+        response = client.post("/api/v1/products", json=product_data, headers=auth_headers_admin)
         results.append(response.status_code)
 
     # Lancer 2 threads créant produit avec même SKU
@@ -236,7 +236,7 @@ def test_create_multiple_reservations_sequentially(client: TestClient, test_db, 
 def test_filter_products_by_multiple_criteria(client: TestClient, test_db, auth_headers_real):
     """Test filtrer produits par plusieurs critères."""
     # Créer produits variés
-    for cat in ["tables", "chaises", "nappes"]:
+    for cat in ["assiette", "verre", "nappe"]:
         for i in range(5):
             product = Product(
                 tenant_id=1,
@@ -254,12 +254,12 @@ def test_filter_products_by_multiple_criteria(client: TestClient, test_db, auth_
     test_db.commit()
 
     # Filtrer par category + available_only
-    response = client.get("/api/v1/products?category=tables&available_only=true", headers=auth_headers_real)
+    response = client.get("/api/v1/products?category=assiette&available_only=true", headers=auth_headers_real)
 
     assert response.status_code == 200
     data = response.json()
     for item in data["items"]:
-        assert item["category"] == "tables"
+        assert item["category"] == "assiette"
         assert item["available_quantity"] > 0
 
 
@@ -327,6 +327,9 @@ def test_confirm_reservation_rollback_on_error(client: TestClient, test_db, auth
     response = client.post(f"/api/v1/reservations/{reservation_id}/confirm", headers=auth_headers_real)
 
     assert response.status_code == 400
+
+    # Rollback pour annuler les flush() de la transaction échouée
+    test_db.rollback()
 
     # Vérifier que le stock de product1 n'a PAS été modifié (rollback)
     test_db.refresh(product1)
