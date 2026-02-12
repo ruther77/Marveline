@@ -76,8 +76,33 @@ def client(test_db):
 
 @pytest.fixture
 def csrf_token():
-    """Token CSRF valide pour les tests (≥32 chars)."""
+    """Token CSRF valide pour les tests (≥32 chars).
+
+    NOTE: Ce token n'est PAS stocké dans Redis automatiquement.
+    Utiliser csrf_token_for_user() pour tests integration avec Redis.
+    """
     return CSRFProtectionMiddleware.generate_csrf_token()
+
+
+def csrf_token_for_user(user_id: int) -> str:
+    """Helper pour générer ET stocker un token CSRF dans Redis pour un user.
+
+    Args:
+        user_id: ID de l'utilisateur
+
+    Returns:
+        Token CSRF valide stocké dans Redis
+    """
+    from app.core.redis import redis_client
+    import secrets
+
+    csrf_token = secrets.token_urlsafe(32)
+    redis_client.store_csrf_token(
+        user_id=user_id,
+        token=csrf_token,
+        ttl_seconds=900  # 15 minutes
+    )
+    return csrf_token
 
 
 @pytest.fixture
@@ -207,8 +232,12 @@ def auth_token_admin_tenant2(test_admin_tenant2):
 
 
 @pytest.fixture
-def auth_headers_real(auth_token, csrf_token):
-    """Headers d'authentification avec vrai token JWT (test_user, tenant_id=1)."""
+def auth_headers_real(test_user, auth_token):
+    """Headers d'authentification avec vrai token JWT (test_user, tenant_id=1).
+
+    Génère ET stocke le token CSRF dans Redis pour test_user.
+    """
+    csrf_token = csrf_token_for_user(test_user.id)
     return {
         "Authorization": f"Bearer {auth_token}",
         "X-CSRF-Token": csrf_token,
@@ -216,8 +245,12 @@ def auth_headers_real(auth_token, csrf_token):
 
 
 @pytest.fixture
-def auth_headers_admin(auth_token_admin, csrf_token):
-    """Headers d'authentification avec vrai token JWT admin."""
+def auth_headers_admin(test_admin, auth_token_admin):
+    """Headers d'authentification avec vrai token JWT admin.
+
+    Génère ET stocke le token CSRF dans Redis pour test_admin.
+    """
+    csrf_token = csrf_token_for_user(test_admin.id)
     return {
         "Authorization": f"Bearer {auth_token_admin}",
         "X-CSRF-Token": csrf_token,
@@ -225,8 +258,12 @@ def auth_headers_admin(auth_token_admin, csrf_token):
 
 
 @pytest.fixture
-def auth_headers_tenant2(auth_token_tenant2, csrf_token):
-    """Headers d'authentification pour tenant_id=2 (tests anti-cross-tenant)."""
+def auth_headers_tenant2(test_user_tenant2, auth_token_tenant2):
+    """Headers d'authentification pour tenant_id=2 (tests anti-cross-tenant).
+
+    Génère ET stocke le token CSRF dans Redis pour test_user_tenant2.
+    """
+    csrf_token = csrf_token_for_user(test_user_tenant2.id)
     return {
         "Authorization": f"Bearer {auth_token_tenant2}",
         "X-CSRF-Token": csrf_token,
@@ -234,8 +271,12 @@ def auth_headers_tenant2(auth_token_tenant2, csrf_token):
 
 
 @pytest.fixture
-def auth_headers_admin_tenant2(auth_token_admin_tenant2, csrf_token):
-    """Headers d'authentification admin pour tenant_id=2 (tests anti-cross-tenant)."""
+def auth_headers_admin_tenant2(test_admin_tenant2, auth_token_admin_tenant2):
+    """Headers d'authentification admin pour tenant_id=2 (tests anti-cross-tenant).
+
+    Génère ET stocke le token CSRF dans Redis pour test_admin_tenant2.
+    """
+    csrf_token = csrf_token_for_user(test_admin_tenant2.id)
     return {
         "Authorization": f"Bearer {auth_token_admin_tenant2}",
         "X-CSRF-Token": csrf_token,
