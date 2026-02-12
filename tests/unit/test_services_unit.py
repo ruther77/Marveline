@@ -114,6 +114,285 @@ def test_auth_service_login_email_case_insensitive(test_db):
     assert access_token is not None
 
 
+def test_refresh_access_token_valid(test_db):
+    """Test refresh d'un token valide génère nouveau access token."""
+    from app.core.security import create_refresh_token, decode_token
+
+    user = User(
+        tenant_id=1,
+        email="refresh@example.com",
+        hashed_password=get_password_hash("password123"),
+        full_name="Refresh User",
+        role="staff",
+        is_active=True
+    )
+    test_db.add(user)
+    test_db.commit()
+    test_db.refresh(user)
+
+    # Créer refresh token valide
+    refresh_token = create_refresh_token({"sub": user.id, "tenant_id": user.tenant_id})
+
+    service = AuthService(test_db)
+    new_access_token, expires_in = service.refresh_access_token(refresh_token)
+
+    assert new_access_token is not None
+    assert expires_in == 30 * 60
+
+    # Vérifier claims du nouveau access token
+    payload = decode_token(new_access_token)
+    assert int(payload["sub"]) == user.id  # JWT claims sont strings
+    assert int(payload["tenant_id"]) == user.tenant_id
+    assert payload["email"] == user.email
+    assert payload["role"] == user.role
+
+
+def test_refresh_access_token_invalid(test_db):
+    """Test refresh d'un token invalide lève HTTPException 401."""
+    service = AuthService(test_db)
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.refresh_access_token("invalid_token_string")
+
+    assert exc_info.value.status_code == 401
+    assert "Invalid refresh token" in exc_info.value.detail
+
+
+def test_refresh_access_token_wrong_type(test_db):
+    """Test refresh avec access token (pas refresh) lève 401."""
+    from app.core.security import create_access_token
+
+    user = User(
+        tenant_id=1,
+        email="wrong@example.com",
+        hashed_password=get_password_hash("password123"),
+        full_name="Wrong Type User",
+        role="staff",
+        is_active=True
+    )
+    test_db.add(user)
+    test_db.commit()
+    test_db.refresh(user)
+
+    # Créer ACCESS token (pas refresh)
+    access_token = create_access_token({"sub": user.id, "tenant_id": user.tenant_id})
+
+    service = AuthService(test_db)
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.refresh_access_token(access_token)
+
+    assert exc_info.value.status_code == 401
+    assert "refresh token" in exc_info.value.detail.lower()
+
+
+def test_refresh_access_token_inactive_user(test_db):
+    """Test refresh avec user inactif lève HTTPException 403."""
+    from app.core.security import create_refresh_token
+
+    user = User(
+        tenant_id=1,
+        email="inactive_refresh@example.com",
+        hashed_password=get_password_hash("password123"),
+        full_name="Inactive Refresh User",
+        role="staff",
+        is_active=False  # Inactif
+    )
+    test_db.add(user)
+    test_db.commit()
+    test_db.refresh(user)
+
+    # Créer refresh token pour user inactif
+    refresh_token = create_refresh_token({"sub": user.id, "tenant_id": user.tenant_id})
+
+    service = AuthService(test_db)
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.refresh_access_token(refresh_token)
+
+    assert exc_info.value.status_code == 403
+    assert "inactive" in exc_info.value.detail.lower()
+
+
+def test_change_password_success(test_db):
+    """Test change_password réussit avec current password correct."""
+    user = User(
+        tenant_id=1,
+        email="change@example.com",
+        hashed_password=get_password_hash("old_password"),
+        full_name="Change Password User",
+        role="staff",
+        is_active=True
+    )
+    test_db.add(user)
+    test_db.commit()
+    test_db.refresh(user)
+
+    service = AuthService(test_db)
+    result = service.change_password(
+        user_id=user.id,
+        current_password="old_password",
+        new_password="NewSecure123!"
+    )
+
+    assert result is True
+
+    # Vérifier que le password a changé
+    test_db.refresh(user)
+    assert verify_password("NewSecure123!", user.hashed_password) is True
+    assert verify_password("old_password", user.hashed_password) is False
+
+
+def test_change_password_wrong_current(test_db):
+    """Test change_password échoue si current password incorrect."""
+    user = User(
+        tenant_id=1,
+        email="wrong_current@example.com",
+        hashed_password=get_password_hash("correct_password"),
+        full_name="Wrong Current User",
+        role="staff",
+        is_active=True
+    )
+    test_db.add(user)
+    test_db.commit()
+    test_db.refresh(user)
+
+    service = AuthService(test_db)
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.change_password(
+            user_id=user.id,
+            current_password="wrong_current_password",
+            new_password="NewSecure123!"
+        )
+
+    assert exc_info.value.status_code == 401
+    assert "Current password" in exc_info.value.detail
+
+
+def test_change_password_weak_new(test_db):
+    """Test change_password échoue si nouveau password trop faible."""
+    user = User(
+        tenant_id=1,
+        email="weak_new@example.com",
+        hashed_password=get_password_hash("old_password"),
+        full_name="Weak New User",
+        role="staff",
+        is_active=True
+    )
+    test_db.add(user)
+    test_db.commit()
+    test_db.refresh(user)
+
+    service = AuthService(test_db)
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.change_password(
+            user_id=user.id,
+            current_password="old_password",
+            new_password="123"  # Trop court
+        )
+
+    assert exc_info.value.status_code == 400
+
+
+def test_change_password_user_not_found(test_db):
+    """Test change_password échoue si user inexistant."""
+    service = AuthService(test_db)
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.change_password(
+            user_id=9999,  # ID inexistant
+            current_password="old_password",
+            new_password="NewSecure123!"
+        )
+
+    assert exc_info.value.status_code == 404
+    assert "not found" in exc_info.value.detail.lower()
+
+
+def test_create_user_success(test_db):
+    """Test create_user réussit avec données valides."""
+    service = AuthService(test_db)
+
+    new_user = service.create_user(
+        email="newuser@example.com",
+        password="SecurePass123!",
+        full_name="New User",
+        role="manager",
+        tenant_id=1
+    )
+
+    assert new_user is not None
+    assert new_user.id is not None
+    assert new_user.email == "newuser@example.com"
+    assert new_user.role == "manager"
+    assert new_user.tenant_id == 1
+    assert new_user.is_active is True
+    assert verify_password("SecurePass123!", new_user.hashed_password) is True
+
+
+def test_create_user_duplicate_email(test_db):
+    """Test create_user échoue si email existe déjà."""
+    existing_user = User(
+        tenant_id=1,
+        email="existing@example.com",
+        hashed_password=get_password_hash("password123"),
+        full_name="Existing User",
+        role="staff",
+        is_active=True
+    )
+    test_db.add(existing_user)
+    test_db.commit()
+
+    service = AuthService(test_db)
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.create_user(
+            email="existing@example.com",  # Déjà existe
+            password="SecurePass123!",
+            full_name="Duplicate User",
+            role="staff",
+            tenant_id=1
+        )
+
+    assert exc_info.value.status_code == 400
+    assert "already registered" in exc_info.value.detail.lower()
+
+
+def test_create_user_weak_password(test_db):
+    """Test create_user échoue si password trop faible."""
+    service = AuthService(test_db)
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.create_user(
+            email="weak@example.com",
+            password="123",  # Trop court
+            full_name="Weak Password User",
+            role="staff",
+            tenant_id=1
+        )
+
+    assert exc_info.value.status_code == 400
+
+
+def test_create_user_invalid_role(test_db):
+    """Test create_user échoue si rôle invalide."""
+    service = AuthService(test_db)
+
+    with pytest.raises(HTTPException) as exc_info:
+        service.create_user(
+            email="invalid_role@example.com",
+            password="SecurePass123!",
+            full_name="Invalid Role User",
+            role="superuser",  # Rôle invalide
+            tenant_id=1
+        )
+
+    assert exc_info.value.status_code == 400
+    assert "Invalid role" in exc_info.value.detail
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Tests ProductService
 # ═══════════════════════════════════════════════════════════════════════════
@@ -331,7 +610,7 @@ def test_reservation_service_cancel_releases_stock(test_db):
         tenant_id=1,
         name="Chair",
         sku="CHAIR-001",
-        category="chairs",
+        category="autre",
         price_per_day=500,
         deposit_amount=1000,
         stock_quantity=50,
