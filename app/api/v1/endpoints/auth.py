@@ -1,6 +1,6 @@
 """Endpoints d'authentification pour login et refresh tokens."""
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -17,12 +17,14 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
 def login(
+    request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Session = Depends(get_db)
 ) -> TokenResponse:
     """Authentifie un utilisateur et retourne les JWT tokens.
 
     Args:
+        request: FastAPI Request (pour extraction IP, User-Agent, request_id)
         form_data: Formulaire OAuth2 avec username (email) et password
         db: Session de base de données
 
@@ -53,13 +55,22 @@ def login(
         - Compte doit être actif (is_active=True)
         - Access token expire en 30 minutes
         - Refresh token expire en 7 jours
+        - Audit log LOGIN_SUCCESS ou LOGIN_FAILED (conformité RGPD/SOC2)
     """
     auth_service = AuthService(db)
+
+    # Extraire infos pour audit log
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("User-Agent")
+    request_id = getattr(request.state, "request_id", None)
 
     try:
         access_token, refresh_token, expires_in = auth_service.login(
             email=form_data.username,  # OAuth2 spec uses 'username' field
-            password=form_data.password
+            password=form_data.password,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            request_id=request_id
         )
 
         return TokenResponse(

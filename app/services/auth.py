@@ -1,5 +1,6 @@
 """Service d'authentification pour login, refresh tokens, gestion users."""
 from typing import Optional
+import uuid
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from app.models.user import User
@@ -12,6 +13,7 @@ from app.core.security import (
     validate_password_strength,
 )
 from app.core.config import settings
+from app.services.audit import AuditService
 
 
 class AuthService:
@@ -40,13 +42,19 @@ class AuthService:
     def login(
         self,
         email: str,
-        password: str
+        password: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        request_id: Optional[str] = None
     ) -> tuple[str, str, int]:
         """Authentifie un utilisateur et retourne les tokens JWT.
 
         Args:
             email: Email de l'utilisateur
             password: Mot de passe en clair
+            ip_address: IP du client (pour audit log)
+            user_agent: User-Agent du client (pour audit log)
+            request_id: UUID corrélation (auto-généré si absent)
 
         Returns:
             Tuple (access_token, refresh_token, expires_in_seconds)
@@ -57,20 +65,44 @@ class AuthService:
         Example:
             access_token, refresh_token, expires_in = auth_service.login(
                 "user@example.com",
-                "secretpass123"
+                "secretpass123",
+                ip_address="192.168.1.100",
+                user_agent="Mozilla/5.0...",
+                request_id="550e8400-..."
             )
 
         Security:
             - Email normalisé en lowercase
             - Password vérifié avec bcrypt
             - Compte doit être actif (is_active=True)
+            - Audit log pour login success/failed (conformité RGPD/SOC2)
         """
         # Normaliser email
         email = email.lower().strip()
 
-        # Trouver user par email
-        user = self.db.query(User).filter(User.email == email).first()
+        # Générer request_id si absent
+        if not request_id:
+            request_id = str(uuid.uuid4())
+
+        # Initialiser AuditService
+        audit_service = AuditService(self.db)
+
+        # Trouver user par email (case-insensitive)
+        user = self.db.query(User).filter(User.email.ilike(email)).first()
         if not user:
+            # Audit log LOGIN_FAILED (user_id=None car user non trouvé)
+            # Utiliser tenant_id=1 par défaut pour login failed (pas de tenant associé)
+            audit_service.log_login(
+                user_id=None,
+                tenant_id=1,  # Tenant par défaut pour login failed
+                ip_address=ip_address or "unknown",
+                user_agent=user_agent or "unknown",
+                request_id=request_id,
+                success=False,
+                email=email
+            )
+            self.db.commit()
+
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect email or password",
@@ -79,6 +111,18 @@ class AuthService:
 
         # Vérifier password
         if not verify_password(password, user.hashed_password):
+            # Audit log LOGIN_FAILED (user trouvé mais password incorrect)
+            audit_service.log_login(
+                user_id=None,
+                tenant_id=user.tenant_id,
+                ip_address=ip_address or "unknown",
+                user_agent=user_agent or "unknown",
+                request_id=request_id,
+                success=False,
+                email=email
+            )
+            self.db.commit()
+
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect email or password",
@@ -87,10 +131,34 @@ class AuthService:
 
         # Vérifier compte actif
         if not user.is_active:
+            # Audit log LOGIN_FAILED (compte inactif)
+            audit_service.log_login(
+                user_id=user.id,
+                tenant_id=user.tenant_id,
+                ip_address=ip_address or "unknown",
+                user_agent=user_agent or "unknown",
+                request_id=request_id,
+                success=False,
+                email=email
+            )
+            self.db.commit()
+
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Account is inactive"
             )
+
+        # Audit log LOGIN_SUCCESS
+        audit_service.log_login(
+            user_id=user.id,
+            tenant_id=user.tenant_id,
+            ip_address=ip_address or "unknown",
+            user_agent=user_agent or "unknown",
+            request_id=request_id,
+            success=True,
+            email=email
+        )
+        self.db.commit()
 
         # Créer JWT claims
         claims = {

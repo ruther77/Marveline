@@ -1,6 +1,6 @@
 """Routeur principal API v1."""
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, products, customers, reservations, invoices
+from app.api.v1.endpoints import auth, products, customers, reservations, invoices, audit
 
 # Routeur principal v1
 api_router = APIRouter()
@@ -11,6 +11,7 @@ api_router.include_router(products.router)
 api_router.include_router(customers.router)
 api_router.include_router(reservations.router)
 api_router.include_router(invoices.router)
+api_router.include_router(audit.router)  # Admin uniquement
 
 
 @api_router.get("/")

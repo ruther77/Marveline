@@ -10,6 +10,7 @@ from app.middleware.security import (
     SecurityHeadersMiddleware,
     RateLimitMiddleware,
 )
+from app.middleware.audit import AuditMiddleware
 
 
 def create_application() -> FastAPI:
@@ -48,6 +49,9 @@ def create_application() -> FastAPI:
 
     # Rate Limiting Middleware
     app.add_middleware(RateLimitMiddleware)
+
+    # Audit Middleware (trace toutes les actions authentifiées)
+    app.add_middleware(AuditMiddleware)
 
     # Routes API v1
     app.include_router(api_router, prefix="/api/v1")
