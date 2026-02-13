@@ -8430,7 +8430,7 @@ uvicorn app.main:app --reload
 
 ### Lecture Documentation
 - [ ] Lire README.md complet
-- [ ] Lire CLAUDE.md (règles architecture)
+- [ ] Lire le Dev Playbook (règles architecture)
 - [ ] Lire CAROCORP_SECURITY_AUDIT_AND_ROADMAP.md (contexte sécurité)
 - [ ] Explorer architecture app/ (models, services, repositories, endpoints)
 
@@ -8701,7 +8701,7 @@ app/
 
 ## Documentation
 - **API Docs**: http://localhost:8000/api/docs (Swagger UI)
-- **Architecture**: voir CLAUDE.md
+- **Architecture**: voir le Dev Playbook
 - **Security Audit**: voir CAROCORP_SECURITY_AUDIT_AND_ROADMAP.md
 
 ## Tests

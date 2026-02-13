@@ -3,6 +3,7 @@ from typing import Optional
 from sqlalchemy import BigInteger, CheckConstraint, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, TimestampMixin, TenantMixin, SoftDeleteMixin
+from app.constants import UserRole
 
 
 class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
@@ -58,7 +59,7 @@ class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     role: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default="staff",
+        default=UserRole.STAFF,
         comment="Rôle RBAC (admin, manager, staff)"
     )
 
@@ -74,17 +75,17 @@ class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     @property
     def is_admin(self) -> bool:
         """Vérifie si l'utilisateur est admin."""
-        return self.role == "admin"
+        return self.role == UserRole.ADMIN
 
     @property
     def is_manager(self) -> bool:
         """Vérifie si l'utilisateur est manager ou admin."""
-        return self.role in ("admin", "manager")
+        return self.role in (UserRole.ADMIN, UserRole.MANAGER)
 
     @property
     def can_write(self) -> bool:
         """Vérifie si l'utilisateur a les droits d'écriture."""
-        return self.role in ("admin", "manager")
+        return self.role in (UserRole.ADMIN, UserRole.MANAGER)
 
     @property
     def can_read(self) -> bool:

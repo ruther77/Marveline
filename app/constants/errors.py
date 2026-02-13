@@ -43,13 +43,20 @@ class ErrorMessages:
     INVALID_TOKEN = "Could not validate credentials"
     TOKEN_EXPIRED = "Token has expired"
     INSUFFICIENT_PERMISSIONS = "Insufficient permissions for this action"
+    INVALID_REFRESH_TOKEN = "Invalid refresh token"
+    INVALID_REFRESH_TOKEN_TYPE = "Invalid token type (expected refresh token)"
+    INVALID_TOKEN_PAYLOAD = "Invalid token payload"
+    INVALID_TOKEN_TYPE = "Invalid token type"
+    CURRENT_PASSWORD_INCORRECT = "Current password is incorrect"
+    INVALID_ROLE = "Invalid role. Must be: admin, manager, or staff"
 
     # ─────────────────────────────────────────────────────────────────────
     # CSRF Protection (403 FORBIDDEN)
     # ─────────────────────────────────────────────────────────────────────
 
     CSRF_TOKEN_MISSING = "CSRF token manquant"
-    CSRF_TOKEN_INVALID = "CSRF token invalide"
+    CSRF_TOKEN_INVALID = "CSRF token invalide ou expiré"
+    CSRF_TOKEN_GENERATION_FAILED = "Failed to generate CSRF token. Redis unavailable."
 
     # ─────────────────────────────────────────────────────────────────────
     # Rate Limiting (429 TOO MANY REQUESTS)
@@ -64,6 +71,7 @@ class ErrorMessages:
     RESERVATION_NOT_DRAFT = "Reservation must be in draft status to be modified"
     RESERVATION_ALREADY_CONFIRMED = "Reservation is already confirmed"
     RESERVATION_ALREADY_CANCELLED = "Reservation is already cancelled"
+    RESERVATION_REFERENCE_OVERFLOW = "Cannot generate unique reference (counter overflow)"
 
     # ─────────────────────────────────────────────────────────────────────
     # Logique métier factures (400 BAD REQUEST)
@@ -73,6 +81,11 @@ class ErrorMessages:
     INVOICE_ALREADY_EXISTS = "Invoice already exists for this reservation"
     PAYMENT_EXCEEDS_TOTAL = "Payment amount exceeds invoice total"
     PAYMENT_AMOUNT_INVALID = "Payment amount must be positive"
+    STOCK_RESERVATION_FAILED = "Failed to reserve stock"
+    INVOICE_CANCELLED_NO_PAYMENT = "Cannot add payment to cancelled invoice"
+    INVOICE_PAID_NO_MODIFY = "Cannot modify paid invoice"
+    INVOICE_PAID_NO_CANCEL = "Cannot cancel paid invoice"
+    INVOICE_NUMBER_OVERFLOW = "Cannot generate unique invoice number (counter overflow)"
 
 
 class HTTPStatusMessages:

@@ -59,7 +59,7 @@ def test_auth_service_login_wrong_password(test_db):
         service.login("test@example.com", "wrong_password")
 
     assert exc_info.value.status_code == 401
-    assert "Incorrect email or password" in exc_info.value.detail
+    assert "Invalid email or password" in exc_info.value.detail
 
 
 def test_auth_service_login_inactive_user(test_db):

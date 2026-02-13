@@ -134,6 +134,19 @@ class UserRole(str, Enum):
     STAFF = "staff"
 
 
+class TokenType(str, Enum):
+    """Types de tokens JWT.
+
+    Utilisé dans :
+        - core.security (création tokens access/refresh)
+        - core.deps (validation token type)
+        - services.auth (refresh token validation)
+    """
+
+    ACCESS = "access"
+    REFRESH = "refresh"
+
+
 __all__ = [
     "ProductCategory",
     "ProductCondition",
@@ -142,4 +155,5 @@ __all__ = [
     "InvoiceStatus",
     "PaymentMethod",
     "UserRole",
+    "TokenType",
 ]

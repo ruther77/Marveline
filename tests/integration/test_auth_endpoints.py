@@ -32,7 +32,7 @@ def test_login_wrong_password(client: TestClient, test_user):
     )
 
     assert response.status_code == 401
-    assert "Incorrect email or password" in response.json()["detail"]
+    assert "Invalid email or password" in response.json()["detail"]
 
 
 def test_login_nonexistent_user(client: TestClient):
@@ -46,7 +46,7 @@ def test_login_nonexistent_user(client: TestClient):
     )
 
     assert response.status_code == 401
-    assert "Incorrect email or password" in response.json()["detail"]
+    assert "Invalid email or password" in response.json()["detail"]
 
 
 def test_login_inactive_user(client: TestClient, test_db, test_user):
@@ -118,22 +118,12 @@ def test_refresh_token_with_access_token(client: TestClient, test_user, auth_tok
     # Le service doit détecter que le token type != "refresh"
 
 
-def test_jwt_token_contains_correct_claims(client: TestClient, test_user):
+def test_jwt_token_contains_correct_claims(test_user, auth_token):
     """Test que le JWT token contient les claims corrects."""
     from app.core.security import decode_token
 
-    # Login
-    login_response = client.post(
-        "/api/v1/auth/login",
-        data={
-            "username": "test@carocorp.com",
-            "password": "testpass123"
-        }
-    )
-    access_token = login_response.json()["access_token"]
-
-    # Décoder token (sans vérification signature pour test)
-    payload = decode_token(access_token)
+    # Décoder token directement (évite rate limiting du login endpoint)
+    payload = decode_token(auth_token)
 
     assert payload is not None
     assert payload["sub"] == str(test_user.id)  # sub est une string selon RFC 7519

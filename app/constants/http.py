@@ -54,7 +54,37 @@ class PublicEndpoints:
         return {cls.HEALTH, cls.DOCS, cls.REDOC, cls.OPENAPI}
 
 
+class AuthEndpoints:
+    """Endpoints d'authentification (chemins complets avec préfixe API).
+
+    Utilisé dans :
+        - middleware.security (CSRF skip, login scope detection)
+        - middleware.audit (skip audit paths)
+        - middleware.metrics (login scope detection)
+        - core.deps (OAuth2 tokenUrl)
+    """
+
+    LOGIN = "/api/v1/auth/login"
+    REFRESH = "/api/v1/auth/refresh"
+    CSRF = "/api/v1/auth/csrf"
+    LOGOUT = "/api/v1/auth/logout"
+
+
+class HealthEndpoints:
+    """Endpoints de health check (chemins complets avec préfixe API).
+
+    Utilisé dans :
+        - middleware.security (rate limit exemptions)
+    """
+
+    BASE = "/api/v1/health"
+    READY = "/api/v1/health/ready"
+    LIVE = "/api/v1/health/live"
+
+
 __all__ = [
     "HTTPMethods",
     "PublicEndpoints",
+    "AuthEndpoints",
+    "HealthEndpoints",
 ]

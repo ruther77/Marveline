@@ -121,7 +121,7 @@ class Customer(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     @property
     def display_name(self) -> str:
         """Nom d'affichage du client (nom complet ou raison sociale)."""
-        if self.customer_type == "individual":
+        if self.customer_type == CustomerType.INDIVIDUAL:
             return f"{self.first_name} {self.last_name}"
         return self.company_name or "Client sans nom"
 

@@ -9,6 +9,7 @@ from app.core.redis import redis_client
 from app.services.auth import AuthService
 from app.schemas.auth import TokenResponse, RefreshTokenRequest, CSRFTokenResponse
 from app.models.user import User
+from app.constants import ErrorMessages
 import secrets
 
 
@@ -208,7 +209,7 @@ def get_csrf_token(
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate CSRF token. Redis unavailable."
+            detail=ErrorMessages.CSRF_TOKEN_GENERATION_FAILED
         )
 
     return CSRFTokenResponse(

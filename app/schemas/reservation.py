@@ -1,8 +1,9 @@
 """Schemas Pydantic pour Reservation et ReservationLine."""
 from datetime import date
-from typing import Optional, Literal, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 from pydantic import Field, field_validator, computed_field, model_validator
 from app.schemas.base import BaseSchema, EntityResponseSchema
+from app.constants import ReservationStatus
 
 # Import pour type hints seulement (évite circular imports)
 if TYPE_CHECKING:
@@ -239,7 +240,7 @@ class ReservationResponse(EntityResponseSchema):
     delivery_date: date
     return_date: date
     event_location: Optional[str] = None
-    status: Literal["draft", "confirmed", "delivered", "returned", "cancelled"]
+    status: ReservationStatus
     total_amount_cents: int = Field(validation_alias="total_amount")
     deposit_amount_cents: int = Field(validation_alias="deposit_amount")
     deposit_paid: bool
@@ -270,13 +271,13 @@ class ReservationResponse(EntityResponseSchema):
     @property
     def is_confirmed(self) -> bool:
         """Indique si la réservation est confirmée."""
-        return self.status == "confirmed"
+        return self.status == ReservationStatus.CONFIRMED
 
     @computed_field
     @property
     def is_cancelled(self) -> bool:
         """Indique si la réservation est annulée."""
-        return self.status == "cancelled"
+        return self.status == ReservationStatus.CANCELLED
 
     model_config = EntityResponseSchema.model_config.copy()
     model_config["json_schema_extra"] = {

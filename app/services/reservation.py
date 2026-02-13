@@ -9,7 +9,7 @@ from app.repositories.customer import CustomerRepository
 from app.repositories.product import ProductRepository
 from app.services.product import ProductService
 from app.schemas.reservation import ReservationCreate, ReservationUpdate
-from app.constants import ReservationStatus
+from app.constants import ErrorMessages, Limits, ReservationStatus
 
 
 class ReservationService:
@@ -101,10 +101,10 @@ class ReservationService:
         if next_counter > 9999:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Cannot generate unique reference (counter overflow)"
+                detail=ErrorMessages.RESERVATION_REFERENCE_OVERFLOW
             )
 
-        reference = f"RES-{year}-{next_counter:04d}"
+        reference = f"RES-{year}-{next_counter:0{Limits.RESERVATION_REFERENCE_PADDING}d}"
         # Enregistrer la référence générée
         self._generated_references.add(reference)
         return reference
@@ -153,7 +153,7 @@ class ReservationService:
         if not customer:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Customer not found"
+                detail=ErrorMessages.CUSTOMER_NOT_FOUND
             )
 
         # Générer référence unique
@@ -270,11 +270,11 @@ class ReservationService:
         if not reservation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Reservation not found"
+                detail=ErrorMessages.RESERVATION_NOT_FOUND
             )
 
         # Vérifier statut
-        if reservation.status != "draft":
+        if reservation.status != ReservationStatus.DRAFT:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Cannot confirm reservation with status '{reservation.status}'. Must be 'draft'."
@@ -343,18 +343,18 @@ class ReservationService:
         if not reservation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Reservation not found"
+                detail=ErrorMessages.RESERVATION_NOT_FOUND
             )
 
         # Vérifier statut
-        if reservation.status in ("returned", "cancelled"):
+        if reservation.status in (ReservationStatus.RETURNED, ReservationStatus.CANCELLED):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Cannot cancel reservation with status '{reservation.status}'"
             )
 
         # Libérer stock si réservation était confirmée ou livrée
-        if reservation.status in ("confirmed", "delivered"):
+        if reservation.status in (ReservationStatus.CONFIRMED, ReservationStatus.DELIVERED):
             for line in reservation.lines:
                 self.product_service.release_stock(
                     product_id=line.product_id,
@@ -409,14 +409,14 @@ class ReservationService:
         if not reservation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Reservation not found"
+                detail=ErrorMessages.RESERVATION_NOT_FOUND
             )
 
         # Vérifier statut
-        if reservation.status != "draft":
+        if reservation.status != ReservationStatus.DRAFT:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only draft reservations can be updated"
+                detail=ErrorMessages.RESERVATION_NOT_DRAFT
             )
 
         # Appliquer modifications

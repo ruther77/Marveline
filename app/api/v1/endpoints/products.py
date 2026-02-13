@@ -16,6 +16,7 @@ from app.schemas.product import (
     ProductList,
 )
 from app.schemas.common import PaginationParams, PaginatedResponse
+from app.constants import ErrorMessages, UserRole
 
 
 router = APIRouter(prefix="/products", tags=["Products"])
@@ -147,7 +148,7 @@ def get_product(
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Product not found"
+            detail=ErrorMessages.PRODUCT_NOT_FOUND
         )
 
     return ProductResponse.model_validate(product)
@@ -157,7 +158,7 @@ def get_product(
 def create_product(
     product_data: ProductCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin"))
+    current_user: User = Depends(require_role(UserRole.ADMIN))
 ) -> ProductResponse:
     """Crée un nouveau produit (admin only).
 
@@ -233,7 +234,7 @@ def update_product(
     product_id: int,
     product_data: ProductUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin"))
+    current_user: User = Depends(require_role(UserRole.ADMIN))
 ) -> ProductResponse:
     """Met à jour un produit existant (admin only, PATCH partiel).
 
@@ -293,7 +294,7 @@ def delete_product(
     product_id: int,
     hard_delete: bool = Query(False, description="Si True, suppression physique (défaut: soft delete)"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin"))
+    current_user: User = Depends(require_role(UserRole.ADMIN))
 ) -> None:
     """Supprime un produit (admin only, soft delete par défaut).
 

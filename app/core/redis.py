@@ -5,6 +5,7 @@ from typing import Optional
 from functools import lru_cache
 
 from app.core.config import settings
+from app.constants import Limits, RedisKeys
 
 
 class RedisClient:
@@ -73,7 +74,7 @@ class RedisClient:
             - Token unique (secrets.token_urlsafe)
         """
         try:
-            key = f"csrf:{user_id}:{token}"
+            key = f"{RedisKeys.CSRF_TOKEN}{user_id}:{token}"
             return self.client.setex(key, ttl_seconds, "1")
         except (redis.ConnectionError, redis.TimeoutError):
             return False
@@ -94,7 +95,7 @@ class RedisClient:
             - Ne révèle pas si l'utilisateur existe (timing attack protection)
         """
         try:
-            key = f"csrf:{user_id}:{token}"
+            key = f"{RedisKeys.CSRF_TOKEN}{user_id}:{token}"
             return self.client.exists(key) == 1
         except (redis.ConnectionError, redis.TimeoutError):
             return False
@@ -110,7 +111,7 @@ class RedisClient:
             True si révocation réussie, False sinon
         """
         try:
-            key = f"csrf:{user_id}:{token}"
+            key = f"{RedisKeys.CSRF_TOKEN}{user_id}:{token}"
             return self.client.delete(key) > 0
         except (redis.ConnectionError, redis.TimeoutError):
             return False
@@ -125,7 +126,7 @@ class RedisClient:
             Nombre de tokens révoqués
         """
         try:
-            pattern = f"csrf:{user_id}:*"
+            pattern = f"{RedisKeys.CSRF_TOKEN}{user_id}:*"
             keys = list(self.client.scan_iter(match=pattern, count=100))
             if keys:
                 return self.client.delete(*keys)
@@ -135,7 +136,7 @@ class RedisClient:
 
     # ========== Sessions (future) ==========
 
-    def store_session(self, session_id: str, data: dict, ttl_seconds: int = 3600) -> bool:
+    def store_session(self, session_id: str, data: dict, ttl_seconds: int = Limits.SESSION_TIMEOUT_SECONDS) -> bool:
         """Stocke une session utilisateur dans Redis.
 
         Args:
@@ -152,7 +153,7 @@ class RedisClient:
         """
         try:
             import json
-            key = f"session:{session_id}"
+            key = f"{RedisKeys.SESSION}{session_id}"
             return self.client.setex(key, ttl_seconds, json.dumps(data))
         except (redis.ConnectionError, redis.TimeoutError):
             return False
@@ -168,7 +169,7 @@ class RedisClient:
         """
         try:
             import json
-            key = f"session:{session_id}"
+            key = f"{RedisKeys.SESSION}{session_id}"
             data = self.client.get(key)
             return json.loads(data) if data else None
         except (redis.ConnectionError, redis.TimeoutError, ValueError):

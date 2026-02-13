@@ -2,6 +2,7 @@
 from typing import Literal
 from pydantic import EmailStr, Field
 from app.schemas.base import BaseSchema
+from app.constants import Limits, UserRole
 
 
 class LoginRequest(BaseSchema):
@@ -25,7 +26,7 @@ class LoginRequest(BaseSchema):
 
     password: str = Field(
         ...,
-        min_length=8,
+        min_length=Limits.PASSWORD_MIN_LENGTH,
         max_length=100,
         description="Mot de passe en clair"
     )
@@ -110,7 +111,7 @@ class UserInfo(BaseSchema):
         description="Nom complet de l'utilisateur"
     )
 
-    role: Literal["admin", "manager", "staff"] = Field(
+    role: UserRole = Field(
         ...,
         description="Rôle RBAC de l'utilisateur"
     )
@@ -140,14 +141,14 @@ class ChangePasswordRequest(BaseSchema):
 
     current_password: str = Field(
         ...,
-        min_length=8,
+        min_length=Limits.PASSWORD_MIN_LENGTH,
         max_length=100,
         description="Mot de passe actuel"
     )
 
     new_password: str = Field(
         ...,
-        min_length=8,
+        min_length=Limits.PASSWORD_MIN_LENGTH,
         max_length=100,
         description="Nouveau mot de passe"
     )

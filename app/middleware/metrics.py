@@ -1,0 +1,228 @@
+"""Middleware Prometheus metrics pour CaroCorp.
+
+Collecte automatiquement métriques RED (Rate, Errors, Duration) sur toutes requêtes HTTP.
+
+Workflow :
+1. Request arrive → Incrémenter http_requests_in_progress
+2. Démarrer timer → Mesurer durée requête
+3. Appeler next middleware → Obtenir response
+4. Décrémenter http_requests_in_progress
+5. Enregistrer métriques :
+   - http_requests_total (counter) : +1
+   - http_request_duration_seconds (histogram) : observe(duration)
+6. Si 429 rate limit → Incrémenter rate_limit_hits_total
+
+Notes :
+- Middleware installé AVANT tous les autres (pour mesurer durée totale incluant middlewares)
+- Pas d'exception levée (try/finally garantit décrémentation gauge)
+- Path normalisé : /api/v1/products/123 → /api/v1/products/{id} (éviter cardinalité infinie)
+"""
+from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi import Request
+from typing import Callable
+import time
+import re
+
+from app.core.metrics import (
+    http_requests_total,
+    http_request_duration_seconds,
+    http_requests_in_progress,
+    rate_limit_hits_total,
+)
+from app.constants import AuthEndpoints, HTTPMethods, RateLimitScope
+
+
+class MetricsMiddleware(BaseHTTPMiddleware):
+    """Middleware Prometheus metrics collection.
+
+    Collecte métriques RED sur toutes requêtes :
+    - Rate : http_requests_total
+    - Errors : http_requests_total{status=~"5.."}
+    - Duration : http_request_duration_seconds
+
+    Pattern :
+    - Gauge incremented BEFORE request processing
+    - Gauge decremented AFTER request processing (try/finally)
+    - Counter/Histogram recorded AFTER response
+
+    Notes :
+        - Path normalisé pour éviter cardinalité infinie (ID → {id})
+        - 429 rate limit → incrémenter rate_limit_hits_total
+        - Pas d'exemption (même /health et /metrics sont comptés)
+    """
+
+    # Patterns pour normaliser paths avec IDs
+    PATH_PATTERNS = [
+        (re.compile(r'/api/v1/products/\d+'), '/api/v1/products/{id}'),
+        (re.compile(r'/api/v1/customers/\d+'), '/api/v1/customers/{id}'),
+        (re.compile(r'/api/v1/reservations/\d+'), '/api/v1/reservations/{id}'),
+        (re.compile(r'/api/v1/invoices/\d+'), '/api/v1/invoices/{id}'),
+        (re.compile(r'/api/v1/audit/\d+'), '/api/v1/audit/{id}'),
+    ]
+
+    def _normalize_path(self, path: str) -> str:
+        r"""Normalise path en remplaçant IDs par {id}.
+
+        Évite cardinalité infinie de métriques Prometheus.
+
+        Args:
+            path: Path original (ex: /api/v1/products/123)
+
+        Returns:
+            Path normalisé (ex: /api/v1/products/{id})
+
+        Example:
+            >>> self._normalize_path("/api/v1/products/123")
+            '/api/v1/products/{id}'
+            >>> self._normalize_path("/api/v1/reservations/456/confirm")
+            '/api/v1/reservations/{id}/confirm'
+
+        Notes:
+            - Seuls IDs numériques remplacés (\d+)
+            - UUID/slugs préservés (pas de pattern match)
+            - Paths inconnus retournés tels quels
+        """
+        for pattern, replacement in self.PATH_PATTERNS:
+            if pattern.match(path):
+                return pattern.sub(replacement, path)
+
+        # Path sans ID numérique → retourner tel quel
+        return path
+
+    def _determine_scope_from_request(self, request: Request) -> str:
+        """Détermine scope rate limit depuis request path/method.
+
+        Duplique la logique de RateLimitMiddleware._determine_scope()
+        pour éviter de parser le body JSON 429.
+
+        Args:
+            request: Request FastAPI
+
+        Returns:
+            Scope rate limit (login, mutations, reads, user_authenticated)
+
+        Logic:
+            - /auth/login → "login"
+            - POST/PUT/PATCH/DELETE → "mutations"
+            - GET/HEAD/OPTIONS → "reads"
+            - Défaut → "user_authenticated"
+
+        Notes:
+            - Simplifie tracking en évitant parsing response 429
+            - Cohérent avec RateLimitMiddleware
+        """
+        path = request.url.path
+        method = request.method
+
+        # Login endpoint
+        if AuthEndpoints.LOGIN in path:
+            return RateLimitScope.LOGIN
+
+        # Mutations (POST, PUT, PATCH, DELETE)
+        if method in HTTPMethods.UNSAFE_METHODS:
+            return RateLimitScope.MUTATIONS
+
+        # Reads (GET, HEAD, OPTIONS)
+        if method in HTTPMethods.SAFE_METHODS:
+            return RateLimitScope.READS
+
+        # Default : user_authenticated (si authentifié)
+        return RateLimitScope.USER_AUTHENTICATED
+
+    def _get_identifier_type(self, request: Request, scope: str) -> str:
+        """Détermine type identifier (ip ou user_id) selon scope.
+
+        Args:
+            request: Request FastAPI
+            scope: Rate limit scope
+
+        Returns:
+            "ip" ou "user_id"
+
+        Logic:
+            - user_authenticated scope → "user_id"
+            - Autres scopes → "ip"
+
+        Notes:
+            - Utilisé comme label Prometheus : rate_limit_hits_total{identifier_type="ip"}
+            - Permet distinguer rate limit par IP vs par user
+        """
+        if scope == RateLimitScope.USER_AUTHENTICATED:
+            return "user_id"
+        return "ip"
+
+    async def dispatch(self, request: Request, call_next: Callable):
+        """Collecte métriques Prometheus sur requête HTTP.
+
+        Workflow :
+        1. Normaliser path (/api/v1/products/123 → /api/v1/products/{id})
+        2. Incrémenter gauge http_requests_in_progress
+        3. Démarrer timer
+        4. Appeler next middleware → Obtenir response
+        5. Décrémenter gauge (try/finally)
+        6. Mesurer durée totale
+        7. Enregistrer métriques :
+           - http_requests_total{method, path, status} +1
+           - http_request_duration_seconds{method, path}.observe(duration)
+        8. Si 429 rate limit → rate_limit_hits_total{scope, identifier_type} +1
+
+        Args:
+            request: Request FastAPI
+            call_next: Next middleware
+
+        Returns:
+            Response FastAPI (inchangée, métriques collectées en background)
+
+        Notes:
+            - Pas d'exception levée (try/finally garantit cleanup)
+            - Métriques enregistrées même si middleware suivant lève exception
+            - Path normalisé pour éviter cardinalité infinie
+        """
+        # Normaliser path (éviter cardinalité infinie)
+        path = self._normalize_path(request.url.path)
+        method = request.method
+
+        # Incrémenter gauge requêtes en cours
+        http_requests_in_progress.labels(method=method, path=path).inc()
+
+        # Démarrer timer
+        start_time = time.time()
+
+        try:
+            # Appeler next middleware
+            response = await call_next(request)
+
+            # Mesurer durée
+            duration = time.time() - start_time
+
+            # Enregistrer métriques
+            status = response.status_code
+
+            # Counter requêtes total
+            http_requests_total.labels(
+                method=method,
+                path=path,
+                status=status
+            ).inc()
+
+            # Histogram durée requête
+            http_request_duration_seconds.labels(
+                method=method,
+                path=path
+            ).observe(duration)
+
+            # Si 429 rate limit → incrémenter rate_limit_hits_total
+            if status == 429:
+                # Déterminer scope depuis request (path + méthode)
+                scope = self._determine_scope_from_request(request)
+                identifier_type = self._get_identifier_type(request, scope)
+                rate_limit_hits_total.labels(
+                    scope=scope.value if hasattr(scope, 'value') else scope,
+                    identifier_type=identifier_type
+                ).inc()
+
+            return response
+
+        finally:
+            # Décrémenter gauge (toujours exécuté, même si exception)
+            http_requests_in_progress.labels(method=method, path=path).dec()

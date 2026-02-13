@@ -1,13 +1,14 @@
 """Schemas Pydantic pour l'entité Customer (clients)."""
-from typing import Optional, Literal
+from typing import Optional
 from pydantic import EmailStr, Field, field_validator, model_validator
 from app.schemas.base import BaseSchema, EntityResponseSchema
+from app.constants import CustomerType
 
 
 class CustomerBase(BaseSchema):
     """Schema de base partagé entre Create et Update."""
 
-    customer_type: Literal["individual", "company"] = Field(
+    customer_type: CustomerType = Field(
         ...,
         description="Type de client: individual (particulier) ou company (entreprise)"
     )
@@ -83,12 +84,12 @@ class CustomerBase(BaseSchema):
             - individual: first_name et last_name requis
             - company: company_name requis
         """
-        if self.customer_type == "individual":
+        if self.customer_type == CustomerType.INDIVIDUAL:
             if not self.first_name or not self.last_name:
                 raise ValueError(
                     "first_name and last_name are required for individual customers"
                 )
-        elif self.customer_type == "company":
+        elif self.customer_type == CustomerType.COMPANY:
             if not self.company_name:
                 raise ValueError(
                     "company_name is required for company customers"
@@ -205,7 +206,7 @@ class CustomerList(EntityResponseSchema):
     @property
     def display_name(self) -> str:
         """Nom d'affichage du client (calculé côté frontend aussi)."""
-        if self.customer_type == "individual" and self.first_name and self.last_name:
+        if self.customer_type == CustomerType.INDIVIDUAL and self.first_name and self.last_name:
             return f"{self.first_name} {self.last_name}"
         return self.company_name or "Client sans nom"
 
@@ -236,7 +237,7 @@ class CustomerResponse(EntityResponseSchema):
     @property
     def display_name(self) -> str:
         """Nom d'affichage du client."""
-        if self.customer_type == "individual" and self.first_name and self.last_name:
+        if self.customer_type == CustomerType.INDIVIDUAL and self.first_name and self.last_name:
             return f"{self.first_name} {self.last_name}"
         return self.company_name or "Client sans nom"
 

@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.core.config import settings
+from app.constants import PublicEndpoints
+from app.core.metrics import metrics_endpoint
 from app.api.v1 import api_router
 from app.middleware.security import (
     CSRFProtectionMiddleware,
@@ -11,6 +13,7 @@ from app.middleware.security import (
     RateLimitMiddleware,
 )
 from app.middleware.audit import AuditMiddleware
+from app.middleware.metrics import MetricsMiddleware
 
 
 def create_application() -> FastAPI:
@@ -20,11 +23,11 @@ def create_application() -> FastAPI:
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
         description="API de gestion de location de vaisselle et accessoires pour événements",
-        docs_url="/api/docs" if settings.DEBUG else None,
-        redoc_url="/api/redoc" if settings.DEBUG else None,
+        docs_url=PublicEndpoints.DOCS if settings.DEBUG else None,
+        redoc_url=PublicEndpoints.REDOC if settings.DEBUG else None,
     )
 
-    # Security Headers Middleware (premier pour headers sur toutes réponses)
+    # Security Headers Middleware
     app.add_middleware(SecurityHeadersMiddleware)
 
     # CORS Middleware
@@ -53,17 +56,35 @@ def create_application() -> FastAPI:
     # Audit Middleware (trace toutes les actions authentifiées)
     app.add_middleware(AuditMiddleware)
 
-    # Routes API v1
+    # Metrics Middleware (DERNIER ajouté = PREMIER exécuté en LIFO, capture TOUTES les responses incluant 429)
+    app.add_middleware(MetricsMiddleware)
+
+    # Routes API v1 (inclut /api/v1/health/*, /api/v1/auth/*, etc.)
     app.include_router(api_router, prefix="/api/v1")
 
-    @app.get("/health")
-    async def health_check():
-        """Endpoint de santé pour monitoring."""
-        return {
-            "status": "healthy",
-            "service": settings.APP_NAME,
-            "version": settings.APP_VERSION,
-        }
+    # Endpoint Prometheus metrics (scraping externe)
+    @app.get("/metrics")
+    def metrics():
+        """Endpoint Prometheus metrics.
+
+        Exposition métriques RED (Rate, Errors, Duration) pour monitoring production.
+
+        Returns:
+            Response text/plain format Prometheus
+
+        Example curl:
+            $ curl http://localhost:8001/metrics
+            # HELP http_requests_total Total HTTP requests
+            # TYPE http_requests_total counter
+            http_requests_total{method="GET",path="/api/v1/products",status="200"} 42.0
+            ...
+
+        Notes:
+            - Appelé toutes les 15s par Prometheus (scrape_interval)
+            - Pas d'authentification requise (endpoint public)
+            - Compression gzip automatique si supportée
+        """
+        return metrics_endpoint()
 
     return app
 

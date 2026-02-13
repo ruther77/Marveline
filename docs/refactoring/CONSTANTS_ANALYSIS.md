@@ -429,4 +429,4 @@ app/constants/
 ---
 
 **Généré le** : 2026-02-12
-**Analyseur** : Claude Code (automated analysis)
+**Analyseur** : automated analysis

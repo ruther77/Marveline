@@ -8,6 +8,7 @@ import re
 from app.core.database import get_db
 from app.services.audit import AuditService
 from app.core.security import decode_token
+from app.constants import AuthEndpoints, HTTPMethods, PublicEndpoints, SecurityHeaders
 
 
 class AuditMiddleware(BaseHTTPMiddleware):
@@ -57,14 +58,14 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
     # Endpoints à exclure de l'audit (publics ou non critiques)
     EXCLUDED_PATHS = [
-        "/health",
-        "/api/docs",
-        "/api/redoc",
-        "/openapi.json",
-        "/api/v1/auth/login",
-        "/api/v1/auth/refresh",
-        "/api/v1/auth/csrf",
-        "/api/v1/auth/logout",
+        PublicEndpoints.HEALTH,
+        PublicEndpoints.DOCS,
+        PublicEndpoints.REDOC,
+        PublicEndpoints.OPENAPI,
+        AuthEndpoints.LOGIN,
+        AuthEndpoints.REFRESH,
+        AuthEndpoints.CSRF,
+        AuthEndpoints.LOGOUT,
     ]
 
     async def dispatch(self, request: Request, call_next: Callable):
@@ -93,7 +94,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Extraire user info depuis JWT
-        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        token = request.headers.get(SecurityHeaders.AUTHORIZATION, "").replace(SecurityHeaders.BEARER_PREFIX, "")
         payload = decode_token(token) if token else None
 
         user_id = int(payload.get("sub")) if payload and payload.get("sub") else None
@@ -116,7 +117,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
             path = request.url.path
 
             # Auditer mutations (POST, PUT, PATCH, DELETE)
-            if method in ("POST", "PUT", "PATCH", "DELETE"):
+            if method in HTTPMethods.UNSAFE_METHODS:
                 self._audit_mutation(
                     method=method,
                     path=path,
@@ -128,7 +129,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 )
 
             # Auditer lectures sensibles (GET données personnelles)
-            elif method == "GET" and self._is_sensitive_read(path):
+            elif method == HTTPMethods.GET and self._is_sensitive_read(path):
                 self._audit_sensitive_read(
                     path=path,
                     tenant_id=tenant_id,
@@ -177,10 +178,10 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
             # Mapper HTTP method → action
             action_map = {
-                "POST": "CREATE",
-                "PUT": "UPDATE",
-                "PATCH": "UPDATE",
-                "DELETE": "DELETE"
+                HTTPMethods.POST: "CREATE",
+                HTTPMethods.PUT: "UPDATE",
+                HTTPMethods.PATCH: "UPDATE",
+                HTTPMethods.DELETE: "DELETE"
             }
             action = action_map[method]
 

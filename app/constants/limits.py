@@ -68,8 +68,8 @@ class Limits:
     RESERVATION_REFERENCE_PADDING = 4
     """Nombre de zéros pour padding des références (RES-2026-0001)."""
 
-    INVOICE_NUMBER_PADDING = 5
-    """Nombre de zéros pour padding des numéros de facture (INV-2026-00001)."""
+    INVOICE_NUMBER_PADDING = 4
+    """Nombre de zéros pour padding des numéros de facture (INV-2026-0001)."""
 
 
 __all__ = [

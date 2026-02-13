@@ -12,10 +12,11 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db  # Import depuis database.py (source unique)
 from app.core.security import decode_token
 from app.models.user import User
+from app.constants import AuthEndpoints, ErrorMessages, SecurityHeaders, TokenType, UserRole
 
 
 # OAuth2 scheme pour extraction du token Bearer
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=AuthEndpoints.LOGIN)
 
 
 def get_current_user(
@@ -47,8 +48,8 @@ def get_current_user(
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
+        detail=ErrorMessages.INVALID_TOKEN,
+        headers={SecurityHeaders.WWW_AUTHENTICATE: SecurityHeaders.BEARER_SCHEME},
     )
 
     # Décoder le token
@@ -58,11 +59,11 @@ def get_current_user(
 
     # Vérifier type de token
     token_type = payload.get("type")
-    if token_type != "access":
+    if token_type != TokenType.ACCESS:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token type",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail=ErrorMessages.INVALID_TOKEN_TYPE,
+            headers={SecurityHeaders.WWW_AUTHENTICATE: SecurityHeaders.BEARER_SCHEME},
         )
 
     # Extraire user_id (sub est une string selon JWT spec)
@@ -85,7 +86,7 @@ def get_current_user(
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive account"
+            detail=ErrorMessages.ACCOUNT_INACTIVE
         )
 
     return user
@@ -133,5 +134,5 @@ def require_role(*allowed_roles: str):
 
 # Type aliases pour annotations
 CurrentUser = Annotated[User, Depends(get_current_user)]
-AdminUser = Annotated[User, Depends(require_role("admin"))]
-ManagerUser = Annotated[User, Depends(require_role("admin", "manager"))]
+AdminUser = Annotated[User, Depends(require_role(UserRole.ADMIN))]
+ManagerUser = Annotated[User, Depends(require_role(UserRole.ADMIN, UserRole.MANAGER))]

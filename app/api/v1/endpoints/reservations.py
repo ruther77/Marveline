@@ -16,7 +16,7 @@ from app.schemas.reservation import (
     ReservationList,
 )
 from app.schemas.common import PaginationParams, PaginatedResponse
-from app.constants import ReservationStatus
+from app.constants import ErrorMessages, ReservationStatus
 
 
 router = APIRouter(prefix="/reservations", tags=["Reservations"])
@@ -174,7 +174,7 @@ def get_reservation(
     if not reservation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Reservation not found"
+            detail=ErrorMessages.RESERVATION_NOT_FOUND
         )
 
     return ReservationResponse.model_validate(reservation)

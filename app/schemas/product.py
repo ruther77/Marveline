@@ -1,8 +1,8 @@
 """Schemas Pydantic pour l'entité Product (catalogue de vaisselle)."""
-from typing import Optional, Literal
+from typing import Optional
 from pydantic import Field, field_validator, computed_field
 from app.schemas.base import BaseSchema, EntityResponseSchema
-from app.constants import ProductCondition
+from app.constants import ProductCategory, ProductCondition
 
 
 class ProductBase(BaseSchema):
@@ -20,7 +20,7 @@ class ProductBase(BaseSchema):
         description="Code produit unique (Stock Keeping Unit)"
     )
 
-    category: Literal["assiette", "verre", "couvert", "nappe", "deco", "autre"] = Field(
+    category: ProductCategory = Field(
         ...,
         description="Catégorie du produit"
     )
@@ -49,7 +49,7 @@ class ProductBase(BaseSchema):
         description="Quantité disponible à la location"
     )
 
-    condition: Literal["neuf", "bon", "use", "hors_service"] = Field(
+    condition: ProductCondition = Field(
         default=ProductCondition.BON,
         description="État du produit"
     )
@@ -120,7 +120,7 @@ class ProductUpdate(BaseSchema):
         description="Nom du produit"
     )
 
-    category: Optional[Literal["assiette", "verre", "couvert", "nappe", "deco", "autre"]] = Field(
+    category: Optional[ProductCategory] = Field(
         default=None,
         description="Catégorie du produit"
     )
@@ -149,7 +149,7 @@ class ProductUpdate(BaseSchema):
         description="Quantité disponible à la location"
     )
 
-    condition: Optional[Literal["neuf", "bon", "use", "hors_service"]] = Field(
+    condition: Optional[ProductCondition] = Field(
         default=None,
         description="État du produit"
     )

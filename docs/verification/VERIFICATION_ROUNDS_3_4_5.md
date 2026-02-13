@@ -387,4 +387,4 @@ curl http://localhost:8001/health
 
 ---
 
-*Vérification exhaustive effectuée le 2026-02-11 par Claude Code*
+*Vérification exhaustive effectuée le 2026-02-11*

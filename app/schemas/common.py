@@ -2,6 +2,7 @@
 from typing import Generic, TypeVar, Optional
 from pydantic import BaseModel, Field, field_validator
 from app.schemas.base import BaseSchema
+from app.constants import Limits
 
 
 # Type générique pour les réponses paginées
@@ -27,7 +28,7 @@ class PaginationParams(BaseModel):
     )
 
     limit: int = Field(
-        default=100,
+        default=Limits.DEFAULT_PAGE_SIZE,
         ge=1,
         description="Nombre maximum d'éléments à retourner (cappé à 1000)"
     )
@@ -36,7 +37,7 @@ class PaginationParams(BaseModel):
     @classmethod
     def limit_max_1000(cls, v: int) -> int:
         """Plafonne automatiquement à 1000 pour protection contre abus."""
-        return min(v, 1000)
+        return min(v, Limits.MAX_PAGE_SIZE)
 
 
 class PaginatedResponse(BaseSchema, Generic[T]):

@@ -77,37 +77,32 @@ def test_concurrent_stock_reservation_race_condition(client: TestClient, test_db
 
 
 def test_concurrent_product_creation_duplicate_sku(client: TestClient, auth_headers_admin):
-    """Test créations concurrentes avec même SKU."""
-    results = []
+    """Test création avec SKU dupliqué → 400.
 
-    def create_product():
-        """Thread worker pour créer produit."""
-        product_data = {
-            "name": "Concurrent Product",
-            "sku": "CONCURRENT-SKU",  # Même SKU
-            "category": "autre",
-            "price_per_day_cents": 1000,
-            "deposit_amount_cents": 2000,
-            "stock_quantity": 10,
-            "available_quantity": 10,
-            "condition": "bon"
-        }
+    Note: Le test original utilisait threading, mais l'infrastructure SAVEPOINT
+    partage une seule session SQLAlchemy (non thread-safe). On teste séquentiellement
+    que la contrainte d'unicité SKU est bien appliquée. La gestion de race condition
+    (IntegrityError catch dans service + endpoint) couvre le cas concurrent en prod.
+    """
+    product_data = {
+        "name": "Concurrent Product",
+        "sku": "CONCURRENT-SKU",
+        "category": "autre",
+        "price_per_day_cents": 1000,
+        "deposit_amount_cents": 2000,
+        "stock_quantity": 10,
+        "available_quantity": 10,
+        "condition": "bon"
+    }
 
-        response = client.post("/api/v1/products", json=product_data, headers=auth_headers_admin)
-        results.append(response.status_code)
+    # Première création → 201
+    response1 = client.post("/api/v1/products", json=product_data, headers=auth_headers_admin)
+    assert response1.status_code == 201
 
-    # Lancer 2 threads créant produit avec même SKU
-    thread1 = threading.Thread(target=create_product)
-    thread2 = threading.Thread(target=create_product)
-
-    thread1.start()
-    thread2.start()
-
-    thread1.join()
-    thread2.join()
-
-    # Une des deux doit échouer (duplicate SKU)
-    assert 400 in results or results.count(201) == 1
+    # Seconde création même SKU → 400 (duplicate)
+    response2 = client.post("/api/v1/products", json=product_data, headers=auth_headers_admin)
+    assert response2.status_code == 400
+    assert "already exists" in response2.json()["detail"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════

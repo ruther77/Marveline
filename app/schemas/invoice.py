@@ -1,8 +1,9 @@
 """Schemas Pydantic pour l'entité Invoice (factures)."""
 from datetime import date
-from typing import Optional, Literal, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 from pydantic import Field, field_validator, computed_field, model_validator
 from app.schemas.base import BaseSchema, EntityResponseSchema
+from app.constants import InvoiceStatus, PaymentMethod
 
 # Import pour type hints seulement (évite circular imports)
 if TYPE_CHECKING:
@@ -75,7 +76,7 @@ class InvoiceUpdate(BaseSchema):
         description="Date d'échéance"
     )
 
-    status: Optional[Literal["draft", "sent", "paid", "overdue", "cancelled"]] = Field(
+    status: Optional[InvoiceStatus] = Field(
         default=None,
         description="Statut de la facture"
     )
@@ -100,7 +101,7 @@ class AddPaymentRequest(BaseSchema):
         description="Montant du paiement en centimes"
     )
 
-    payment_method: Literal["cash", "card", "transfer", "check"] = Field(
+    payment_method: PaymentMethod = Field(
         ...,
         description="Moyen de paiement"
     )
@@ -147,7 +148,7 @@ class InvoiceList(EntityResponseSchema):
         from datetime import date as date_type
         return (
             not self.is_paid
-            and self.status not in ["paid", "cancelled"]
+            and self.status not in [InvoiceStatus.PAID, InvoiceStatus.CANCELLED]
             and self.due_date < date_type.today()
         )
 
@@ -161,7 +162,7 @@ class InvoiceResponse(EntityResponseSchema):
     due_date: date
     total_amount_cents: int = Field(validation_alias="total_amount")
     paid_amount_cents: int = Field(validation_alias="paid_amount")
-    status: Literal["draft", "sent", "paid", "overdue", "cancelled"]
+    status: InvoiceStatus
     payment_method: Optional[str] = None
     payment_date: Optional[date] = None
 
@@ -205,7 +206,7 @@ class InvoiceResponse(EntityResponseSchema):
         from datetime import date as date_type
         return (
             not self.is_paid
-            and self.status not in ["paid", "cancelled"]
+            and self.status not in [InvoiceStatus.PAID, InvoiceStatus.CANCELLED]
             and self.due_date < date_type.today()
         )
 

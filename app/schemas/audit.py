@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional, Any
 from pydantic import Field, ConfigDict
 from app.schemas.base import BaseSchema
+from app.constants import Limits
 
 
 class AuditLogResponse(BaseSchema):
@@ -159,7 +160,7 @@ class AuditLogList(BaseSchema):
     )
 
     limit: int = Field(
-        default=100,
+        default=Limits.DEFAULT_PAGE_SIZE,
         description="Limite pagination"
     )
 

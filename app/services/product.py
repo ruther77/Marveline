@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from app.models.product import Product
 from app.repositories.product import ProductRepository
 from app.schemas.product import ProductCreate, ProductUpdate
+from app.constants import ErrorMessages
 
 
 class ProductService:
@@ -86,7 +87,7 @@ class ProductService:
         if product.available_quantity > product.stock_quantity:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="available_quantity cannot exceed stock_quantity"
+                detail=ErrorMessages.AVAILABLE_EXCEEDS_STOCK
             )
 
         try:
@@ -137,7 +138,7 @@ class ProductService:
         if not product:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Product not found"
+                detail=ErrorMessages.PRODUCT_NOT_FOUND
             )
 
         # Appliquer modifications (PATCH partiel)
@@ -156,7 +157,7 @@ class ProductService:
         if product.available_quantity > product.stock_quantity:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="available_quantity cannot exceed stock_quantity"
+                detail=ErrorMessages.AVAILABLE_EXCEEDS_STOCK
             )
 
         return self.repo.update(product)
@@ -201,7 +202,7 @@ class ProductService:
             if not product:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Product not found"
+                    detail=ErrorMessages.PRODUCT_NOT_FOUND
                 )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -213,7 +214,7 @@ class ProductService:
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to reserve stock"
+                detail=ErrorMessages.STOCK_RESERVATION_FAILED
             )
 
         return True
@@ -254,7 +255,7 @@ class ProductService:
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Product not found"
+                detail=ErrorMessages.PRODUCT_NOT_FOUND
             )
 
         return True
@@ -298,7 +299,7 @@ class ProductService:
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Product not found"
+                detail=ErrorMessages.PRODUCT_NOT_FOUND
             )
 
         return True

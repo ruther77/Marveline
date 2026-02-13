@@ -14,6 +14,7 @@ from app.schemas.customer import (
     CustomerList,
 )
 from app.schemas.common import PaginationParams, PaginatedResponse
+from app.constants import ErrorMessages
 
 
 router = APIRouter(prefix="/customers", tags=["Customers"])
@@ -151,7 +152,7 @@ def get_customer(
     if not customer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found"
+            detail=ErrorMessages.CUSTOMER_NOT_FOUND
         )
 
     return CustomerResponse.model_validate(customer)
@@ -292,7 +293,7 @@ def update_customer(
     if not customer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Customer not found"
+            detail=ErrorMessages.CUSTOMER_NOT_FOUND
         )
 
     # Vérifier unicité email si modifié
@@ -368,7 +369,7 @@ def delete_customer(
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Customer not found"
+                detail=ErrorMessages.CUSTOMER_NOT_FOUND
             )
 
         db.commit()

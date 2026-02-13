@@ -191,7 +191,7 @@ __all__ = [
 3. ✅ **Création de `__init__.py`** pour exports centralisés
 4. ✅ **Sauvegarde de l'ancien fichier** : `constants.py.backup`
 5. ✅ **Tests de non-régression** : 39/43 tests passent (4 échecs préexistants)
-6. ✅ **Mise à jour CLAUDE.md** (section A.6)
+6. ✅ **Mise à jour Dev Playbook** (section A.6)
 
 ### Compatibilité Garantie
 
@@ -366,7 +366,7 @@ __all__ = [
 - [x] Ancien `constants.py` sauvegardé en `.backup`
 - [x] Tests de non-régression passants (39/43)
 - [x] Imports validés (transparence totale)
-- [x] CLAUDE.md mis à jour (section A.6)
+- [x] Dev Playbook mis à jour (section A.6)
 - [x] Documentation complète (ce fichier)
 - [ ] Supprimer `constants.py.backup` après validation finale (7 jours)
 

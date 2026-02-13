@@ -7,6 +7,8 @@ from app.models.product import Product
 from app.models.customer import Customer
 from app.core.security import get_password_hash, create_access_token
 from app.constants import CustomerType, ProductCategory, ProductCondition
+from app.core.redis import redis_client
+import secrets
 
 
 @pytest.fixture
@@ -61,47 +63,53 @@ def staff_user(test_db):
 
 
 @pytest.fixture
-def admin_headers(admin_user, csrf_token):
-    """Headers avec token admin + CSRF."""
+def admin_headers(admin_user):
+    """Headers avec token admin + CSRF (Redis-backed)."""
     token = create_access_token({
         "sub": admin_user.id,
         "tenant_id": admin_user.tenant_id,
         "email": admin_user.email,
         "role": admin_user.role
     })
+    csrf = secrets.token_urlsafe(32)
+    redis_client.store_csrf_token(user_id=admin_user.id, token=csrf, ttl_seconds=900)
     return {
         "Authorization": f"Bearer {token}",
-        "X-CSRF-Token": csrf_token
+        "X-CSRF-Token": csrf
     }
 
 
 @pytest.fixture
-def manager_headers(manager_user, csrf_token):
-    """Headers avec token manager + CSRF."""
+def manager_headers(manager_user):
+    """Headers avec token manager + CSRF (Redis-backed)."""
     token = create_access_token({
         "sub": manager_user.id,
         "tenant_id": manager_user.tenant_id,
         "email": manager_user.email,
         "role": manager_user.role
     })
+    csrf = secrets.token_urlsafe(32)
+    redis_client.store_csrf_token(user_id=manager_user.id, token=csrf, ttl_seconds=900)
     return {
         "Authorization": f"Bearer {token}",
-        "X-CSRF-Token": csrf_token
+        "X-CSRF-Token": csrf
     }
 
 
 @pytest.fixture
-def staff_headers(staff_user, csrf_token):
-    """Headers avec token staff + CSRF."""
+def staff_headers(staff_user):
+    """Headers avec token staff + CSRF (Redis-backed)."""
     token = create_access_token({
         "sub": staff_user.id,
         "tenant_id": staff_user.tenant_id,
         "email": staff_user.email,
         "role": staff_user.role
     })
+    csrf = secrets.token_urlsafe(32)
+    redis_client.store_csrf_token(user_id=staff_user.id, token=csrf, ttl_seconds=900)
     return {
         "Authorization": f"Bearer {token}",
-        "X-CSRF-Token": csrf_token
+        "X-CSRF-Token": csrf
     }
 
 

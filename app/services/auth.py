@@ -14,6 +14,7 @@ from app.core.security import (
 )
 from app.core.config import settings
 from app.services.audit import AuditService
+from app.constants import ErrorMessages, SecurityHeaders, TokenType, UserRole
 
 
 class AuthService:
@@ -105,8 +106,8 @@ class AuthService:
 
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect email or password",
-                headers={"WWW-Authenticate": "Bearer"},
+                detail=ErrorMessages.INVALID_CREDENTIALS,
+                headers={SecurityHeaders.WWW_AUTHENTICATE: SecurityHeaders.BEARER_SCHEME},
             )
 
         # Vérifier password
@@ -125,8 +126,8 @@ class AuthService:
 
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect email or password",
-                headers={"WWW-Authenticate": "Bearer"},
+                detail=ErrorMessages.INVALID_CREDENTIALS,
+                headers={SecurityHeaders.WWW_AUTHENTICATE: SecurityHeaders.BEARER_SCHEME},
             )
 
         # Vérifier compte actif
@@ -145,7 +146,7 @@ class AuthService:
 
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Account is inactive"
+                detail=ErrorMessages.ACCOUNT_INACTIVE
             )
 
         # Audit log LOGIN_SUCCESS
@@ -206,17 +207,17 @@ class AuthService:
         if payload is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid refresh token",
-                headers={"WWW-Authenticate": "Bearer"},
+                detail=ErrorMessages.INVALID_REFRESH_TOKEN,
+                headers={SecurityHeaders.WWW_AUTHENTICATE: SecurityHeaders.BEARER_SCHEME},
             )
 
         # Vérifier type de token
         token_type = payload.get("type")
-        if token_type != "refresh":
+        if token_type != TokenType.REFRESH:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token type (expected refresh token)",
-                headers={"WWW-Authenticate": "Bearer"},
+                detail=ErrorMessages.INVALID_REFRESH_TOKEN_TYPE,
+                headers={SecurityHeaders.WWW_AUTHENTICATE: SecurityHeaders.BEARER_SCHEME},
             )
 
         # Extraire user_id
@@ -224,7 +225,7 @@ class AuthService:
         if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token payload"
+                detail=ErrorMessages.INVALID_TOKEN_PAYLOAD
             )
 
         # Charger user depuis DB
@@ -232,14 +233,14 @@ class AuthService:
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
+                detail=ErrorMessages.USER_NOT_FOUND
             )
 
         # Vérifier compte actif
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Account is inactive"
+                detail=ErrorMessages.ACCOUNT_INACTIVE
             )
 
         # Créer nouveau access token avec claims à jour
@@ -294,14 +295,14 @@ class AuthService:
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                detail=ErrorMessages.USER_NOT_FOUND
             )
 
         # Vérifier current password
         if not verify_password(current_password, user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Current password is incorrect"
+                detail=ErrorMessages.CURRENT_PASSWORD_INCORRECT
             )
 
         # Valider robustesse nouveau password
@@ -365,7 +366,7 @@ class AuthService:
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
+                detail=ErrorMessages.EMAIL_ALREADY_EXISTS
             )
 
         # Valider robustesse password
@@ -377,10 +378,10 @@ class AuthService:
             )
 
         # Valider rôle
-        if role not in ("admin", "manager", "staff"):
+        if role not in (UserRole.ADMIN, UserRole.MANAGER, UserRole.STAFF):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid role. Must be: admin, manager, or staff"
+                detail=ErrorMessages.INVALID_ROLE
             )
 
         # Créer user

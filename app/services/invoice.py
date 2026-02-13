@@ -7,7 +7,7 @@ from app.models.invoice import Invoice
 from app.repositories.invoice import InvoiceRepository
 from app.repositories.reservation import ReservationRepository
 from app.schemas.invoice import InvoiceCreate, InvoiceUpdate, AddPaymentRequest
-from app.constants import InvoiceStatus, PaymentMethod, ReservationStatus
+from app.constants import ErrorMessages, InvoiceStatus, Limits, PaymentMethod, ReservationStatus
 
 
 class InvoiceService:
@@ -59,7 +59,7 @@ class InvoiceService:
         # Trouver le prochain numéro disponible
         counter = 1
         while True:
-            invoice_number = f"INV-{year}-{counter:04d}"
+            invoice_number = f"INV-{year}-{counter:0{Limits.INVOICE_NUMBER_PADDING}d}"
             # Vérifier unicité globale (pas par tenant)
             from sqlalchemy import select
             from app.models.invoice import Invoice as InvoiceModel
@@ -79,7 +79,7 @@ class InvoiceService:
             if counter > 9999:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Cannot generate unique invoice number (counter overflow)"
+                    detail=ErrorMessages.INVOICE_NUMBER_OVERFLOW
                 )
 
     def generate_from_reservation(
@@ -125,7 +125,7 @@ class InvoiceService:
         if not reservation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Reservation not found"
+                detail=ErrorMessages.RESERVATION_NOT_FOUND
             )
 
         # Vérifier qu'il n'y a pas déjà une facture pour cette réservation
@@ -151,7 +151,7 @@ class InvoiceService:
             due_date=invoice_data.due_date,
             total_amount=reservation.total_amount,  # Copie depuis réservation
             paid_amount=0,
-            status=ReservationStatus.DRAFT,
+            status=InvoiceStatus.DRAFT,
             payment_method=None,
             payment_date=None
         )
@@ -200,14 +200,14 @@ class InvoiceService:
         if not invoice:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Invoice not found"
+                detail=ErrorMessages.INVOICE_NOT_FOUND
             )
 
         # Vérifier que facture n'est pas annulée
-        if invoice.status == "cancelled":
+        if invoice.status == InvoiceStatus.CANCELLED:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot add payment to cancelled invoice"
+                detail=ErrorMessages.INVOICE_CANCELLED_NO_PAYMENT
             )
 
         # Vérifier que paiement ne dépasse pas le total
@@ -271,14 +271,14 @@ class InvoiceService:
         if not invoice:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Invoice not found"
+                detail=ErrorMessages.INVOICE_NOT_FOUND
             )
 
         # Vérifier statut
-        if invoice.status == "paid":
+        if invoice.status == InvoiceStatus.PAID:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot modify paid invoice"
+                detail=ErrorMessages.INVOICE_PAID_NO_MODIFY
             )
 
         # Appliquer modifications
@@ -321,7 +321,7 @@ class InvoiceService:
 
         # Mettre à jour statut
         for invoice in overdue_invoices:
-            if invoice.status not in ("overdue", "cancelled"):
+            if invoice.status not in (InvoiceStatus.OVERDUE, InvoiceStatus.CANCELLED):
                 invoice.status=InvoiceStatus.OVERDUE
                 self.repo.update(invoice)
 
@@ -361,18 +361,18 @@ class InvoiceService:
         if not invoice:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Invoice not found"
+                detail=ErrorMessages.INVOICE_NOT_FOUND
             )
 
         # Vérifier statut
-        if invoice.status == "paid":
+        if invoice.status == InvoiceStatus.PAID:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot cancel paid invoice"
+                detail=ErrorMessages.INVOICE_PAID_NO_CANCEL
             )
 
         # Annuler
-        invoice.status=ReservationStatus.CANCELLED
+        invoice.status=InvoiceStatus.CANCELLED
         return self.repo.update(invoice)
 
     def list_overdue(self, tenant_id: int) -> list[Invoice]:

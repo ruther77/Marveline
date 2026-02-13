@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.invoice import Invoice
 from app.models.reservation import Reservation
 from app.repositories.base import BaseRepository
+from app.constants import InvoiceStatus
 
 
 class InvoiceRepository(BaseRepository[Invoice]):
@@ -191,7 +192,7 @@ class InvoiceRepository(BaseRepository[Invoice]):
             and_(
                 Invoice.due_date < reference_date,
                 Invoice.paid_amount < Invoice.total_amount,
-                Invoice.status != "cancelled"
+                Invoice.status != InvoiceStatus.CANCELLED
             )
         )
         query = self._apply_tenant_filter(query, tenant_id)
@@ -225,7 +226,7 @@ class InvoiceRepository(BaseRepository[Invoice]):
         query = select(Invoice).filter(
             and_(
                 Invoice.paid_amount < Invoice.total_amount,
-                Invoice.status != "cancelled"
+                Invoice.status != InvoiceStatus.CANCELLED
             )
         )
         query = self._apply_tenant_filter(query, tenant_id)

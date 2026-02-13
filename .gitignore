@@ -65,3 +65,8 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local tooling (machine-specific)
+.claude/
+.context/
+.mcp.json

@@ -4,6 +4,7 @@ from typing import Optional, Any
 from jose import JWTError, jwt
 import bcrypt
 from app.core.config import settings
+from app.constants import Limits, TokenType
 
 
 def create_access_token(
@@ -48,7 +49,7 @@ def create_access_token(
     to_encode.update({
         "exp": expire,
         "iat": datetime.now(timezone.utc),
-        "type": "access"
+        "type": TokenType.ACCESS
     })
 
     encoded_jwt = jwt.encode(
@@ -85,7 +86,7 @@ def create_refresh_token(data: dict[str, Any]) -> str:
     to_encode.update({
         "exp": expire,
         "iat": datetime.now(timezone.utc),
-        "type": "refresh"
+        "type": TokenType.REFRESH
     })
 
     encoded_jwt = jwt.encode(
@@ -189,8 +190,8 @@ def validate_password_strength(password: str) -> tuple[bool, Optional[str]]:
         if not is_valid:
             raise ValueError(error)
     """
-    if len(password) < 8:
-        return False, "Password must be at least 8 characters long"
+    if len(password) < Limits.PASSWORD_MIN_LENGTH:
+        return False, f"Password must be at least {Limits.PASSWORD_MIN_LENGTH} characters long"
 
     if not any(c.isalpha() for c in password):
         return False, "Password must contain at least one letter"

@@ -1,12 +1,14 @@
 """Routeur principal API v1."""
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, products, customers, reservations, invoices, audit
+from app.api.v1.endpoints import auth, products, customers, reservations, invoices, audit, health
+from app.constants import PublicEndpoints
 
 # Routeur principal v1
 api_router = APIRouter()
 
 # Inclusion des sous-routeurs
 api_router.include_router(auth.router)  # Prefix déjà défini dans auth.router
+api_router.include_router(health.router)  # Health checks (Kubernetes probes)
 api_router.include_router(products.router)
 api_router.include_router(customers.router)
 api_router.include_router(reservations.router)
@@ -22,7 +24,7 @@ async def root():
         "status": "operational",
         "endpoints": {
             "health": "/health",
-            "docs": "/api/docs",
-            "redoc": "/api/redoc",
+            "docs": PublicEndpoints.DOCS,
+            "redoc": PublicEndpoints.REDOC,
         }
     }

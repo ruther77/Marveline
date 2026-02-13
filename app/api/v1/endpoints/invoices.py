@@ -17,7 +17,7 @@ from app.schemas.invoice import (
     AddPaymentRequest,
 )
 from app.schemas.common import PaginationParams, PaginatedResponse
-from app.constants import InvoiceStatus, ReservationStatus
+from app.constants import ErrorMessages, InvoiceStatus, ReservationStatus
 
 
 router = APIRouter(prefix="/invoices", tags=["Invoices"])
@@ -211,7 +211,7 @@ def get_invoice(
     if not invoice:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Invoice not found"
+            detail=ErrorMessages.INVOICE_NOT_FOUND
         )
 
     return InvoiceResponse.model_validate(invoice)
