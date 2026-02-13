@@ -1,8 +1,56 @@
 """Tests unitaires pour le modèle AuditLog et son immutabilité."""
 import pytest
 from datetime import datetime, timezone
-from sqlalchemy.exc import ProgrammingError
+from sqlalchemy import text
+from sqlalchemy.exc import ProgrammingError, InternalError
+from sqlalchemy.orm import sessionmaker
 from app.models.audit_log import AuditLog
+
+
+@pytest.fixture
+def trigger_session(test_engine):
+    """Session SANS SAVEPOINT pour tester les triggers PostgreSQL.
+
+    Les triggers ne se déclenchent pas dans les SAVEPOINT imbriqués.
+    Cette fixture crée une session directe avec commit réel, puis nettoie.
+    """
+    Session = sessionmaker(bind=test_engine)
+    session = Session()
+
+    # S'assurer que le trigger existe
+    session.execute(text("""
+        CREATE OR REPLACE FUNCTION prevent_audit_log_modification()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            IF (TG_OP = 'DELETE') THEN
+                RAISE EXCEPTION 'DELETE on audit_logs is not allowed. Audit logs are append-only for compliance.';
+            ELSIF (TG_OP = 'UPDATE') THEN
+                RAISE EXCEPTION 'UPDATE on audit_logs is not allowed. Audit logs are immutable for compliance.';
+            END IF;
+            RETURN NULL;
+        END;
+        $$ LANGUAGE plpgsql;
+    """))
+    session.execute(text("""
+        DROP TRIGGER IF EXISTS prevent_audit_modification ON audit_logs;
+    """))
+    session.execute(text("""
+        CREATE TRIGGER prevent_audit_modification
+        BEFORE UPDATE OR DELETE ON audit_logs
+        FOR EACH ROW
+        EXECUTE FUNCTION prevent_audit_log_modification();
+    """))
+    session.commit()
+
+    yield session
+
+    session.rollback()
+    # Cleanup : désactiver le trigger temporairement pour supprimer les lignes de test
+    session.execute(text("ALTER TABLE audit_logs DISABLE TRIGGER prevent_audit_modification"))
+    session.execute(text("DELETE FROM audit_logs WHERE description LIKE '%trigger test%'"))
+    session.execute(text("ALTER TABLE audit_logs ENABLE TRIGGER prevent_audit_modification"))
+    session.commit()
+    session.close()
 
 
 class TestAuditLogModel:
@@ -71,67 +119,58 @@ class TestAuditLogModel:
         assert audit_log.user_agent is None
         assert audit_log.request_id is None
 
-    @pytest.mark.skip(reason="Trigger pas déclenché dans SAVEPOINT test (limitation infrastructure)")
-    def test_audit_log_update_blocked_by_trigger(self, test_db):
-        """Trigger PostgreSQL empêche UPDATE (immutabilité).
-
-        Note: Ce test est skipped car les fixtures test_db utilisent SAVEPOINT
-        qui ne déclenchent pas les triggers PostgreSQL. Le trigger fonctionne
-        en environnement réel (validé manuellement).
-        """
+    def test_audit_log_update_blocked_by_trigger(self, trigger_session):
+        """Trigger PostgreSQL empêche UPDATE (immutabilité)."""
         audit_log = AuditLog(
             user_id=1,
             tenant_id=1,
             action="CREATE",
-            description="Original description"
+            description="Original description — trigger test"
         )
-        test_db.add(audit_log)
-        test_db.commit()
-        test_db.refresh(audit_log)
+        trigger_session.add(audit_log)
+        trigger_session.commit()
+        trigger_session.refresh(audit_log)
 
         # Tenter UPDATE → doit lever exception PostgreSQL
-        audit_log.description = "Modified description"
-        test_db.flush()  # Force SQL avant commit
+        with pytest.raises((ProgrammingError, InternalError), match="UPDATE on audit_logs is not allowed"):
+            trigger_session.execute(
+                text("UPDATE audit_logs SET description = 'Modified' WHERE id = :id"),
+                {"id": audit_log.id}
+            )
+            trigger_session.commit()
 
-        with pytest.raises(ProgrammingError) as exc_info:
-            test_db.commit()
+        trigger_session.rollback()
 
-        assert "UPDATE on audit_logs is not allowed" in str(exc_info.value)
-        test_db.rollback()
-
-    @pytest.mark.skip(reason="Trigger pas déclenché dans SAVEPOINT test (limitation infrastructure)")
-    def test_audit_log_delete_blocked_by_trigger(self, test_db):
-        """Trigger PostgreSQL empêche DELETE (immutabilité).
-
-        Note: Ce test est skipped car les fixtures test_db utilisent SAVEPOINT
-        qui ne déclenchent pas les triggers PostgreSQL. Le trigger fonctionne
-        en environnement réel (validé manuellement).
-        """
+    def test_audit_log_delete_blocked_by_trigger(self, trigger_session):
+        """Trigger PostgreSQL empêche DELETE (immutabilité)."""
         audit_log = AuditLog(
             user_id=1,
             tenant_id=1,
             action="CREATE",
-            description="Cannot be deleted"
+            description="Cannot be deleted — trigger test"
         )
-        test_db.add(audit_log)
-        test_db.commit()
-        test_db.refresh(audit_log)
+        trigger_session.add(audit_log)
+        trigger_session.commit()
+        trigger_session.refresh(audit_log)
 
         audit_id = audit_log.id
 
         # Tenter DELETE → doit lever exception PostgreSQL
-        test_db.delete(audit_log)
-        test_db.flush()
+        with pytest.raises((ProgrammingError, InternalError), match="DELETE on audit_logs is not allowed"):
+            trigger_session.execute(
+                text("DELETE FROM audit_logs WHERE id = :id"),
+                {"id": audit_id}
+            )
+            trigger_session.commit()
 
-        with pytest.raises(ProgrammingError) as exc_info:
-            test_db.commit()
-
-        assert "DELETE on audit_logs is not allowed" in str(exc_info.value)
-        test_db.rollback()
+        trigger_session.rollback()
 
         # Vérifier que log existe toujours
-        log_still_exists = test_db.query(AuditLog).filter(AuditLog.id == audit_id).first()
-        assert log_still_exists is not None
+        result = trigger_session.execute(
+            text("SELECT id FROM audit_logs WHERE id = :id"),
+            {"id": audit_id}
+        )
+        assert result.fetchone() is not None
 
     def test_audit_log_jsonb_changes_complex(self, test_db):
         """JSONB changes stocke structures complexes (before/after multiples champs)."""

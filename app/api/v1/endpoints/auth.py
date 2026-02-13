@@ -1,8 +1,12 @@
 """Endpoints d'authentification pour login et refresh tokens."""
+import logging
+import secrets
 from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.redis import redis_client
@@ -10,7 +14,8 @@ from app.services.auth import AuthService
 from app.schemas.auth import TokenResponse, RefreshTokenRequest, CSRFTokenResponse
 from app.models.user import User
 from app.constants import ErrorMessages
-import secrets
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -82,14 +87,10 @@ def login(
         )
 
     except HTTPException:
-        # Re-raise HTTPExceptions from service
         raise
-    except Exception as e:
-        # Catch unexpected errors
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An error occurred during login: {str(e)}"
-        )
+    except Exception:
+        logger.exception("Unexpected error during login")
+        raise
 
 
 @router.post("/refresh", response_model=TokenResponse, status_code=status.HTTP_200_OK)
@@ -147,14 +148,10 @@ def refresh_token(
         )
 
     except HTTPException:
-        # Re-raise HTTPExceptions from service
         raise
-    except Exception as e:
-        # Catch unexpected errors
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An error occurred during token refresh: {str(e)}"
-        )
+    except Exception:
+        logger.exception("Unexpected error during token refresh")
+        raise
 
 
 @router.get("/csrf", response_model=CSRFTokenResponse, status_code=status.HTTP_200_OK)

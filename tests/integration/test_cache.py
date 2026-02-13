@@ -17,18 +17,27 @@ from app.services.cache import CacheService, cached, cache_invalidate
 
 @pytest.fixture(autouse=True)
 def cleanup_cache():
-    """Nettoie le cache Redis avant chaque test.
+    """Nettoie les clés cache (pas CSRF/rate_limit) avant chaque test.
 
-    Notes:
-        - Utilise FLUSHDB pour supprimer TOUTES les clés Redis
-        - Appelé automatiquement avant chaque test (autouse=True)
-        - Évite pollution entre tests (clés résiduelles)
+    Utilise SCAN + DELETE ciblé au lieu de FLUSHDB pour ne pas
+    détruire les tokens CSRF et rate_limit keys d'autres tests.
     """
     cache = CacheService()
-    cache.flush_all()
+    _cleanup_cache_keys(cache)
     yield
-    # Cleanup après test (optionnel)
-    cache.flush_all()
+    _cleanup_cache_keys(cache)
+
+
+def _cleanup_cache_keys(cache: CacheService):
+    """Supprime les clés cache de test sans toucher CSRF/rate_limit/session."""
+    # Patterns utilisés par les tests cache
+    test_patterns = [
+        "test_*", "product:*", "customer:*",
+        "expire_*", "delete_*", "key*", "metric_*",
+        "test_product:*", "test_none:*",
+    ]
+    for pattern in test_patterns:
+        cache.invalidate_pattern(pattern)
 
 
 def test_cache_get_set_simple():

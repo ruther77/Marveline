@@ -1,7 +1,7 @@
 """Configuration pytest pour les tests CaroCorp."""
 import os
 import pytest
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 
@@ -26,10 +26,24 @@ TEST_DATABASE_URL = os.environ.get(
 )
 
 
+def ensure_test_db_exists():
+    """Crée la DB CaroCorp_test si elle n'existe pas encore."""
+    base_engine = create_engine(_base_url, isolation_level="AUTOCOMMIT")
+    try:
+        with base_engine.connect() as conn:
+            result = conn.execute(text("SELECT 1 FROM pg_database WHERE datname = 'CaroCorp_test'"))
+            if not result.fetchone():
+                conn.execute(text('CREATE DATABASE "CaroCorp_test"'))
+    finally:
+        base_engine.dispose()
+
+
 @pytest.fixture(scope="session")
 def test_engine():
-    """Engine de test pour la session."""
+    """Engine de test pour la session — état propre garanti."""
+    ensure_test_db_exists()
     engine = create_engine(TEST_DATABASE_URL)
+    Base.metadata.drop_all(bind=engine)     # Clean slate (supprime état sale d'un run précédent)
     Base.metadata.create_all(bind=engine)
     yield engine
     Base.metadata.drop_all(bind=engine)
@@ -81,6 +95,17 @@ def client(test_db):
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def cleanup_redis_between_tests():
+    """Nettoie rate_limit keys entre chaque test pour éviter le flaky."""
+    from app.core.redis import redis_client
+    for key in redis_client.client.scan_iter("rate_limit:*"):
+        redis_client.client.delete(key)
+    yield
+    for key in redis_client.client.scan_iter("rate_limit:*"):
+        redis_client.client.delete(key)
 
 
 @pytest.fixture

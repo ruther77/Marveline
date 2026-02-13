@@ -43,7 +43,7 @@ class PublicEndpoints:
             # Skip CSRF validation
     """
 
-    HEALTH = "/health"
+    HEALTH = "/api/v1/health"
     DOCS = "/api/docs"
     REDOC = "/api/redoc"
     OPENAPI = "/openapi.json"
