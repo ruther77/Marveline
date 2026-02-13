@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.base import Base
-from app.models.user import User
+from app.models import User  # noqa: F401 — importe aussi tous les modèles pour Base.metadata.create_all()
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import get_password_hash, create_access_token
