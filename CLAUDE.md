@@ -24,7 +24,7 @@ Frontend: React + TypeScript. Docker Compose pour tous les services.
 
 ## Tests
 
-Commande Docker: `docker compose run --rm --no-deps --entrypoint "" api python -m pytest tests/ -v`
+Commande Docker: `docker compose run --rm --entrypoint "" api python -m pytest tests/ -v`
 pytest-asyncio mode strict: `@pytest.mark.asyncio` obligatoire.
 Minimum de mocks, implementations reelles preferees.
 
