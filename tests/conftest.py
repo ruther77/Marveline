@@ -1,4 +1,5 @@
 """Configuration pytest pour les tests CaroCorp."""
+import os
 import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
@@ -13,8 +14,16 @@ from app.core.security import get_password_hash, create_access_token
 from app.middleware.security import CSRFProtectionMiddleware
 
 
-# Database de test
-TEST_DATABASE_URL = "postgresql+psycopg2://caro:6L9dVl9hxpWylE8YQfNUNA@localhost:5433/CaroCorp_test"
+# Database de test — utilise DATABASE_URL de l'environnement (Docker: db:5432, host: localhost:5433)
+_base_url = os.environ.get(
+    "DATABASE_URL",
+    "postgresql+psycopg2://caro:6L9dVl9hxpWylE8YQfNUNA@localhost:5433/CaroCorp"
+)
+# Remplacer le nom de la DB par CaroCorp_test pour isolation
+TEST_DATABASE_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    _base_url.rsplit("/", 1)[0] + "/CaroCorp_test"
+)
 
 
 @pytest.fixture(scope="session")
@@ -72,6 +81,32 @@ def client(test_db):
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def test_tenant():
+    """Tenant de test (tenant_id=1).
+
+    Notes:
+        - CaroCorp n'a pas de table tenants séparée
+        - tenant_id est juste une colonne BigInteger
+        - Cette fixture retourne un objet simple avec .id pour compatibilité
+    """
+    class Tenant:
+        def __init__(self, id: int):
+            self.id = id
+
+    return Tenant(id=1)
+
+
+@pytest.fixture
+def test_tenant2():
+    """Tenant de test alternatif (tenant_id=2) pour tests anti-cross-tenant."""
+    class Tenant:
+        def __init__(self, id: int):
+            self.id = id
+
+    return Tenant(id=2)
 
 
 @pytest.fixture
