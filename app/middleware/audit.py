@@ -332,6 +332,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
             "users": "User",
             "products": "Product",
             "categories": "Category",
+            "bundles": "Bundle",
             "services": "Service",
             "sessions": "Session",
             "mfa": "MFA",
