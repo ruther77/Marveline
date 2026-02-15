@@ -1,20 +1,42 @@
 """Service d'authentification pour login, refresh tokens, gestion users."""
-from typing import Optional
+from dataclasses import dataclass
+from typing import Optional, Union
 import uuid
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from app.models.user import User
 from app.core.security import (
+    DUMMY_HASH,
     verify_password,
     get_password_hash,
-    create_access_token,
-    create_refresh_token,
+    needs_rehash,
     decode_token,
     validate_password_strength,
 )
 from app.core.config import settings
+from app.core.exceptions import (
+    AccountLocked,
+    TokenExpired,
+    TokenInvalid,
+    TokenRevoked,
+    TokenReplayDetected,
+)
 from app.services.audit import AuditService
-from app.constants import ErrorMessages, SecurityHeaders, TokenType, UserRole
+from app.services.bruteforce import brute_force_service, BruteForceStatus
+from app.services.token import token_service
+from app.services.session import session_service
+from app.services.mfa import mfa_service
+from app.constants import ErrorMessages, SecurityHeaders, SYSTEM_TENANT_ID, TokenType, UserRole
+
+
+@dataclass
+class MFARequiredResult:
+    """Résultat intermédiaire quand MFA est requis après vérification du password.
+
+    Retourné par login() à la place du tuple (access_token, refresh_token, expires_in)
+    quand l'utilisateur a MFA activé. Le client doit ensuite appeler POST /mfa/verify.
+    """
+    mfa_session_token: str
 
 
 class AuthService:
@@ -47,164 +69,212 @@ class AuthService:
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
         request_id: Optional[str] = None
-    ) -> tuple[str, str, int]:
-        """Authentifie un utilisateur et retourne les tokens JWT.
+    ) -> Union[tuple[str, str, int], MFARequiredResult]:
+        """Authentifie un utilisateur et retourne les tokens JWT ou un MFARequiredResult.
 
         Args:
             email: Email de l'utilisateur
             password: Mot de passe en clair
-            ip_address: IP du client (pour audit log)
+            ip_address: IP du client (pour audit log + brute force)
             user_agent: User-Agent du client (pour audit log)
             request_id: UUID corrélation (auto-généré si absent)
 
         Returns:
-            Tuple (access_token, refresh_token, expires_in_seconds)
+            - Tuple (access_token, refresh_token, expires_in_seconds) si pas de MFA
+            - MFARequiredResult si MFA activé (client doit appeler /mfa/verify)
 
         Raises:
-            HTTPException 401: Si credentials invalides ou compte inactif
-
-        Example:
-            access_token, refresh_token, expires_in = auth_service.login(
-                "user@example.com",
-                "secretpass123",
-                ip_address="192.168.1.100",
-                user_agent="Mozilla/5.0...",
-                request_id="550e8400-..."
-            )
+            AccountLocked: Si compte verrouillé par brute force (403)
+            HTTPException 401: Si credentials invalides
+            HTTPException 403: Si compte inactif
 
         Security:
+            - Brute force check AVANT toute vérification de credentials
             - Email normalisé en lowercase
-            - Password vérifié avec bcrypt
-            - Compte doit être actif (is_active=True)
-            - Audit log pour login success/failed (conformité RGPD/SOC2)
+            - Password vérifié avec bcrypt (DUMMY_HASH si user inexistant = fix M20)
+            - Escalation: normal → captcha → delay → lock → lock+alert
+            - Compteurs reset après login réussi
+            - Si MFA activé: retourne mfa_session_token (pas de tokens JWT émis)
         """
         # Normaliser email
         email = email.lower().strip()
+        effective_ip = ip_address or "unknown"
 
         # Générer request_id si absent
         if not request_id:
             request_id = str(uuid.uuid4())
 
-        # Initialiser AuditService
         audit_service = AuditService(self.db)
 
-        # Trouver user par email (case-insensitive)
-        user = self.db.query(User).filter(User.email.ilike(email)).first()
-        if not user:
-            # Audit log LOGIN_FAILED (user_id=None car user non trouvé)
-            # Utiliser tenant_id=1 par défaut pour login failed (pas de tenant associé)
+        # ── Brute force check AVANT authentification ──
+        bf_status = brute_force_service.check_and_enforce(email, effective_ip)
+        if not bf_status.allowed:
             audit_service.log_login(
                 user_id=None,
-                tenant_id=1,  # Tenant par défaut pour login failed
-                ip_address=ip_address or "unknown",
+                tenant_id=SYSTEM_TENANT_ID,
+                ip_address=effective_ip,
                 user_agent=user_agent or "unknown",
                 request_id=request_id,
                 success=False,
-                email=email
+                email=email,
+            )
+            self.db.commit()
+            raise AccountLocked(minutes=bf_status.locked_until_seconds // 60)
+
+        # ── Recherche user + vérification password ──
+        user = self.db.query(User).filter(User.email == email).first()
+        if not user:
+            # Timing-safe: vérifier contre DUMMY_HASH (fix M20)
+            verify_password(password, DUMMY_HASH)
+
+            bf_status = brute_force_service.record_failed_attempt(email, effective_ip)
+
+            audit_service.log_login(
+                user_id=None,
+                tenant_id=SYSTEM_TENANT_ID,
+                ip_address=effective_ip,
+                user_agent=user_agent or "unknown",
+                request_id=request_id,
+                success=False,
+                email=email,
             )
             self.db.commit()
 
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=ErrorMessages.INVALID_CREDENTIALS,
-                headers={SecurityHeaders.WWW_AUTHENTICATE: SecurityHeaders.BEARER_SCHEME},
-            )
+            if not bf_status.allowed:
+                raise AccountLocked(minutes=bf_status.locked_until_seconds // 60)
+            self._raise_invalid_credentials(bf_status)
 
-        # Vérifier password
         if not verify_password(password, user.hashed_password):
-            # Audit log LOGIN_FAILED (user trouvé mais password incorrect)
+            bf_status = brute_force_service.record_failed_attempt(email, effective_ip)
+
             audit_service.log_login(
                 user_id=None,
                 tenant_id=user.tenant_id,
-                ip_address=ip_address or "unknown",
+                ip_address=effective_ip,
                 user_agent=user_agent or "unknown",
                 request_id=request_id,
                 success=False,
-                email=email
+                email=email,
             )
             self.db.commit()
 
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=ErrorMessages.INVALID_CREDENTIALS,
-                headers={SecurityHeaders.WWW_AUTHENTICATE: SecurityHeaders.BEARER_SCHEME},
-            )
+            if not bf_status.allowed:
+                raise AccountLocked(minutes=bf_status.locked_until_seconds // 60)
+            self._raise_invalid_credentials(bf_status)
+
+        # ── Migration transparente bcrypt → Argon2id ──
+        if needs_rehash(user.hashed_password):
+            user.hashed_password = get_password_hash(password)
+            self.db.flush()
 
         # Vérifier compte actif
         if not user.is_active:
-            # Audit log LOGIN_FAILED (compte inactif)
             audit_service.log_login(
                 user_id=user.id,
                 tenant_id=user.tenant_id,
-                ip_address=ip_address or "unknown",
+                ip_address=effective_ip,
                 user_agent=user_agent or "unknown",
                 request_id=request_id,
                 success=False,
-                email=email
+                email=email,
             )
             self.db.commit()
 
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=ErrorMessages.ACCOUNT_INACTIVE
+                detail=ErrorMessages.ACCOUNT_INACTIVE,
             )
 
-        # Audit log LOGIN_SUCCESS
+        # ── Succès password — reset brute force ──
+        brute_force_service.record_successful_login(email, effective_ip)
+
+        # ── Check MFA — si activé, retourner un mfa_session_token ──
+        if mfa_service.is_mfa_enabled(self.db, user.id, user.tenant_id):
+            mfa_token = mfa_service.create_mfa_session(
+                user_id=user.id,
+                tenant_id=user.tenant_id,
+                email=user.email,
+                role=user.role,
+                ip_address=effective_ip,
+            )
+            # Pas d'audit LOGIN_SUCCESS ici — il sera loggé après /mfa/verify
+            self.db.commit()
+            return MFARequiredResult(mfa_session_token=mfa_token)
+
+        # ── Pas de MFA — émettre tokens directement ──
         audit_service.log_login(
             user_id=user.id,
             tenant_id=user.tenant_id,
-            ip_address=ip_address or "unknown",
+            ip_address=effective_ip,
             user_agent=user_agent or "unknown",
             request_id=request_id,
             success=True,
-            email=email
+            email=email,
         )
         self.db.commit()
 
-        # Créer JWT claims
-        claims = {
-            "sub": user.id,
-            "tenant_id": user.tenant_id,
-            "email": user.email,
-            "role": user.role,
-        }
+        access_token, refresh_token, expires_in = token_service.issue_tokens(
+            user_id=user.id,
+            tenant_id=user.tenant_id,
+            email=user.email,
+            role=user.role,
+        )
 
-        # Générer tokens
-        access_token = create_access_token(claims)
-        refresh_token = create_refresh_token({
-            "sub": user.id,
-            "tenant_id": user.tenant_id
-        })
-
-        expires_in = settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        # ── Créer session Redis ──
+        refresh_payload = decode_token(refresh_token)
+        family_id = refresh_payload.get("family_id", "")
+        session_service.create_session(
+            user_id=user.id,
+            tenant_id=user.tenant_id,
+            family_id=family_id,
+            ip_address=effective_ip,
+            user_agent=user_agent or "unknown",
+        )
 
         return access_token, refresh_token, expires_in
 
-    def refresh_access_token(self, refresh_token: str) -> tuple[str, int]:
-        """Génère un nouveau access token depuis un refresh token.
+    @staticmethod
+    def _raise_invalid_credentials(bf_status: "BruteForceStatus") -> None:
+        """Lève HTTPException 401 avec détails brute force si escalation active."""
+        if bf_status.captcha_required or bf_status.delay_seconds > 0:
+            detail = {
+                "message": ErrorMessages.INVALID_CREDENTIALS,
+                "captcha_required": bf_status.captcha_required,
+                "delay_seconds": bf_status.delay_seconds,
+                "attempts": bf_status.attempts,
+            }
+        else:
+            detail = ErrorMessages.INVALID_CREDENTIALS
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=detail,
+            headers={SecurityHeaders.WWW_AUTHENTICATE: SecurityHeaders.BEARER_SCHEME},
+        )
+
+    def refresh_access_token(self, refresh_token: str) -> tuple[str, str, int]:
+        """Effectue une rotation de refresh token et émet un nouveau access token.
 
         Args:
             refresh_token: Refresh token JWT valide
 
         Returns:
-            Tuple (new_access_token, expires_in_seconds)
+            Tuple (new_access_token, new_refresh_token, expires_in_seconds)
 
         Raises:
-            HTTPException 401: Si refresh token invalide ou expiré
-
-        Example:
-            new_access_token, expires_in = auth_service.refresh_access_token(
-                refresh_token
-            )
+            HTTPException 401: Si refresh token invalide, expiré, révoqué, ou replay détecté
 
         Security:
             - Valide signature + expiration du refresh token
+            - Vérifie JTI dans whitelist Redis
+            - Rotation: ancien refresh invalidé, nouveau émis (même famille)
+            - Replay detection: si ancien JTI réutilisé → toute la famille révoquée
             - Charge user depuis DB (vérifie existence + is_active)
-            - Génère nouveau access token avec claims à jour
         """
-        # Décoder refresh token
-        payload = decode_token(refresh_token)
-        if payload is None:
+        # Décoder refresh token — lève TokenExpired ou TokenInvalid
+        try:
+            payload = decode_token(refresh_token)
+        except (TokenExpired, TokenInvalid):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=ErrorMessages.INVALID_REFRESH_TOKEN,
@@ -225,7 +295,7 @@ class AuthService:
         if user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=ErrorMessages.INVALID_TOKEN_PAYLOAD
+                detail=ErrorMessages.INVALID_TOKEN_PAYLOAD,
             )
 
         # Charger user depuis DB
@@ -233,28 +303,106 @@ class AuthService:
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=ErrorMessages.USER_NOT_FOUND
+                detail=ErrorMessages.USER_NOT_FOUND,
             )
 
         # Vérifier compte actif
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=ErrorMessages.ACCOUNT_INACTIVE
+                detail=ErrorMessages.ACCOUNT_INACTIVE,
             )
 
-        # Créer nouveau access token avec claims à jour
-        claims = {
-            "sub": user.id,
-            "tenant_id": user.tenant_id,
-            "email": user.email,
-            "role": user.role,
-        }
+        # Rotation via TokenService (whitelist check + replay detection + new tokens)
+        try:
+            new_access, new_refresh, expires_in = token_service.rotate_refresh_token(
+                old_refresh_token=refresh_token,
+                user_id=user.id,
+                tenant_id=user.tenant_id,
+                email=user.email,
+                role=user.role,
+            )
+        except TokenRevoked:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=ErrorMessages.REFRESH_TOKEN_REVOKED,
+                headers={SecurityHeaders.WWW_AUTHENTICATE: SecurityHeaders.BEARER_SCHEME},
+            )
+        except TokenReplayDetected:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=ErrorMessages.REFRESH_TOKEN_REPLAY,
+                headers={SecurityHeaders.WWW_AUTHENTICATE: SecurityHeaders.BEARER_SCHEME},
+            )
 
-        access_token = create_access_token(claims)
-        expires_in = settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        return new_access, new_refresh, expires_in
 
-        return access_token, expires_in
+    def logout(
+        self,
+        access_token: str,
+        user: "User",
+        refresh_token: Optional[str] = None,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        request_id: Optional[str] = None,
+    ) -> bool:
+        """Effectue le logout : révoque tokens + CSRF + audit log.
+
+        Args:
+            access_token: Access token JWT actuel (sera blacklisté)
+            user: Utilisateur authentifié (depuis get_current_user)
+            refresh_token: Refresh token JWT (optionnel, sera supprimé de whitelist)
+            ip_address: IP du client (pour audit log)
+            user_agent: User-Agent du client (pour audit log)
+            request_id: UUID corrélation (auto-généré si absent)
+
+        Returns:
+            True si logout réussi
+
+        Security:
+            - Access token blacklisté (JTI + TTL restant)
+            - Refresh token supprimé de whitelist + famille désactivée
+            - Tous les tokens CSRF du user révoqués
+            - Audit log LOGOUT créé
+        """
+        from app.core.redis import redis_client
+
+        if not request_id:
+            request_id = str(uuid.uuid4())
+
+        # 1. Révoquer tokens JWT via TokenService
+        token_service.revoke_on_logout(
+            access_token=access_token,
+            refresh_token=refresh_token,
+        )
+
+        # 2. Supprimer la session associée (via family_id du refresh token)
+        if refresh_token:
+            try:
+                refresh_payload = decode_token(refresh_token)
+                family_id = refresh_payload.get("family_id")
+                if family_id:
+                    session_data = session_service.get_session_by_family(user.id, family_id)
+                    if session_data:
+                        session_service.revoke_session(session_data["session_id"], user.id)
+            except (TokenExpired, TokenInvalid):
+                pass  # Token peut être expiré, session sera nettoyée par TTL
+
+        # 3. Révoquer tous les tokens CSRF du user
+        redis_client.revoke_all_csrf_tokens(user.id)
+
+        # 4. Audit log LOGOUT
+        audit_service = AuditService(self.db)
+        audit_service.log_logout(
+            user_id=user.id,
+            tenant_id=user.tenant_id,
+            ip_address=ip_address or "unknown",
+            user_agent=user_agent or "unknown",
+            request_id=request_id,
+        )
+        self.db.commit()
+
+        return True
 
     def change_password(
         self,

@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { X, CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { registerToastError } from '../../main';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -94,6 +95,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     },
     [addToast]
   );
+
+  // Register the error toast function for use outside React tree (QueryCache callbacks)
+  useEffect(() => {
+    registerToastError(error);
+  }, [error]);
 
   return (
     <ToastContext.Provider

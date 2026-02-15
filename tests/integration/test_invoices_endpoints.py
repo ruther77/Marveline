@@ -35,7 +35,7 @@ def test_product_inv(test_db):
         tenant_id=1,
         name="Chaise Napoléon",
         sku="CHAISE-INV-001",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=500,  # 5€/jour
         deposit_amount=1000,  # 10€ caution
         stock_quantity=50,

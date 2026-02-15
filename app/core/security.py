@@ -1,10 +1,25 @@
 """Utilitaires de sécurité : JWT, hashing passwords, validation."""
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Any
-from jose import JWTError, jwt
+from jose import ExpiredSignatureError, jwt
+import argon2
 import bcrypt
+import uuid
 from app.core.config import settings
-from app.constants import Limits, TokenType
+from app.core.exceptions import TokenExpired, TokenInvalid
+from app.constants import Argon2Params, Limits, TokenType
+
+logger = logging.getLogger(__name__)
+
+# Argon2id hasher — initialisé une fois au démarrage du module
+_argon2_hasher = argon2.PasswordHasher(
+    time_cost=settings.ARGON2_TIME_COST,
+    memory_cost=settings.ARGON2_MEMORY_COST,
+    parallelism=settings.ARGON2_PARALLELISM,
+    hash_len=Argon2Params.HASH_LENGTH,
+    salt_len=Argon2Params.SALT_LENGTH,
+)
 
 
 def create_access_token(
@@ -20,16 +35,9 @@ def create_access_token(
     Returns:
         JWT token encodé
 
-    Example:
-        token = create_access_token({
-            "sub": user.id,
-            "tenant_id": user.tenant_id,
-            "email": user.email,
-            "role": user.role
-        })
-
     Claims standards:
         - sub: Subject (user_id)
+        - jti: JWT ID unique (pour revocation)
         - exp: Expiration timestamp
         - iat: Issued at timestamp
     """
@@ -49,7 +57,8 @@ def create_access_token(
     to_encode.update({
         "exp": expire,
         "iat": datetime.now(timezone.utc),
-        "type": TokenType.ACCESS
+        "type": TokenType.ACCESS,
+        "jti": str(uuid.uuid4()),
     })
 
     encoded_jwt = jwt.encode(
@@ -71,7 +80,7 @@ def create_refresh_token(data: dict[str, Any]) -> str:
 
     Note:
         - Durée de validité: JWT_REFRESH_TOKEN_EXPIRE_DAYS (7 jours)
-        - Ne doit contenir que les infos essentielles (user_id, tenant_id)
+        - Contient un JTI unique pour whitelist Redis
     """
     to_encode = data.copy()
 
@@ -86,7 +95,8 @@ def create_refresh_token(data: dict[str, Any]) -> str:
     to_encode.update({
         "exp": expire,
         "iat": datetime.now(timezone.utc),
-        "type": TokenType.REFRESH
+        "type": TokenType.REFRESH,
+        "jti": str(uuid.uuid4()),
     })
 
     encoded_jwt = jwt.encode(
@@ -97,25 +107,18 @@ def create_refresh_token(data: dict[str, Any]) -> str:
     return encoded_jwt
 
 
-def decode_token(token: str) -> Optional[dict[str, Any]]:
+def decode_token(token: str) -> dict[str, Any]:
     """Décode et valide un JWT token.
 
     Args:
         token: JWT token à décoder
 
     Returns:
-        Claims du token si valide, None si invalide
+        Claims du token si valide
 
-    Validation:
-        - Signature valide
-        - Token non expiré
-        - Algorithm correct (HS256)
-
-    Example:
-        claims = decode_token(token)
-        if claims:
-            user_id = claims.get("sub")
-            tenant_id = claims.get("tenant_id")
+    Raises:
+        TokenExpired: Si le token a expiré
+        TokenInvalid: Si le token est invalide (signature, format, etc.)
     """
     try:
         payload = jwt.decode(
@@ -124,72 +127,113 @@ def decode_token(token: str) -> Optional[dict[str, Any]]:
             algorithms=[settings.JWT_ALGORITHM]
         )
         return payload
-    except JWTError:
-        return None
+    except ExpiredSignatureError:
+        raise TokenExpired()
+    except Exception:
+        raise TokenInvalid()
+
+
+def _is_bcrypt_hash(hashed: str) -> bool:
+    """Détecte si un hash est au format bcrypt."""
+    return hashed.startswith(Argon2Params.BCRYPT_PREFIX)
+
+
+def _is_argon2_hash(hashed: str) -> bool:
+    """Détecte si un hash est au format Argon2id."""
+    return hashed.startswith(Argon2Params.ARGON2ID_PREFIX)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Vérifie un mot de passe en clair contre son hash.
+    """Vérifie un mot de passe contre son hash (Argon2id ou bcrypt).
+
+    Auto-détection de l'algorithme via le préfixe du hash :
+        - $argon2id$ → vérification Argon2id
+        - $2b$ → vérification bcrypt (legacy, migration transparente)
 
     Args:
         plain_password: Mot de passe en clair
-        hashed_password: Hash bcrypt du mot de passe
+        hashed_password: Hash Argon2id ou bcrypt
 
     Returns:
         True si le mot de passe correspond, False sinon
-
-    Note:
-        - Utilise bcrypt avec rounds=12
-        - Temps de vérification: ~100-200ms (protection brute-force)
     """
-    return bcrypt.checkpw(
-        plain_password.encode('utf-8'),
-        hashed_password.encode('utf-8')
-    )
+    if _is_argon2_hash(hashed_password):
+        try:
+            return _argon2_hasher.verify(hashed_password, plain_password)
+        except argon2.exceptions.VerifyMismatchError:
+            return False
+        except argon2.exceptions.VerificationError:
+            return False
+
+    if _is_bcrypt_hash(hashed_password):
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"),
+            hashed_password.encode("utf-8"),
+        )
+
+    return False
+
+
+def needs_rehash(hashed_password: str) -> bool:
+    """Vérifie si un hash doit être re-hashé en Argon2id.
+
+    Retourne True si :
+        - Le hash est bcrypt (migration vers Argon2id)
+        - Le hash est Argon2id mais avec des paramètres obsolètes
+
+    Args:
+        hashed_password: Hash existant
+
+    Returns:
+        True si rehash nécessaire
+    """
+    if _is_bcrypt_hash(hashed_password):
+        return True
+
+    if _is_argon2_hash(hashed_password):
+        return _argon2_hasher.check_needs_rehash(hashed_password)
+
+    return True
 
 
 def get_password_hash(password: str) -> str:
-    """Hash un mot de passe avec bcrypt.
+    """Hash un mot de passe avec Argon2id.
 
     Args:
         password: Mot de passe en clair
 
     Returns:
-        Hash bcrypt du mot de passe
-
-    Note:
-        - Utilise bcrypt avec rounds=12 (défini dans settings)
-        - Génère un salt aléatoire automatiquement
-        - Hash format: $2b$12$... (60 caractères)
-
-    Example:
-        hashed = get_password_hash("secretpass123")
-        # "$2b$12$Abc...Xyz"
+        Hash Argon2id du mot de passe
     """
-    salt = bcrypt.gensalt(rounds=settings.BCRYPT_ROUNDS)
-    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-    return hashed.decode('utf-8')
+    return _argon2_hasher.hash(password)
 
 
-def validate_password_strength(password: str) -> tuple[bool, Optional[str]]:
+# DUMMY_HASH: hash généré dynamiquement au démarrage du module (Argon2id).
+# Utilisé pour timing-safe login : on vérifie verify_password même si
+# l'utilisateur n'existe pas, afin que le temps de réponse soit constant.
+DUMMY_HASH: str = get_password_hash("__dummy_startup_password__")
+
+
+def validate_password_strength(password: str, role: Optional[str] = None) -> tuple[bool, Optional[str]]:
     """Valide la robustesse d'un mot de passe.
+
+    Délègue à password_policy si disponible, sinon applique les règles basiques.
 
     Args:
         password: Mot de passe à valider
+        role: Rôle de l'utilisateur (optionnel, pour longueur min adaptée)
 
     Returns:
-        Tuple (is_valid, error_message)
-
-    Rules:
-        - Longueur >= 8 caractères
-        - Au moins une lettre
-        - Au moins un chiffre
-
-    Example:
-        is_valid, error = validate_password_strength("weak")
-        if not is_valid:
-            raise ValueError(error)
+        Tuple (is_valid, error_message). error_message est None si valide.
     """
+    # Import lazy pour éviter import circulaire au module load
+    try:
+        from app.core.password_policy import validate_password
+        return validate_password(password, role=role)
+    except ImportError:
+        pass
+
+    # Fallback basique (sera remplacé par Feature 8)
     if len(password) < Limits.PASSWORD_MIN_LENGTH:
         return False, f"Password must be at least {Limits.PASSWORD_MIN_LENGTH} characters long"
 
@@ -198,5 +242,11 @@ def validate_password_strength(password: str) -> tuple[bool, Optional[str]]:
 
     if not any(c.isdigit() for c in password):
         return False, "Password must contain at least one digit"
+
+    if not any(c.isupper() for c in password):
+        return False, "Password must contain at least one uppercase letter"
+
+    if not any(c in "!@#$%^&*()-_=+[]{}|;:',.<>?/~`" for c in password):
+        return False, "Password must contain at least one special character"
 
     return True, None

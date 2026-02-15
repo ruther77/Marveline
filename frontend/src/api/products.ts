@@ -12,29 +12,40 @@ import type {
 } from '../types/product'
 
 export const productsApi = {
-  // List with filters
+  // List with filters — Backend utilise skip/limit et category (string)
   getProducts: async (params?: {
     page?: number
     page_size?: number
-    category_id?: number
-    search?: string
-    featured?: boolean
+    category?: string
+    available_only?: boolean
     active_only?: boolean
   }): Promise<PaginatedProducts> => {
-    const { data } = await apiClient.get('/products', { params })
-    // Backend retourne { success, data, pagination }
+    const pageSize = params?.page_size || 20
+    const page = params?.page || 1
+    const backendParams: Record<string, unknown> = {
+      skip: (page - 1) * pageSize,
+      limit: pageSize,
+    }
+    if (params?.category) backendParams.category = params.category
+    if (params?.available_only) backendParams.available_only = true
+    if (params?.active_only !== undefined) backendParams.is_active = params.active_only
+
+    const { data } = await apiClient.get('/products', { params: backendParams })
+    const items = Array.isArray(data.items) ? data.items : []
+    const total = data.total ?? 0
     return {
-      items: data.data || [],
-      total: data.pagination?.total_items || 0,
-      page: data.pagination?.page || 1,
-      page_size: data.pagination?.page_size || 20,
-      total_pages: data.pagination?.total_pages || 0,
+      items,
+      total,
+      page,
+      page_size: pageSize,
+      total_pages: Math.ceil(total / pageSize) || 0,
     }
   },
 
   getFeatured: async (): Promise<Product[]> => {
     const { data } = await apiClient.get('/products/featured')
-    return data.data || data || []
+    const items = Array.isArray(data.items) ? data.items : (Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []))
+    return items
   },
 
   // Statistics
@@ -47,7 +58,7 @@ export const productsApi = {
     const { data } = await apiClient.get('/products/statistics', {
       params: { active_only: activeOnly },
     })
-    return data.data || data
+    return data.data || data || { in_stock: 0, low_stock: 0, out_of_stock: 0, total: 0 }
   },
 
   // CRUD
@@ -84,7 +95,8 @@ export const productsApi = {
   // Variations
   getVariations: async (productId: number): Promise<ProductVariation[]> => {
     const { data } = await apiClient.get(`/products/${productId}/variations`)
-    return data.data || data || []
+    const items = Array.isArray(data.items) ? data.items : (Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []))
+    return items
   },
 
   addVariation: async (
@@ -116,7 +128,8 @@ export const productsApi = {
   // Images
   getImages: async (productId: number): Promise<ProductImage[]> => {
     const { data } = await apiClient.get(`/products/${productId}/images`)
-    return data.data || data || []
+    const items = Array.isArray(data.items) ? data.items : (Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []))
+    return items
   },
 
   addImage: async (

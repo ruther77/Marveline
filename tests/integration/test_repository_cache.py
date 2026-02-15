@@ -29,7 +29,7 @@ def test_repository_get_by_id_cache_miss_then_hit(test_db, test_tenant):
         tenant_id=test_tenant.id,
         name="Assiette Cache Test",
         sku="CACHE-001",
-        category="assiette",
+        category="assiettes",
         price_per_day=250,
         available_quantity=10,
         stock_quantity=10,
@@ -65,7 +65,7 @@ def test_repository_cache_invalidation_on_update(test_db, test_tenant):
         tenant_id=test_tenant.id,
         name="Produit Original",
         sku="UPDATE-001",
-        category="verre",
+        category="verres",
         price_per_day=100,
         available_quantity=5,
         stock_quantity=5,
@@ -105,7 +105,7 @@ def test_repository_cache_invalidation_on_soft_delete(test_db, test_tenant):
         tenant_id=test_tenant.id,
         name="Produit à Supprimer",
         sku="DELETE-001",
-        category="couvert",
+        category="couverts",
         price_per_day=150,
         available_quantity=3,
         stock_quantity=3,
@@ -137,7 +137,7 @@ def test_repository_cache_multi_tenant_isolation(test_db, test_tenant, test_tena
         tenant_id=test_tenant.id,
         name="Produit Tenant 1",
         sku="TENANT1-001",
-        category="nappe",
+        category="nappes",
         price_per_day=200,
         available_quantity=8,
         stock_quantity=8,
@@ -151,7 +151,7 @@ def test_repository_cache_multi_tenant_isolation(test_db, test_tenant, test_tena
         tenant_id=test_tenant2.id,
         name="Produit Tenant 2",
         sku="TENANT2-001",
-        category="deco",
+        category="decorations",
         price_per_day=300,
         available_quantity=6,
         stock_quantity=6,
@@ -190,7 +190,7 @@ def test_repository_serialization_datetime(test_db, test_tenant):
         tenant_id=test_tenant.id,
         name="Produit Datetime Test",
         sku="DATETIME-001",
-        category="autre",
+        category="mobilier",
         price_per_day=120,
         available_quantity=4,
         stock_quantity=4,
@@ -232,7 +232,7 @@ def test_repository_cache_respects_include_inactive(test_db, test_tenant):
         tenant_id=test_tenant.id,
         name="Produit Actif",
         sku="ACTIVE-001",
-        category="assiette",
+        category="assiettes",
         price_per_day=180,
         available_quantity=2,
         stock_quantity=2,
@@ -245,7 +245,7 @@ def test_repository_cache_respects_include_inactive(test_db, test_tenant):
         tenant_id=test_tenant.id,
         name="Produit Inactif",
         sku="INACTIVE-001",
-        category="verre",
+        category="verres",
         price_per_day=150,
         available_quantity=3,
         stock_quantity=3,
@@ -278,3 +278,59 @@ def test_repository_cache_respects_include_inactive(test_db, test_tenant):
     cached_inactive = cache_service.get(cache_key_inactive)
     assert cached_inactive is not None
     assert cached_inactive["is_active"] is False
+
+
+def test_repository_cache_preserves_dirty_session_state(test_db, test_tenant):
+    """Test que get_by_id() préserve l'état dirty de la session (identity map).
+
+    Scénario du bug corrigé :
+    1. get_by_id() charge un produit depuis DB → le cache dans Redis
+    2. Le code modifie available_quantity en mémoire (dirty state)
+    3. get_by_id() est rappelé → cache HIT → merge() écrasait le dirty state
+    Après fix : get_by_id() détecte l'instance dans l'identity map et la retourne
+    directement, préservant les modifications non flush.
+    """
+    repo = ProductRepository(test_db)
+
+    # Créer un produit avec stock=20
+    product = Product(
+        tenant_id=test_tenant.id,
+        name="Produit Identity Map",
+        sku="IDENTITY-MAP-001",
+        category="assiettes",
+        price_per_day=250,
+        available_quantity=20,
+        stock_quantity=20,
+        is_active=True
+    )
+    repo.create(product)
+    test_db.commit()
+
+    # 1. Premier get_by_id → cache MISS, charge depuis DB, remplit le cache
+    result1 = repo.get_by_id(product.id, test_tenant.id)
+    assert result1 is not None
+    assert result1.available_quantity == 20
+
+    # Vérifier que le cache Redis contient available_quantity=20
+    cache_key = f"product:{test_tenant.id}:{product.id}"
+    cached = cache_service.get(cache_key)
+    assert cached is not None
+    assert cached["available_quantity"] == 20
+
+    # 2. Modifier available_quantity en mémoire (dirty state, pas encore flush)
+    result1.available_quantity = 12  # Simule une réservation de 8 unités
+
+    # 3. get_by_id à nouveau → cache HIT
+    # AVANT FIX : merge() écrasait available_quantity=12 avec 20 (stale cache)
+    # APRÈS FIX : identity map détecte l'instance, retourne directement
+    result2 = repo.get_by_id(product.id, test_tenant.id)
+
+    # L'instance retournée doit avoir le dirty state préservé
+    assert result2 is result1  # Même objet Python (identity map)
+    assert result2.available_quantity == 12  # Dirty state préservé, pas écrasé
+
+    # 4. Flush + commit pour persister
+    test_db.flush()
+    test_db.commit()
+    test_db.refresh(product)
+    assert product.available_quantity == 12

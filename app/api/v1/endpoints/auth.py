@@ -9,9 +9,11 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
+from app.core.exceptions import AppException
 from app.core.redis import redis_client
-from app.services.auth import AuthService
-from app.schemas.auth import TokenResponse, RefreshTokenRequest, CSRFTokenResponse
+from app.services.auth import AuthService, MFARequiredResult
+from app.schemas.auth import TokenResponse, RefreshTokenRequest, LogoutRequest, LogoutResponse, CSRFTokenResponse, UserInfo
+from app.schemas.mfa import MFALoginResponse
 from app.models.user import User
 from app.constants import ErrorMessages
 
@@ -21,13 +23,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
-@router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
+@router.post("/login", status_code=status.HTTP_200_OK)
 def login(
     request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Session = Depends(get_db)
-) -> TokenResponse:
-    """Authentifie un utilisateur et retourne les JWT tokens.
+):
+    """Authentifie un utilisateur et retourne les JWT tokens (ou MFA session token).
 
     Args:
         request: FastAPI Request (pour extraction IP, User-Agent, request_id)
@@ -35,33 +37,19 @@ def login(
         db: Session de base de données
 
     Returns:
-        TokenResponse avec access_token, refresh_token, expires_in
+        - TokenResponse si pas de MFA
+        - MFALoginResponse si MFA activé (client doit appeler POST /mfa/verify)
 
     Raises:
         HTTPException 401: Si credentials invalides
-        HTTPException 403: Si compte inactif
-
-    Example:
-        POST /api/v1/auth/login
-        Content-Type: application/x-www-form-urlencoded
-
-        username=user@example.com&password=securepass123
-
-        Response:
-        {
-            "access_token": "eyJhbGc...",
-            "refresh_token": "eyJhbGc...",
-            "token_type": "bearer",
-            "expires_in": 1800
-        }
+        HTTPException 403: Si compte inactif ou verrouillé (brute force)
 
     Security:
         - Email normalisé en lowercase
-        - Password vérifié avec bcrypt
+        - Password vérifié avec Argon2id/bcrypt
+        - Si MFA activé : retourne mfa_session_token (pas de JWT)
         - Compte doit être actif (is_active=True)
-        - Access token expire en 30 minutes
-        - Refresh token expire en 7 jours
-        - Audit log LOGIN_SUCCESS ou LOGIN_FAILED (conformité RGPD/SOC2)
+        - Audit log LOGIN_SUCCESS (seulement si pas de MFA) ou LOGIN_FAILED
     """
     auth_service = AuthService(db)
 
@@ -71,7 +59,7 @@ def login(
     request_id = getattr(request.state, "request_id", None)
 
     try:
-        access_token, refresh_token, expires_in = auth_service.login(
+        result = auth_service.login(
             email=form_data.username,  # OAuth2 spec uses 'username' field
             password=form_data.password,
             ip_address=ip_address,
@@ -79,6 +67,16 @@ def login(
             request_id=request_id
         )
 
+        # MFA requis — retourner mfa_session_token
+        if isinstance(result, MFARequiredResult):
+            return MFALoginResponse(
+                mfa_required=True,
+                mfa_session_token=result.mfa_session_token,
+                token_type="mfa_session",
+            )
+
+        # Pas de MFA — retourner tokens JWT
+        access_token, refresh_token, expires_in = result
         return TokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,
@@ -88,6 +86,8 @@ def login(
 
     except HTTPException:
         raise
+    except AppException:
+        raise  # AccountLocked etc. — handled by exception handler middleware
     except Exception:
         logger.exception("Unexpected error during login")
         raise
@@ -98,51 +98,34 @@ def refresh_token(
     request: RefreshTokenRequest,
     db: Session = Depends(get_db)
 ) -> TokenResponse:
-    """Génère un nouveau access token depuis un refresh token valide.
+    """Rotation de refresh token : invalide l'ancien, émet un nouveau.
 
     Args:
         request: RefreshTokenRequest contenant le refresh_token
         db: Session de base de données
 
     Returns:
-        TokenResponse avec nouveau access_token et même refresh_token
+        TokenResponse avec nouveau access_token ET nouveau refresh_token
 
     Raises:
-        HTTPException 401: Si refresh token invalide ou expiré
+        HTTPException 401: Si refresh token invalide, expiré, révoqué, ou replay détecté
         HTTPException 403: Si compte inactif
 
-    Example:
-        POST /api/v1/auth/refresh
-        Content-Type: application/json
-
-        {
-            "refresh_token": "eyJhbGc..."
-        }
-
-        Response:
-        {
-            "access_token": "eyJhbGc...",  // Nouveau token
-            "refresh_token": "eyJhbGc...",  // Même token
-            "token_type": "bearer",
-            "expires_in": 1800
-        }
-
     Security:
-        - Valide signature + expiration du refresh token
-        - Charge user depuis DB (vérifie existence + is_active)
-        - Génère nouveau access token avec claims à jour
-        - Refresh token n'est pas renouvelé (réutilisation jusqu'à expiration)
+        - Vérifie JTI dans whitelist Redis
+        - Rotation: ancien refresh invalidé, nouveau émis (même famille)
+        - Replay detection: si ancien JTI réutilisé → toute la famille révoquée
     """
     auth_service = AuthService(db)
 
     try:
-        new_access_token, expires_in = auth_service.refresh_access_token(
+        new_access_token, new_refresh_token, expires_in = auth_service.refresh_access_token(
             refresh_token=request.refresh_token
         )
 
         return TokenResponse(
             access_token=new_access_token,
-            refresh_token=request.refresh_token,  # Retourne même refresh token
+            refresh_token=new_refresh_token,
             token_type="bearer",
             expires_in=expires_in
         )
@@ -152,6 +135,76 @@ def refresh_token(
     except Exception:
         logger.exception("Unexpected error during token refresh")
         raise
+
+
+@router.post("/logout", response_model=LogoutResponse, status_code=status.HTTP_200_OK)
+def logout(
+    request: Request,
+    body: LogoutRequest = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> LogoutResponse:
+    """Déconnecte l'utilisateur et révoque ses tokens.
+
+    Args:
+        request: FastAPI Request (pour extraction IP, User-Agent, token)
+        body: LogoutRequest optionnel contenant le refresh_token
+        current_user: Utilisateur authentifié (JWT validé)
+        db: Session de base de données
+
+    Returns:
+        LogoutResponse avec confirmation
+
+    Security:
+        - Access token blacklisté (ne sera plus accepté par get_current_user)
+        - Refresh token supprimé de whitelist Redis (si fourni)
+        - Token family désactivée (si refresh_token fourni)
+        - Tous les tokens CSRF de l'utilisateur révoqués
+        - Audit log LOGOUT créé
+    """
+    auth_service = AuthService(db)
+
+    # Extraire access token du header Authorization
+    auth_header = request.headers.get("Authorization", "")
+    access_token = auth_header.replace("Bearer ", "") if auth_header.startswith("Bearer ") else ""
+
+    # Extraire refresh token du body (optionnel)
+    refresh_token = body.refresh_token if body and body.refresh_token else None
+
+    # Extraire infos pour audit
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("User-Agent")
+    request_id = getattr(request.state, "request_id", None)
+
+    try:
+        auth_service.logout(
+            access_token=access_token,
+            user=current_user,
+            refresh_token=refresh_token,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            request_id=request_id,
+        )
+        return LogoutResponse(message="Logged out successfully", tokens_revoked=True)
+    except Exception:
+        logger.exception("Unexpected error during logout")
+        return LogoutResponse(message="Logged out with errors", tokens_revoked=False)
+
+
+@router.get("/me", response_model=UserInfo, status_code=status.HTTP_200_OK)
+def get_current_user_info(
+    current_user: User = Depends(get_current_user),
+) -> UserInfo:
+    """Retourne les informations de l'utilisateur authentifié."""
+    return UserInfo(
+        id=current_user.id,
+        email=current_user.email,
+        full_name=current_user.full_name,
+        role=current_user.role,
+        tenant_id=current_user.tenant_id,
+        is_active=current_user.is_active,
+        created_at=str(current_user.created_at) if current_user.created_at else None,
+    )
 
 
 @router.get("/csrf", response_model=CSRFTokenResponse, status_code=status.HTTP_200_OK)

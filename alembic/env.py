@@ -6,8 +6,11 @@ from alembic import context
 # Import des modèles et configuration
 from app.core.config import settings
 from app.models.base import Base
-# CRITIQUE: Importer tous les modèles pour autogenerate
-from app.models import Customer, Product, Reservation, ReservationLine, Invoice  # noqa: F401
+# CRITIQUE: Importer tous les modèles pour autogenerate (fix B5)
+from app.models import (  # noqa: F401
+    Customer, Product, Reservation, ReservationLine, Invoice,
+    User, AuditLog, MFADevice,
+)
 
 # Configuration Alembic
 config = context.config

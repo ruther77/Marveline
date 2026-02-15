@@ -34,9 +34,12 @@ Notes:
     - Reset timestamp = current_time + window_seconds
     - Headers 429 conformes RFC 6585
 """
+import logging
 import time
 from typing import Tuple, Dict, Any
 from redis import Redis
+
+logger = logging.getLogger(__name__)
 
 from app.constants import RateLimitScope, RedisKeys
 
@@ -140,7 +143,7 @@ class RateLimiter:
             # Fail-open : en cas d'erreur Redis, autoriser requête
             # Priorité : disponibilité > sécurité (éviter denial of service)
             # Log l'erreur pour investigation
-            print(f"Rate limiter error: {e}")  # TODO: utiliser logger
+            logger.error("Rate limiter error: %s", e)
             return True, {
                 "limit": limit,
                 "remaining": limit,

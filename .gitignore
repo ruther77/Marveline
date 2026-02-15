@@ -66,7 +66,12 @@ logs/
 .DS_Store
 Thumbs.db
 
+# Node
+node_modules/
+
 # Local tooling (machine-specific)
 .claude/
 .context/
+.context.json
 .mcp.json
+.venv-mcp/

@@ -7,20 +7,19 @@ import type {
 } from '../types/product'
 
 export const categoriesApi = {
-  // List
+  // List — Backend retourne PaginatedResponse: { items: [...], total, skip, limit }
   getCategories: async (activeOnly = true): Promise<Category[]> => {
     const { data } = await apiClient.get('/categories', {
       params: { active_only: activeOnly },
     })
-    // Backend retourne { categories: [...], total: ... }
-    return data.categories || data.data || data || []
+    const items = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : [])
+    return items
   },
 
-  // Tree
+  // Tree — Backend retourne list[CategoryTreeNode] (tableau direct)
   getCategoryTree: async (): Promise<CategoryTreeNode[]> => {
     const { data } = await apiClient.get('/categories/tree')
-    // Backend retourne { tree: [...], total: ... }
-    return data.tree || data.data || data || []
+    return Array.isArray(data) ? data : (Array.isArray(data.items) ? data.items : [])
   },
 
   // CRUD

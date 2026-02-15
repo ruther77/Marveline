@@ -119,24 +119,24 @@ jobs:
         env:
           DATABASE_URL: postgresql+psycopg2://caro:test_password@localhost:5433/CaroCorp_test
           REDIS_URL: redis://localhost:6380/0
-          JWT_SECRET: test_jwt_secret_min_32_characters_long
-          CSRF_SECRET: test_csrf_secret_min_32_characters_long
+          JWT_SECRET: ${{ secrets.JWT_SECRET_TEST || 'test_jwt_secret_min_32_characters_long' }}
+          CSRF_SECRET: ${{ secrets.CSRF_SECRET_TEST || 'test_csrf_secret_min_32_characters_long' }}
         run: poetry run pytest tests/unit/ -v --cov=app --cov-report=xml
 
       - name: Run integration tests
         env:
           DATABASE_URL: postgresql+psycopg2://caro:test_password@localhost:5433/CaroCorp_test
           REDIS_URL: redis://localhost:6380/0
-          JWT_SECRET: test_jwt_secret_min_32_characters_long
-          CSRF_SECRET: test_csrf_secret_min_32_characters_long
+          JWT_SECRET: ${{ secrets.JWT_SECRET_TEST || 'test_jwt_secret_min_32_characters_long' }}
+          CSRF_SECRET: ${{ secrets.CSRF_SECRET_TEST || 'test_csrf_secret_min_32_characters_long' }}
         run: poetry run pytest tests/integration/ -v
 
       - name: Run E2E tests
         env:
           DATABASE_URL: postgresql+psycopg2://caro:test_password@localhost:5433/CaroCorp_test
           REDIS_URL: redis://localhost:6380/0
-          JWT_SECRET: test_jwt_secret_min_32_characters_long
-          CSRF_SECRET: test_csrf_secret_min_32_characters_long
+          JWT_SECRET: ${{ secrets.JWT_SECRET_TEST || 'test_jwt_secret_min_32_characters_long' }}
+          CSRF_SECRET: ${{ secrets.CSRF_SECRET_TEST || 'test_csrf_secret_min_32_characters_long' }}
         run: poetry run pytest tests/e2e/ -v
 
       - name: Upload coverage to Codecov

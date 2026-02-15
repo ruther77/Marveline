@@ -37,7 +37,7 @@ def workflow_products(test_db):
         tenant_id=1,
         name="Table ronde 150cm",
         sku="TABLE-RONDE-150-WF",
-        category=ProductCategory.NAPPE,
+        category=ProductCategory.NAPPES,
         price_per_day=2000,  # 20€/jour
         deposit_amount=5000,  # 50€ caution
         stock_quantity=20,
@@ -53,7 +53,7 @@ def workflow_products(test_db):
         tenant_id=1,
         name="Chaise Napoléon dorée",
         sku="CHAISE-NAP-WF",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=500,  # 5€/jour
         deposit_amount=1000,  # 10€ caution
         stock_quantity=100,

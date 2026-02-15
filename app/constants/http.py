@@ -68,6 +68,7 @@ class AuthEndpoints:
     REFRESH = "/api/v1/auth/refresh"
     CSRF = "/api/v1/auth/csrf"
     LOGOUT = "/api/v1/auth/logout"
+    MFA_VERIFY = "/api/v1/mfa/verify"
 
 
 class HealthEndpoints:

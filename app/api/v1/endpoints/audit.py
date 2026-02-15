@@ -15,6 +15,7 @@ router = APIRouter(prefix="/audit", tags=["Audit"])
 
 @router.get("", response_model=AuditLogList)
 def list_audit_logs(
+    current_user: AdminUser,
     skip: int = Query(0, ge=0, description="Offset pagination"),
     limit: int = Query(100, ge=1, le=1000, description="Limite pagination (max 1000)"),
     start_date: Optional[datetime] = Query(None, description="Date début (inclusive)"),
@@ -24,7 +25,6 @@ def list_audit_logs(
     entity_type: Optional[str] = Query(None, description="Filtrer par type d'entité (Customer, Reservation, etc.)"),
     entity_id: Optional[int] = Query(None, description="Filtrer par ID entité spécifique"),
     db: Session = Depends(get_db),
-    current_user: AdminUser = None
 ) -> AuditLogList:
     """Liste tous les audit logs avec filtres (admin uniquement).
 
@@ -120,13 +120,13 @@ def list_audit_logs(
 @router.get("/user/{user_id}", response_model=AuditLogList)
 def get_user_audit_trail(
     user_id: int,
+    current_user: AdminUser,
     skip: int = Query(0, ge=0, description="Offset pagination"),
     limit: int = Query(100, ge=1, le=1000, description="Limite pagination (max 1000)"),
     start_date: Optional[datetime] = Query(None, description="Date début (inclusive)"),
     end_date: Optional[datetime] = Query(None, description="Date fin (inclusive)"),
     action: Optional[str] = Query(None, description="Filtrer par type d'action"),
     db: Session = Depends(get_db),
-    current_user: AdminUser = None
 ) -> AuditLogList:
     """Récupère l'audit trail complet d'un utilisateur (admin uniquement).
 
@@ -218,10 +218,10 @@ def get_user_audit_trail(
 def get_entity_audit_trail(
     entity_type: str,
     entity_id: int,
+    current_user: AdminUser,
     skip: int = Query(0, ge=0, description="Offset pagination"),
     limit: int = Query(100, ge=1, le=1000, description="Limite pagination (max 1000)"),
     db: Session = Depends(get_db),
-    current_user: AdminUser = None
 ) -> AuditLogList:
     """Récupère l'historique complet d'une entité (admin uniquement).
 

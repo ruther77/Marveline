@@ -70,19 +70,11 @@ export interface MFASetupResponse {
 
 // Session types
 export interface Session {
-  id: string
-  user_id: number
-  tenant_id: number
+  session_id: string
   ip_address: string
   user_agent: string
-  is_current: boolean
-  is_active: boolean
   created_at: string
-  updated_at: string
-  last_seen_at: string
-  device_type: string
-  browser: string
-  os: string
+  last_activity: string
 }
 
 // Audit types
@@ -113,3 +105,7 @@ export interface PaginatedResponse<T> {
   per_page: number
   pages: number
 }
+
+// Re-exports
+export type { ReservationStatus, ReservationLine, ReservationList, ReservationDetail, ReservationCreate, ReservationUpdate, PaginatedReservations } from './reservation'
+export type { CustomerType, CustomerList, PaginatedCustomers } from './customer'

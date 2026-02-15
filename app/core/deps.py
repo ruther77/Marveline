@@ -1,17 +1,13 @@
-"""Dependencies FastAPI pour injection dans les endpoints.
-
-Includes:
-    - Database session management (get_db)
-    - Current user authentication (get_current_user)
-    - Role-based authorization (require_role)
-"""
-from typing import Generator, Annotated
+"""Dependencies FastAPI pour injection dans les endpoints."""
+from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from app.core.database import get_db  # Import depuis database.py (source unique)
+from app.core.database import get_db
 from app.core.security import decode_token
+from app.core.exceptions import TokenExpired, TokenInvalid
 from app.models.user import User
+from app.services.token import token_service
 from app.constants import AuthEndpoints, ErrorMessages, SecurityHeaders, TokenType, UserRole
 
 
@@ -25,26 +21,9 @@ def get_current_user(
 ) -> User:
     """Dependency pour obtenir l'utilisateur connecté depuis le JWT.
 
-    Args:
-        db: Session DB (injectée)
-        token: JWT token (extrait du header Authorization)
-
-    Returns:
-        Utilisateur connecté (modèle User)
-
     Raises:
-        HTTPException 401: Si token invalide ou user non trouvé
-
-    Security:
-        - Valide signature JWT
-        - Vérifie expiration
-        - Charge user depuis DB
-        - Vérifie que user.is_active == True
-
-    Example:
-        @router.get("/me")
-        def get_me(current_user: User = Depends(get_current_user)):
-            return {"email": current_user.email}
+        HTTPException 401: Si token invalide, expiré, ou user non trouvé
+        HTTPException 403: Si compte inactif
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -52,9 +31,16 @@ def get_current_user(
         headers={SecurityHeaders.WWW_AUTHENTICATE: SecurityHeaders.BEARER_SCHEME},
     )
 
-    # Décoder le token
-    payload = decode_token(token)
-    if payload is None:
+    # Décoder le token — lève TokenExpired ou TokenInvalid
+    try:
+        payload = decode_token(token)
+    except TokenExpired:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=ErrorMessages.TOKEN_EXPIRED,
+            headers={SecurityHeaders.WWW_AUTHENTICATE: SecurityHeaders.BEARER_SCHEME},
+        )
+    except TokenInvalid:
         raise credentials_exception
 
     # Vérifier type de token
@@ -82,6 +68,20 @@ def get_current_user(
     if user is None:
         raise credentials_exception
 
+    # Vérifier blacklist access token (logout → JTI blacklisté dans Redis)
+    access_jti = payload.get("jti")
+    if access_jti and token_service.is_access_blacklisted(access_jti):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=ErrorMessages.ACCESS_TOKEN_REVOKED,
+            headers={SecurityHeaders.WWW_AUTHENTICATE: SecurityHeaders.BEARER_SCHEME},
+        )
+
+    # Vérifier cohérence tenant_id JWT vs DB (fix M23 — anti cross-tenant)
+    jwt_tenant_id = payload.get("tenant_id")
+    if jwt_tenant_id is not None and user.tenant_id != jwt_tenant_id:
+        raise credentials_exception
+
     # Vérifier que le compte est actif
     if not user.is_active:
         raise HTTPException(
@@ -93,34 +93,7 @@ def get_current_user(
 
 
 def require_role(*allowed_roles: str):
-    """Dependency factory pour vérifier le rôle de l'utilisateur.
-
-    Args:
-        *allowed_roles: Rôles autorisés (admin, manager, staff)
-
-    Returns:
-        Dependency function qui vérifie le rôle
-
-    Raises:
-        HTTPException 403: Si rôle insuffisant
-
-    Example:
-        # Endpoint réservé aux admins
-        @router.delete("/users/{id}")
-        def delete_user(
-            id: int,
-            current_user: User = Depends(require_role("admin"))
-        ):
-            ...
-
-        # Endpoint pour admins et managers
-        @router.post("/products")
-        def create_product(
-            product: ProductCreate,
-            current_user: User = Depends(require_role("admin", "manager"))
-        ):
-            ...
-    """
+    """Dependency factory pour vérifier le rôle de l'utilisateur."""
     def role_checker(current_user: User = Depends(get_current_user)) -> User:
         if current_user.role not in allowed_roles:
             raise HTTPException(

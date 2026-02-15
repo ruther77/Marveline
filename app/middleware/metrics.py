@@ -29,6 +29,7 @@ from app.core.metrics import (
     http_requests_in_progress,
     rate_limit_hits_total,
 )
+from app.core.rate_limit_utils import determine_rate_limit_scope
 from app.constants import AuthEndpoints, HTTPMethods, RateLimitScope
 
 
@@ -89,45 +90,6 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         # Path sans ID numérique → retourner tel quel
         return path
 
-    def _determine_scope_from_request(self, request: Request) -> str:
-        """Détermine scope rate limit depuis request path/method.
-
-        Duplique la logique de RateLimitMiddleware._determine_scope()
-        pour éviter de parser le body JSON 429.
-
-        Args:
-            request: Request FastAPI
-
-        Returns:
-            Scope rate limit (login, mutations, reads, user_authenticated)
-
-        Logic:
-            - /auth/login → "login"
-            - POST/PUT/PATCH/DELETE → "mutations"
-            - GET/HEAD/OPTIONS → "reads"
-            - Défaut → "user_authenticated"
-
-        Notes:
-            - Simplifie tracking en évitant parsing response 429
-            - Cohérent avec RateLimitMiddleware
-        """
-        path = request.url.path
-        method = request.method
-
-        # Login endpoint
-        if AuthEndpoints.LOGIN in path:
-            return RateLimitScope.LOGIN
-
-        # Mutations (POST, PUT, PATCH, DELETE)
-        if method in HTTPMethods.UNSAFE_METHODS:
-            return RateLimitScope.MUTATIONS
-
-        # Reads (GET, HEAD, OPTIONS)
-        if method in HTTPMethods.SAFE_METHODS:
-            return RateLimitScope.READS
-
-        # Default : user_authenticated (si authentifié)
-        return RateLimitScope.USER_AUTHENTICATED
 
     def _get_identifier_type(self, request: Request, scope: str) -> str:
         """Détermine type identifier (ip ou user_id) selon scope.
@@ -213,8 +175,8 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 
             # Si 429 rate limit → incrémenter rate_limit_hits_total
             if status == 429:
-                # Déterminer scope depuis request (path + méthode)
-                scope = self._determine_scope_from_request(request)
+                # Déterminer scope depuis request (logique centralisée)
+                scope = determine_rate_limit_scope(request)
                 identifier_type = self._get_identifier_type(request, scope)
                 rate_limit_hits_total.labels(
                     scope=scope.value if hasattr(scope, 'value') else scope,

@@ -6,6 +6,9 @@ from app.models.product import Product
 from app.models.reservation import Reservation, ReservationLine
 from app.models.invoice import Invoice
 from app.models.audit_log import AuditLog
+from app.models.mfa import MFADevice
+from app.models.category import Category
+from app.models.bundle import ProductBundle, BundleItem
 
 __all__ = [
     # Base classes
@@ -15,9 +18,13 @@ __all__ = [
     "SoftDeleteMixin",
     # Auth models
     "User",
+    "MFADevice",
     # Business models
     "Customer",
     "Product",
+    "Category",
+    "ProductBundle",
+    "BundleItem",
     "Reservation",
     "ReservationLine",
     "Invoice",

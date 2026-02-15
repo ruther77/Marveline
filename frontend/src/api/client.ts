@@ -1,5 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
+import { normalizeError } from '@/errors'
 
 const API_URL = import.meta.env.VITE_API_URL || '/api/v1'
 const TENANT_ID = import.meta.env.VITE_TENANT_ID || '1'
@@ -56,7 +57,8 @@ apiClient.interceptors.response.use(
       }
     }
 
-    return Promise.reject(error)
+    // Normalize all errors into typed AppError subclasses
+    return Promise.reject(normalizeError(error))
   }
 )
 

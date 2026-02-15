@@ -102,9 +102,14 @@ class Product(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
         UniqueConstraint("tenant_id", "sku", name="uq_product_tenant_sku"),
         # Nom unique par tenant
         UniqueConstraint("tenant_id", "name", name="uq_product_tenant_name"),
-        # Catégorie valide
+        # Catégorie valide (20 catégories catalogue Marveline)
         CheckConstraint(
-            "category IN ('assiette', 'verre', 'couvert', 'nappe', 'deco', 'autre')",
+            "category IN ("
+            "'accessoires_transport', 'assiettes', 'bancs', 'candy_bar', "
+            "'chaises', 'couverts', 'decorations', 'housses', 'machines', "
+            "'mange_debout', 'mobilier', 'nappages', 'nappes', 'porcelaine', "
+            "'serviettes', 'tables', 'vaisselle', 'vaisselle_service', "
+            "'vaisselle_enfants', 'verres')",
             name="check_product_category_valid"
         ),
         # Prix positif

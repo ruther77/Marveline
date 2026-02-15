@@ -23,8 +23,8 @@ import ProductsPage from '@/pages/products/ProductsPage'
 import CategoriesPage from '@/pages/products/CategoriesPage'
 import BundlesPage from '@/pages/products/BundlesPage'
 
-// Event pages
-import EventsPage from '@/pages/events/EventsPage'
+// Reservation pages
+import ReservationsPage from '@/pages/events/EventsPage'
 
 // Inventory pages
 import InventoryPage from '@/pages/inventory/InventoryPage'
@@ -37,6 +37,9 @@ import MFASetupPage from '@/pages/profile/MFASetupPage'
 
 // Dashboard (page d'accueil simple)
 import DashboardPage from '@/pages/dashboard/DashboardPage'
+
+// Error pages
+import NotFoundPage from '@/pages/errors/NotFoundPage'
 
 // Agenda pages
 import AgendaPage from '@/pages/agenda/AgendaPage'
@@ -107,8 +110,8 @@ export default function App() {
         <Route path="/products/categories" element={<CategoriesPage />} />
         <Route path="/products/bundles" element={<BundlesPage />} />
 
-        {/* Ventes / Événements */}
-        <Route path="/events" element={<EventsPage />} />
+        {/* Ventes / Réservations */}
+        <Route path="/events" element={<ReservationsPage />} />
 
         {/* Inventaire */}
         <Route path="/inventory/stock" element={<InventoryPage />} />
@@ -128,7 +131,7 @@ export default function App() {
 
       {/* Redirects */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   )
 }

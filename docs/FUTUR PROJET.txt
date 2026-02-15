@@ -1,0 +1,2783 @@
+Bash(python3 -c "                                  
+      import json
+      with open('/home/ruuuzer/.claude/projects/-home-ruuuzer-Documents-CaroCorp-new/f210645b-31fd-43af-a046-0fa98a879c74/tool-results/toolu_01UtMiQKKAMCe2hmj4LQiirz.txt') as f:       
+          lines = f.readlines()
+      obj = json.loads(lines[49])                                                                                                                                                       
+      content = obj['message']['content']                                                                                                                                             
+      for c in content:                                                                                                                                                               
+          if c.get('type') == 'text' and len(c['text']) > 1000:
+              print(c['text'])
+      " 2>&1)
+  ⎿  Maintenant je peux générer le rapport d'audit. Voici mon analyse complète :
+
+     ---                                             
+
+     ## AUDIT COMPLET — app/core/                                                                                                                                                       
+   
+     **14 fichiers Python audités.** Voici le résumé structuré par fichier :                                                                                                            
+                                                                                                                                                                                      
+     ### 1. **app/core/__init__.py** (90 lignes)                                                                                                                                      
+
+     **Status:** ✅ Bon
+
+     - **Imports:** Tous les exports listés en `__all__` sont importés correctement
+     - **Pas de problèmes identifiés**
+
+     ---
+
+     ### 2. **app/core/config.py** (70 lignes)
+
+     **Status:** ⚠️  **PROBLÈME CRITIQUÉ DE SÉCURITÉ**
+
+     | Problème | Ligne | Sévérité | Détails |
+     |----------|-------|----------|---------|
+     | **Secrets hardcodés en DEV** | 28, 34, 38, 46, 55 | **P0** | `JWT_SECRET`, `REDIS_URL` (`:password@`), `CELERY_BROKER_URL`, `CSRF_SECRET`, `ENCRYPTION_KEY` avec valeurs DEV
+      en clair. Contraire à CLAUDE.md "Aucun secret hardcodé, Vault obligatoire" |
+     | Commentaire "CHANGER_EN_PROD" fragile | 28, 46 | P2 | Pas de mécanisme d'enforcing — simple commentaire, risque oubli production |
+     | Valeur DEFAULT dangereuse pour DB | 23 | P2 | Laisser password par défaut même en DEV invite au copier-coller en prod |
+
+     **Recommandation:** Les secrets DEV doivent venir de fichier `.env` chargé via `SettingsConfigDict(env_file=".env")` déjà présent mais secrets en dur contredisent la ligne 14
+      `extra="ignore"`.
+
+     ---
+
+     ### 3. **app/core/exceptions.py** (176 lignes)
+
+     **Status:** ✅ Bon, avec remarques architecturales
+
+     | Observation | Ligne | Type | Détails |
+     |------------|-------|------|---------|
+     | Docstring promesse partielle | 11-12 | Note | "Phase 1 only" — promesse que MFA/Session/Storage/Token-replay exceptions seront ajoutées. OK pour Phase 1, mais pas de
+     TODO/FIXME pour rappeler l'ajout futur |
+     | TokenRevoked défini mais non exporté | 71-74 | Omission | Classe définie mais absente de `__init__.py` `__all__`. Exception "orpheline" — jamais levée nulle part? |
+     | TokenReplayDetected défini mais non exporté | 77-80 | Omission | Même situation |
+     | Pas de contexte d'erreur pour exceptions métier | 123-130 | Conception | `NotFound` accepte `resource` paramètre, bon. Mais les autres exceptions (TenantMismatch,
+     PermissionDenied) n'ont pas de contexte — difficile de log l'entité problématique |
+
+     **Recommandation:** Ajouter `TokenRevoked` et `TokenReplayDetected` à `__init__.py` `__all__`, ou ajouter `# TODO: Phase 2 — Token-replay detection` si volontairement absent.
+
+     ---
+
+     ### 4. **app/core/logging.py** (254 lignes)
+
+     **Status:** ✅ Excellent, bien documenté
+
+     | Observation | Ligne | Type | Détails |
+     |------------|-------|------|---------|
+     | Sanitization robuste | 61-90 | ✅ | `sanitize_value()` + `sanitize_dict()` récursive. Couvre passwords, tokens, SSN. Bien |
+     | ContextVars defaults correctement None | 29-31 | ✅ | Fix M6 appliqué (vérifier si None au lieu de 0/"") |
+     | ConsoleFormatter format lisible | 173-188 | ✅ | Bonnes couleurs ANSI |
+     | Root logger clearing potential issue | 211 | Note | `root_logger.handlers.clear()` OK pour redondance, mais si logger déjà utilisé ailleurs dans le module au démarrage,
+     peut perdre logs. Accepté pour config au boot |
+
+     **Pas de problèmes critiques.**
+
+     ---
+
+     ### 5. **app/core/validators.py** (310 lignes)
+
+     **Status:** ✅ Bon, sécurité en profondeur appliquée
+
+     | Observation | Ligne | Type | Détails |
+     |------------|-------|------|---------|
+     | SQL patterns complets, pas char blacklist | 46-67 | ✅ | Fix M5 appliqué — apostrophe acceptée. Détection patterns (OR 1=1, UNION SELECT, DROP TABLE). Bon défense en
+     profondeur |
+     | XSS patterns couverts | 73-86 | ✅ | `<script>`, `<iframe>`, `javascript:`, `onclick=`, `data:text/html`. Complet |
+     | Path traversal patterns | 92-98 | ✅ | `../`, `..\\`, `%2e%2e/`. Bon |
+     | Sanitize permissive | 219-247 | Note | Fix M5 appliqué — strip HTML mais garde apostrophes. Approche permissive (modifie silencieusement) — OK pour sanitize, rejetter est
+     mieux mais acceptable |
+     | Pas de validate_password_safe | 306-309 | ✅ | Fix M16 appliqué. Passwords hashes, jamais affichés. Correct |
+     | Fonction helper de séquences triviales dans fichier séparé | - | ✅ | Referrer à password_policy.py pour logique avancée. Bonne séparation |
+
+     **Pas de problèmes de sécurité.**
+
+     ---
+
+     ### 6. **app/core/database.py** (55 lignes)
+
+     **Status:** ✅ Bon
+
+     | Observation | Ligne | Type | Détails |
+     |------------|-------|------|---------|
+     | `pool_pre_ping=True` | 15 | ✅ | Vérifie les connexions avant usage — bonne pratique |
+     | `echo=settings.DEBUG` | 16 | ⚠️  Note | Log SQL en DEBUG mode = bon pour dev. En prod, peux être lourd si DEBUG=True par erreur |
+     | Context manager `get_db_context()` | 42-54 | ✅ | Bon pour usage hors FastAPI (workers, scripts) |
+
+     **Pas de problèmes.**
+
+     ---
+
+     ### 7. **app/core/crypto.py** (86 lignes)
+
+     **Status:** ✅ Excellent
+
+     | Observation | Ligne | Type | Détails |
+     |------------|-------|------|---------|
+     | AES-256-GCM bien implémentée | 37-60 | ✅ | Nonce 12-byte random, GCM = authenticated encryption (confidentialité + intégrité). Correct |
+     | Key derivation avec SHA-256 | 24-34 | ✅ | Déterministe, padding smart. Bon |
+     | Validation longueur encrypted data | 75-76 | ✅ | Vérifie >= 28 bytes (12 nonce + 16 tag min). Évite crash sur malformed data |
+     | Exception handling robuste | 49-50, 74 | ✅ | Lève ValueError pour input invalide |
+
+     **Pas de problèmes.**
+
+     ---
+
+     ### 8. **app/core/deps.py** (112 lignes)
+
+     **Status:** ⚠️  **PROBLÈME MINEUR**
+
+     | Problème | Ligne | Sévérité | Détails |
+     |----------|-------|----------|---------|
+     | Indentation/syntaxe ligne 111 | 111 | **P1** | ` ManagerUser = Annotated[...` a un espace au début qui semble accidentel. Vérifier que ce code passe même la compilation
+     Python |
+     | require_role docstring incomplet | 95-105 | P3 | Pas de docstring pour le factory function — juste "Dependency factory pour vérifier le rôle". Devrait documenter que
+     retourne User si role valide, sinon 403 |
+     | Type annotation pour require_role() return | 95 | P2 | `require_role(*allowed_roles: str):` retourne une fonction `role_checker` mais pas de type hint pour le callable
+     retourné |
+
+     **Recommandation:** Corriger indentation ligne 111, ajouter type hints pour `require_role` return type.
+
+     ---
+
+     ### 9. **app/core/health.py** (155 lignes)
+
+     **Status:** ✅ Bon
+
+     | Observation | Ligne | Type | Détails |
+     |------------|-------|------|---------|
+     | check_postgres robuste | 26-84 | ✅ | SELECT 1, mesure latence, pool metrics. Exception handling safe (retourne False, {} au lieu de lever) |
+     | Pool metrics optionnel | 73 | ✅ | Vérifie `hasattr(engine, 'pool')` — bon car en test la connexion peut être une Connection pas Engine |
+     | check_redis robuste | 87-154 | ✅ | PING, latency, info (memory, clients). Exception handling safe |
+     | INFO peut être coûteux en commentaire | 117 | ✅ | Note bien documentée — bon pour prod monitoring |
+
+     **Pas de problèmes.**
+
+     ---
+
+     ### 10. **app/core/metrics.py** (341 lignes)
+
+     **Status:** ✅ Très bon, bien structuré
+
+     | Observation | Ligne | Type | Détails |
+     |------------|-------|------|---------|
+     | Docstrings exhaustifs | 2-31, etc. | ✅ | Chaque métrique expliquée (labels, queries Prometheus, alerting). Excellent |
+     | Pattern RED bien appliqué | 37-108 | ✅ | Rate (http_requests_total), Errors (filtrés sur status), Duration (Histogram). Correct |
+     | Buckets pour histogrammes bien pensées | 65, 154, 198 | ✅ | Granularité 5ms→10s pour HTTP, 1ms→5s pour DB, 0.1ms→0.1s pour Redis. Bon |
+     | Cache metrics complètes | 217-272 | ✅ | Hits, misses, hit_rate. Bon pour observabilité |
+     | Business metrics ajoutées | 276-306 | ✅ | Réservations, invoices par status. Utile |
+     | metrics_endpoint simple | 310-340 | ✅ | Prometheus format, pas d'auth. Correct |
+
+     **Pas de problèmes de sécurité. Bien documenté.**
+
+     ---
+
+     ### 11. **app/core/password_policy.py** (148 lignes)
+
+     **Status:** ✅ Bon, Complet
+
+     | Observation | Ligne | Type | Détails |
+     |------------|-------|------|---------|
+     | Common passwords list complète | 27-64 | ✅ | 200+ patterns OWASP. Inclut "carocorp", "marveline". Bon |
+     | Séquences détectées | 67-79 | ✅ | Repeating (aaa, 111), sequential (1234, abcd). OK |
+     | validate_password robuste | 82-147 | ✅ | Longueur min (8/12 pour admin), complexity (upper/lower/digit/special), common, username/email context, sequences. Complet |
+     | Rôle-based min length | 104-106 | ✅ | Admin/manager → 12 chars. Bon |
+     | Pas d'appel HIBP | 24 | ✅ | Commentaire note "pas d'HTTP" — local only. Bon pour performance, moins de sync avec reality mais acceptable |
+     | Retour tuple (bool, Optional[str]) | 87 | ✅ | Interface claire. Error message retourné si invalid |
+
+     **Pas de problèmes.**
+
+     ---
+
+     ### 12. **app/core/rate_limiter.py** (214 lignes)
+
+     **Status:** ✅ Bon, Multi-niveau appliqué
+
+     | Observation | Ligne | Type | Détails |
+     |------------|-------|------|---------|
+     | Redis INCR atomique | 109 | ✅ | Utilisé pour compteurs distribués. Bien |
+     | Fail-open design | 142-154 | ✅ | Si Redis down, autoriser requête (disponibilité > sécurité, avec log). Risqué mais acceptable documenté |
+     | Scope configs | 156-191 | ✅ | global_ip (1000/min), login (5/min), user (200/min), mutations (100/min), reads (300/min). Bon |
+     | TTL gestion | 112-120 | ✅ | Set TTL au premier INCR (count==1). Race condition possible si count=1 mais TTL pas défini — vérifie et le définit. OK |
+     | remaining calculation | 130 | ✅ | `max(0, limit - current)` — évite négatif. Bon |
+     | build_key simple | 193-213 | ✅ | Pattern `rate_limit:{scope}:{identifier}` |
+
+     **Pas de problèmes majeurs.**
+
+     ---
+
+     ### 13. **app/core/redis.py** (595 lignes)
+
+     **Status:** ⚠️  **PROBLÈMES MINEURS**
+
+     | Problème | Ligne | Sévérité | Détails |
+     |----------|-------|----------|---------|
+     | Import json répété | 153, 167, 230, 244, 260, 284, 410, 529 | P2 | `import json` à l'intérieur de fonctions au lieu de top-level. Pénalité performance (import cache mais
+     pas idéal). Doit être top-level |
+     | Exception handling trop large | Partout | P2 | `except (redis.ConnectionError, redis.TimeoutError)` mais certains endroits aussi `ValueError` (parse JSON) — ordre
+     inconsistent. Mieux d'avoir `except redis.RedisError` ou lister explicitement tous les cas |
+     | No docstring pour `_client` property | 30-42 | P3 | Lazy initialization OK mais pas documenté "raises Exception if init fails" |
+     | Duplicate code pour JSON operations | 153-156, 167-170, etc. | P3 | Pattern `json.dumps(data)` et `json.loads(data)` répété 8 fois. Pas de helper method. Code smell |
+     | revoke_token_family logic complexe | 251-272 | P2 | Récupère data, modifie `active=False`, recalcule TTL... mais si TTL=-2 (key expired juste avant), met setex avec TTL
+     négatif? Pas clear |
+     | type hints partiels | 139, 160, 237, 462 | P2 | `-> Optional[dict]` mais pas de TypedDict/dict[str, Any] pour clarifier structure. Compris du docstring mais explicit mieux
+     |
+     | revoke_all_refresh_tokens performance | 274-293 | P2 | Scan avec count=100 OK, mais en prod si 10k tokens par user, peut être lent. Pas de pagination ou limite de max.
+     Acceptable mais à noter |
+
+     **Recommandation:** Déplacer imports `json` et autres au top du fichier, créer des helpers pour JSON marshal/unmarshal.
+
+     ---
+
+     ### 14. **app/core/security.py** (247 lignes)
+
+     **Status:** ✅ Bon, Crypto solide
+
+     | Observation | Ligne | Type | Détails |
+     |------------|-------|------|---------|
+     | Argon2id initialisé au module load | 16-22 | ✅ | PasswordHasher configuré une fois. Bon pour performance |
+     | create_access_token JWT standard | 25-69 | ✅ | `sub` converti string (JWT spec), JTI unique (uuid4), exp/iat. Bon |
+     | create_refresh_token idem | 72-107 | ✅ | Même patterns, durée 7j via settings. OK |
+     | decode_token exception handling | 110-133 | ✅ | ExpiredSignatureError → TokenExpired, autres → TokenInvalid. Bon |
+     | verify_password dual-algo | 146-174 | ✅ | Argon2id nouveau, bcrypt legacy. Auto-détection via préfixe. Bien pour migration |
+     | needs_rehash | 177-196 | ✅ | Détecte bcrypt (vieux) et Argon2id obsolète (check_needs_rehash). Bon |
+     | DUMMY_HASH pour timing safety | 211-214 | ✅ | Hash généré au boot. Utilisé pour verify même si user absent. Protège contre timing attack. Bien |
+     | validate_password_strength lazy import | 229-234 | ⚠️  | Lazy import de password_policy pour éviter cycle. Acceptable mais comment on sait si ça marche? Pas de test? |
+     | Fallback basique si import fail | 236-246 | P2 | Fallback très light (juste length + alpha + digit). Si password_policy.py crash à import, validation très faible. Mieux
+     d'fail-close ou log warning |
+
+     **Recommandation:** Logger un warning si password_policy import fail.
+
+     ---
+
+     ## RÉSUMÉ DES PROBLÈMES CRITIQUES
+
+     | Sévérité | Fichier | Ligne | Problème |
+     |----------|---------|-------|---------|
+     | **P0** | config.py | 28, 34, 38, 46, 55 | Secrets hardcodés (JWT, REDIS, CELERY, CSRF, ENCRYPTION) contraires à CLAUDE.md |
+     | **P1** | deps.py | 111 | Indentation accidentelle (`␣ManagerUser`) |
+     | **P2** | redis.py | Partout | `import json` répétés dans fonctions au lieu de top-level |
+     | **P2** | redis.py | 251-272 | Logic complexe `revoke_token_family` sans test évident |
+     | **P2** | redis.py | 274-293 | `revoke_all_refresh_tokens` peut être lent en prod (10k+ tokens) |
+     | **P2** | security.py | 236-246 | Fallback de validation trop léger si password_policy crash |
+     | **P2** | deps.py | 95, 111 | Type hints manquants pour `require_role()` return callable |
+     | **P3** | redis.py | Multiples | Type hints partiels, pas de TypedDict |
+     | **Note** | exceptions.py | 71-80 | TokenRevoked, TokenReplayDetected définis mais non exportés |
+
+     ---
+
+     ## RECOMMANDATIONS GLOBALES
+
+     1. **Secrets en config.py :** Utiliser uniquement `.env` en DEV, jamais hardcoder même avec commentaire "CHANGE_EN_PROD". Peut passer en prod par erreur.
+
+     2. **redis.py :** Refactoriser imports JSON et JSON operations en top-level + helper methods pour éviter code duplication.
+
+     3. **deps.py :** Corriger indentation ligne 111, ajouter type hints.
+
+     4. **security.py :** Logger warning si password_policy import fail, ne pas utiliser fallback silencieux.
+
+     5. **exceptions.py :** Exporter TokenRevoked et TokenReplayDetected, ou ajouter TODO explicite.
+
+     6. **Généralisation :** Respecter CLAUDE.md "Aucun secret en code, Vault obligatoire" — aucun secret ne doit figurer dans config.py même en DEV.
+
+     Tous les autres fichiers sont bien implémentés et sécurisés.
+
+● Bash(python3 -c "                                  
+      import json
+      with open('/home/ruuuzer/.claude/projects/-home-ruuuzer-Documents-CaroCorp-new/f210645b-31fd-43af-a046-0fa98a879c74/tool-results/toolu_01Focwbt5FhhMVk51DedR5Py.txt') as f:       
+          lines = f.readlines()
+      for i, line in enumerate(lines):                                                                                                                                                  
+          try:                                                                                                                                                                        
+              obj = json.loads(line)                                                                                                                                                  
+              if obj.get('type') == 'assistant':
+                  content = obj.get('message', {}).get('content', [])
+                  for c in content:
+                      if c.get('type') == 'text' and len(c.get('text','')) > 1000:
+                          print(c['text'])
+          except:
+              pass
+      " 2>&1)
+  ⎿  Maintenant, je vais analyser les potentiels problèmes identifiés. Voici le rapport d'audit complet :
+
+     ---                                             
+
+     # AUDIT COMPLET — app/services/ — CaroCorp_new                                                                                                                                     
+   
+     ## Vue d'ensemble                                                                                                                                                                  
+                                                                                                                                                                                      
+     Fichiers analysés : 11 fichiers Python au total                                                                                                                                  
+     - Taille cumulée : ~4 500 lignes
+     - Services : 9 services métier + 1 singleton de cache + 1 module d'initialisation
+     - Niveau de documentation : **Très bon** (docstrings complètes en français)
+
+     ---
+
+     ## RÉSUMÉ DES PROBLÈMES IDENTIFIÉS
+
+     ### Critique (P0 - Production Blocking)
+
+     **Aucun problème critique détecté** — l'architecture est bien conçue et sécurisée.
+
+     ### Important (P1 - À corriger avant livraison)
+
+     #### 1. **`invoice.py` — Ligne 229 : Espacement de variable `status=`**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/invoice.py:229`
+        - **Problème** : `invoice.status=InvoiceStatus.PAID` manque espace avant `=`
+        - **Type** : Style/Cohérence de code
+        - **Occurrences** :
+          - Ligne 229 : `invoice.status=InvoiceStatus.PAID`
+          - Ligne 325 : `invoice.status=InvoiceStatus.OVERDUE`
+          - Ligne 375 : `invoice.status=InvoiceStatus.CANCELLED`
+        - **Fix** : Ajouter espaces : `invoice.status = InvoiceStatus.PAID`
+
+     #### 2. **`reservation.py` — Ligne 299 : Même problème d'espacement**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/reservation.py:299`
+        - **Problème** : `reservation.status=ReservationStatus.CONFIRMED` manque espaces
+        - **Occurrences** :
+          - Ligne 299 : `reservation.status=ReservationStatus.CONFIRMED`
+          - Ligne 366 : `reservation.status=ReservationStatus.CANCELLED`
+        - **Fix** : Ajouter espaces : `reservation.status = ReservationStatus.CONFIRMED`
+
+     ### Moyen (P2 - Qualité de code)
+
+     #### 3. **`invoice.py` — Ligne 139 : String hardcoding**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/invoice.py:139`
+        - **Problème** : Message d'erreur hardcodé en string
+        - **Code** :
+          ```python
+          detail=f"Invoice already exists for this reservation (ID: {existing_invoice.id})"
+          ```
+        - **Recommandation** : Ajouter constante dans `app/constants/errors.py`
+        - **Alternatives** :
+          - `ErrorMessages.INVOICE_ALREADY_EXISTS` ou
+          - `ErrorMessages.INVOICE_EXISTS_FOR_RESERVATION`
+
+     #### 4. **`invoice.py` — Ligne 218 : String hardcoding (message paiement)**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/invoice.py:218-219`
+        - **Problème** : Message détaillé hardcodé
+        - **Code** :
+          ```python
+          detail=f"Payment amount ({payment_data.amount_cents} cents) would exceed total amount. "
+                 f"Remaining: {invoice.total_amount - invoice.paid_amount} cents"
+          ```
+        - **Recommandation** : Créer constante formatée dans `ErrorMessages`
+
+     #### 5. **`product.py` — Ligne 68 : String hardcoding (SKU)**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/product.py:68`
+        - **Problème** : Message SKU hardcodé
+        - **Code** :
+          ```python
+          detail=f"Product with SKU '{product_data.sku}' already exists"
+          ```
+        - **Récurrence** : Aussi ligne 100
+        - **Recommandation** : Ajouter `ErrorMessages.PRODUCT_SKU_EXISTS`
+
+     #### 6. **`product.py` — Ligne 209 : String hardcoding (stock insuffisant)**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/product.py:209`
+        - **Problème** : Message stock détaillé
+        - **Code** :
+          ```python
+          detail=f"Insufficient stock. Available: {product.available_quantity}, Requested: {quantity}"
+          ```
+        - **Recommandation** : Créer constante avec placeholders
+
+     #### 7. **`reservation.py` — Ligne 32 : Mutation d'état partagé (Class variable)**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/reservation.py:31-32`
+        - **Problème** : `_generated_references` est une class variable mutable
+        - **Code** :
+          ```python
+          # Compteur de références générées (persiste dans le processus)
+          _generated_references: set[str] = set()
+          ```
+        - **Risque** :
+          - Cross-contamination entre instances (même en test)
+          - Persistence à travers les tests (pas de cleanup)
+          - Non-thread-safe en mode concurrent
+        - **Recommandation** :
+          - Passer en instance variable (`self._generated_references = set()` dans `__init__`)
+          - Ou mieux encore : utiliser Redis comme dans `token.py` pour persistance distribuée
+          - Ou laisser la DB comme source de vérité (voir `generate_reference()` qui vérifie déjà la DB)
+
+     #### 8. **`cache.py` — Ligne 92 : Import dynamique (import dans la fonction)**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/cache.py:92, 142, 184, 229`
+        - **Problème** : `import time` appelé à chaque fois dans `get/set/delete/invalidate_pattern`
+        - **Code** :
+          ```python
+          import time
+          start_time = time.time()
+          ```
+        - **Impact** : Performance inutile, éviter les imports dynamiques
+        - **Recommandation** : Ajouter `import time` au top du fichier (ligne ~40)
+
+     #### 9. **`cache.py` — Ligne 96 : Accès direct `self.redis.client` au lieu d'abstraction**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/cache.py:96, 152, 188, 240`
+        - **Problème** : Couplage direct à `redis_client.client` au lieu d'utiliser les méthodes du wrapper
+        - **Code** :
+          ```python
+          value = self.redis.client.get(key)
+          ```
+        - **Issue** : Contourne l'abstraction de `app.core.redis`
+        - **Recommandation** : Utiliser les méthodes déjà définies dans `redis_client` ou ajouter les manquantes
+
+     #### 10. **`cache.py` — Ligne 347 : Détection None ambigu**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/cache.py:347`
+        - **Problème** : `if cached_value is not None:` pourrait accepter `False` ou `0` en cache (données valides)
+        - **Code** :
+          ```python
+          if cached_value is not None:
+              logger.debug(f"Cache HIT: {cache_key}")
+              return cached_value
+          ```
+        - **Issue** : Si une valeur falsy est cachée (`False`, `0`, `[]`), la logique est correcte. Mais le commentaire est trompeur
+        - **Recommandation** : Documenter que `None` = cache miss, ou ajouter un marker (ex: sentinel value)
+
+     #### 11. **`cache.py` — Ligne 356 : Result peut être `None` avant caching**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/cache.py:356`
+        - **Problème** : `if result is not None:` crée un miss permanent pour valeurs nulles
+        - **Code** :
+          ```python
+          if result is not None:
+              cache.set(cache_key, result, ttl=ttl)
+          ```
+        - **Issue** : Si un appel DB retourne `None` légalement, à chaque appel il y a un miss (cache inefficace)
+        - **Recommandation** : Cacher aussi les `None` ou documenter la limitation
+
+     ### Mineur (P3 - Nice to have)
+
+     #### 12. **`mfa.py` — Ligne 157 : Comparaison avec booléen**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/mfa.py:157`
+        - **Problème** : `MFADevice.is_enabled == False` (E712 violation)
+        - **Code** :
+          ```python
+          MFADevice.is_enabled == False,  # noqa: E712
+          ```
+        - **Status** : `noqa` commentaire présent, donc accepté volontairement
+        - **Recommandation** : Utiliser `not MFADevice.is_enabled` pour clarté
+
+     #### 13. **`mfa.py` — Ligne 434 : Même E712 violation**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/mfa.py:434`
+        - **Problème** : `MFADevice.is_enabled == True`
+        - **Status** : `noqa: E712` accepté
+
+     #### 14. **`token.py` — Ligne 145 : Import dans la fonction**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/token.py:144`
+        - **Problème** : `from app.core.exceptions import TokenRevoked, TokenReplayDetected` à l'intérieur de la fonction
+        - **Code** :
+          ```python
+          from app.core.exceptions import TokenRevoked, TokenReplayDetected
+          ```
+        - **Recommandation** : Déplacer en haut du fichier (ligne ~20)
+
+     #### 15. **`auth.py` — Ligne 368 : Import local (redis)**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/auth.py:368`
+        - **Problème** : `from app.core.redis import redis_client` importé dans la fonction `logout`
+        - **Code** :
+          ```python
+          from app.core.redis import redis_client
+          ```
+        - **Recommandation** : Déplacer en haut du fichier
+
+     #### 16. **`reservation.py` — Ligne 280 : String hardcoding (status error)**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/reservation.py:280`
+        - **Problème** : Message d'erreur hardcodé
+        - **Code** :
+          ```python
+          detail=f"Cannot confirm reservation with status '{reservation.status}'. Must be 'draft'."
+          ```
+        - **Recommandation** : Créer `ErrorMessages.RESERVATION_CANNOT_CONFIRM_STATUS`
+
+     #### 17. **`reservation.py` — Ligne 353 : String hardcoding (status error)**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/reservation.py:353`
+        - **Problème** : Message d'erreur hardcodé
+        - **Code** :
+          ```python
+          detail=f"Cannot cancel reservation with status '{reservation.status}'"
+          ```
+        - **Recommandation** : Créer `ErrorMessages.RESERVATION_CANNOT_CANCEL_STATUS`
+
+     #### 18. **`invoice.py` — Ligne 64 : Import dynamique (select)**
+        - **Localisation** : `/home/ruuuzer/Documents/CaroCorp_new/app/services/invoice.py:64-65`
+        - **Problème** : `from sqlalchemy import select` et `from app.models.invoice import Invoice` importés dans la fonction
+        - **Code** :
+          ```python
+          from sqlalchemy import select
+          from app.models.invoice import Invoice as InvoiceModel
+          ```
+        - **Impact** : Import en double (Invoice déjà importé ligne 6)
+        - **Recommandation** :
+          - Déplacer `select` au top du fichier
+          - Utiliser l'import existant de `Invoice` (ligne 6)
+
+     #### 19. **Documentation : Pas de docstrings pour todos flagrés**
+        - **Localisation** : Aucun TODO/FIXME/HACK détecté (✓ bon)
+        - **Status** : Pas de code mort ou incomplet observé
+
+     #### 20. **Consistance : `time` vs `datetime` modules**
+        - **Localisation** :
+          - `mfa.py` : utilise `time.time()` et `datetime` séparément (ligne 23, 173, 216)
+          - `cache.py` : réimporte `time` à chaque fonction
+        - **Recommandation** : Centraliser les imports au top
+
+     ---
+
+     ## ANALYSE DÉTAILLÉE PAR FICHIER
+
+     ### 1. **`audit.py`** ✓ Très bon
+     - **Longueur** : 446 lignes
+     - **Responsabilité** : Unique, bien délimitée
+     - **Imports** : Clean, aucun problème
+     - **État partagé** : Aucun (uniquement instance variables)
+     - **Problèmes** : **Aucun**
+     - **Forces** :
+       - Documentation excellente (exemples, docstrings complets)
+       - Pattern append-only correct (pas de UPDATE/DELETE)
+       - Pas d'exceptions levées inutilement
+       - Gestion UUID complète
+
+     ### 2. **`auth.py`** — Bon (1 issue mineur)
+     - **Longueur** : 566 lignes
+     - **Responsabilité** : Authentification + gestion users (peut être envisagé 2 services)
+     - **Imports** : 1 import local (ligne 368)
+     - **Problèmes** :
+       - ❌ **P3** Ligne 368 : Import local `redis_client` (déplacer en haut)
+     - **Dépendances circulaires** :
+       - `AuthService` → `BruteForceService` → OK (pas de retour)
+       - `AuthService` → `TokenService` → OK
+       - `AuthService` → `SessionService` → OK
+       - `AuthService` → `MFAService` → OK
+     - **Forces** :
+       - Timing-safe password verification (DUMMY_HASH)
+       - Brute force check AVANT vérification credentials
+       - MFA optional avec session token intermédiaire
+       - Audit logging complet
+
+     ### 3. **`bruteforce.py`** ✓ Excellent
+     - **Longueur** : 211 lignes
+     - **Responsabilité** : Unique
+     - **État partagé** : Singleton (OK, instance-only)
+     - **Problèmes** : **Aucun**
+     - **Forces** :
+       - Escalation progressive bien documentée
+       - Pas de class variables mutuelles
+       - Comment fix M0 bien expliqué
+
+     ### 4. **`cache.py`** — Acceptable (5 issues)
+     - **Longueur** : 411 lignes
+     - **Responsabilité** : Cache Redis simple
+     - **Problèmes** :
+       - ❌ **P2** Lignes 92, 142, 184, 229 : Import `time` dynamique dans les fonctions
+       - ❌ **P2** Lignes 96, 152, 188, 240 : Accès `self.redis.client` (couplage)
+       - ❌ **P2** Ligne 347 : Ambiguïté `None` vs falsy values
+       - ❌ **P2** Ligne 356 : `None` n'est pas cachée (miss permanent)
+       - ⚠️  Documentation : Pattern fail-open bien documenté
+     - **Forces** :
+       - Récupération de métriques correcte
+       - Gestion complète (get/set/delete/invalidate/flush)
+       - SCAN pour éviter bloquer Redis
+
+     ### 5. **`invoice.py`** — Bon (4 issues)
+     - **Longueur** : 395 lignes
+     - **Responsabilité** : Factures uniquement
+     - **Problèmes** :
+       - ❌ **P1** Lignes 229, 325, 375 : Espacement `status=` manquant
+       - ❌ **P2** Ligne 139 : String hardcoding (invoice exists)
+       - ❌ **P2** Lignes 218-219 : String hardcoding (payment exceeds)
+       - ❌ **P2** Lignes 64-65 : Import dynamique + dupli (select, Invoice)
+     - **Forces** :
+       - Logique métier claire
+       - Validations strictes (paid <= total)
+       - Overdue detection
+
+     ### 6. **`mfa.py`** — Bon (2 E712 acceptés)
+     - **Longueur** : 442 lignes
+     - **Responsabilité** : TOTP + recovery codes uniquement
+     - **Problèmes** :
+       - ⚠️  **P3** Lignes 157, 434 : `== False`/`== True` (E712 avec noqa accepté)
+     - **Forces** :
+       - Anti-replay via `last_totp_window`
+       - Crypto correcte (AES-256-GCM pour secret TOTP)
+       - Recovery codes single-use
+
+     ### 7. **`product.py`** — Bon (3 issues)
+     - **Longueur** : 306 lignes
+     - **Responsabilité** : Gestion produits + stock
+     - **Problèmes** :
+       - ❌ **P2** Lignes 68, 100 : String hardcoding (SKU exists)
+       - ❌ **P2** Ligne 209 : String hardcoding (stock insuffisant)
+     - **Forces** :
+       - Race condition handling (IntegrityError capture)
+       - Validation métier (available <= stock)
+       - Soft + hard delete
+
+     ### 8. **`reservation.py`** — Moyen (2 issues majeurs)
+     - **Longueur** : 428 lignes
+     - **Responsabilité** : Réservations + lignes
+     - **Problèmes** :
+       - ❌ **P1** Lignes 299, 366 : Espacement `status=` manquant
+       - ❌ **P2** Ligne 32 : **Class variable mutable** `_generated_references` (mutation d'état partagé)
+       - ❌ **P2** Lignes 280, 353 : Strings hardcoding (status errors)
+     - **Problème critique — Ligne 32** :
+       ```python
+       # ❌ PROBLÈME : Class variable mutable partagée
+       _generated_references: set[str] = set()
+       ```
+       - Risque : Si 2 instances de `ReservationService` tournent (tests + prod), elles partagent le même set
+       - Solution 1 : Passer en instance (`self._generated_references = set()` dans `__init__`)
+       - Solution 2 : Utiliser Redis pour persistance distribuée
+       - Solution 3 : Laisser la DB comme source de vérité (elle est déjà vérifiée, c'est le fallback)
+     - **Forces** :
+       - Calcul de montants correct
+       - Snapshot prix au moment réservation
+
+     ### 9. **`session.py`** ✓ Très bon
+     - **Longueur** : 275 lignes
+     - **Responsabilité** : Sessions Redis uniquement
+     - **État partagé** : Singleton (OK)
+     - **Problèmes** : **Aucun**
+     - **Forces** :
+       - Max sessions enforcement
+       - Family revocation coordonnée
+       - Activity tracking
+
+     ### 10. **`token.py`** — Bon (1 issue)
+     - **Longueur** : 301 lignes
+     - **Responsabilité** : JWT whitelist/blacklist/rotation
+     - **Problèmes** :
+       - ❌ **P3** Ligne 144 : Import local (`TokenRevoked, TokenReplayDetected`)
+     - **Forces** :
+       - Whitelist refresh + blacklist access (deux niveaux)
+       - Rotation + replay detection
+       - Family revocation atomique
+
+     ### 11. **`__init__.py`** ✓ Parfait
+     - **Longueur** : 32 lignes
+     - **Problèmes** : **Aucun**
+     - **Forces** : Exports corrects et complets
+
+     ---
+
+     ## RÉSUMÉ PAR CATÉGORIE
+
+     ### Code mort / Non utilisé
+     - **Aucun** détecté — tous les services et fonctions sont documentés et utilisables
+
+     ### Fonctions trop longues (> 40 lignes)
+     - ✓ **Aucune** dépasse 40 lignes
+     - Longueurs maximales par service :
+       - `invoice.generate_invoice_number()` : 40 lignes (limite haute)
+       - `reservation.generate_reference()` : 44 lignes (dépasse légèrement, mais acceptable pour génération)
+       - `cache.invalidate_pattern()` : 38 lignes (OK)
+
+     ### God classes / Responsabilités multiples
+     - ✓ **Aucune** détectée
+     - `AuthService` pourrait être scindée (Auth + User management) mais acceptable en MVP
+
+     ### Duplication de code
+     - ⚠️  **Mineur** :
+       - `invoice.py:229`, `325`, `375` : Même pattern `invoice.status = ...`
+       - `reservation.py:299`, `366` : Même pattern `reservation.status = ...`
+       - Solution : Créer helper methods ou constantes
+
+     ### Secrets hardcodés
+     - ✓ **Aucun** secret en clair
+     - Toutes les clés Redis sont des constantes dans `app/constants`
+     - TOTP secret crypté en AES-256-GCM
+
+     ### Validation manquante
+     - ✓ Très bonne couverture
+     - Tous les paramètres contrôlés
+     - Validation métier (stock, montants, dates) présente
+
+     ### Try/except trop larges
+     - ⚠️  **Mineur** :
+       - `cache.py:91-116` : Catch large `Exception` (acceptable pour fail-open)
+       - `token.py:228-230` : Catch large (token peut être expiré)
+       - `token.py:234-243` : Catch large (tolérance logout)
+
+     ---
+
+     ## PRIORITÉS DE CORRECTION
+
+     ### À faire avant commit (Bloquant)
+     1. **Ligne 229, 325, 375 (invoice.py)** + **299, 366 (reservation.py)** : Ajouter espaces autour `=`
+     2. **Ligne 32 (reservation.py)** : Migrer `_generated_references` vers instance variable
+
+     ### À faire dans prochaine session (Recommandé)
+     3. **Lignes 64-65 (invoice.py)** : Déplacer imports au top
+     4. **Ligne 144 (token.py)** : Déplacer import au top
+     5. **Ligne 368 (auth.py)** : Déplacer import au top
+     6. **Lignes 92, 142, 184, 229 (cache.py)** : Déplacer `import time` au top
+     7. **Hardcoded strings** (invoice.py, product.py, reservation.py) : Créer constantes `ErrorMessages`
+     8. **Couplage Redis** (cache.py) : Utiliser abstraction au lieu de `.client` direct
+
+     ### À documenter (Nice to have)
+     9. **cache.py** : Documenter limitation `None` caching
+     10. **mfa.py** : Justifier E712 `noqa` (ou remplacer par `not is_enabled`)
+
+     ---
+
+     ## SCORES GLOBAUX
+
+     | Métrique | Score | Notes |
+     |----------|-------|-------|
+     | **Sécurité** | 9/10 | Très bon, aucune faille détectée |
+     | **Architecture** | 9/10 | Services bien isolés, dépendances claires |
+     | **Maintenabilité** | 8/10 | Bonne, mais strings hardcoding à nettoyer |
+     | **Tests** | N/A | Supposés écrits (hors scope audit) |
+     | **Documentation** | 10/10 | Excellente, docstrings complets |
+     | **Couverture** | 9/10 | Toutes les entités métier couvertes |
+
+     **Score global : 8.8/10** — Excellent code, corrections mineures recommandées.
+
+● Bash(python3 -c "                                  
+      import json
+      with open('/home/ruuuzer/.claude/projects/-home-ruuuzer-Documents-CaroCorp-new/f210645b-31fd-43af-a046-0fa98a879c74/tool-results/toolu_01FoBT6BxfkZuVEdNvjHC5FZ.txt') as f:       
+          lines = f.readlines()
+      for i, line in enumerate(lines):                                                                                                                                                  
+          try:                                                                                                                                                                        
+              obj = json.loads(line)                                                                                                                                                  
+              if obj.get('type') == 'assistant':
+                  content = obj.get('message', {}).get('content', [])
+                  for c in content:
+                      if c.get('type') == 'text' and len(c.get('text','')) > 1000:
+                          print(c['text'])
+          except:
+              pass
+      " 2>&1)
+  ⎿  Maintenant, je vais générer un rapport d'audit complet basé sur ma lecture.
+
+     ## AUDIT COMPLET — Middlewares CaroCorp_new
+
+     Voici le rapport structuré d'audit pour les 7 fichiers Python dans `/home/ruuuzer/Documents/CaroCorp_new/app/middleware/` :
+
+     ---
+
+     ### 1. `__init__.py` ✅
+     **Statut** : OK
+
+     - Exports corrects de tous les middlewares et handlers
+     - Pas de code logique, juste imports/réexports
+     - Pas de TODO/FIXME/HACK
+     - Pas de problème de sécurité
+
+     ---
+
+     ### 2. `request_context.py` ✅
+     **Statut** : OK (Bien implémenté)
+
+     **Observations positives :**
+     - Architecture claire : fusion RequestID + JWT + ContextVars (optimisation perf)
+     - Parse JWT une seule fois par requête (fix M3 appliqué)
+     - Try/finally garantit nettoyage ContextVars (robuste)
+     - Pas d'exception levée sur JWT invalide (silencieux)
+     - Conversion user_id string→int correcte (JWT spec)
+
+     **Points d'attention (mineurs) :**
+     - Aucun TODO/FIXME/HACK détecté
+     - Aucune dépendance bloquante détectée
+     - Pas de performance concerns (tout async)
+
+     **Recommandations** : Aucune action requise
+
+     ---
+
+     ### 3. `exception_handler.py` ⚠️
+     **Statut** : OK avec réserves mineures
+
+     **Observations positives :**
+     - Hiérarchie complète des handlers (AppException, HTTPException, ValidationError, generique)
+     - Fix M7 appliqué : isinstance() au lieu de string comparison
+     - Lazy import de SQLAlchemy (évite dépendance forcée)
+     - Pas d'exposition de détails internes en production
+     - Request ID tracé dans toutes les réponses
+
+     **Points d'attention :**
+     1. **Duplication** : `create_error_response()` et `http_exception_handler()` construisent des réponses légèrement différentes
+        - `create_error_response()` ajoute clé `"detail"` et `"details"` (double)
+        - `http_exception_handler()` ajoute `"detail"` sans passer par helper
+        - Incohérence mineure : réponse AppException vs HTTPException ont structure légèrement différente
+
+     2. **Manque dans handlers** :
+        - Pas de log/tracking des ValidationErrors vs autres erreurs
+        - Generic handler log.critical() pour TOUS les bugs inattendu — peut surcharger alerting
+
+     3. **Pas de ratelimit error** : Si RateLimitMiddleware retourne 429 avec dict detail, il ne sera pas catch par handlers ici
+
+     4. **Aucun TODO/FIXME/HACK** détecté
+
+     **Risques identifiés** : Mineurs
+
+     **Recommandations** :
+     - Unifier structure réponse JSON (clé `detail` OU `details`, pas les deux)
+     - Ajouter log.warning pour ValidationError au lieu de laisser handler generic s'en charger
+
+     ---
+
+     ### 4. `timing.py` ✅
+     **Statut** : OK
+
+     **Observations positives :**
+     - Implémentation simple et correcte
+     - Utilise `time.perf_counter()` (meilleur que time.time() pour durée)
+     - Header X-Response-Time ajouté proprement
+     - Warning log pour requêtes lentes (seuil configurable)
+
+     **Points d'attention** :
+     - `slow_threshold_ms` passé au constructeur mais jamais utilité configurée depuis main.py
+       - main.py : `app.add_middleware(TimingMiddleware)` — utilise défaut 1000ms
+       - Pas de way d'override sans éditer code
+     - Aucun TODO/FIXME/HACK détecté
+
+     **Recommandations** : Optionnel — ajouter config dans settings.py
+
+     ---
+
+     ### 5. `audit.py` ⚠️
+     **Statut** : OK avec points critiques
+
+     **Observations positives :**
+     - Architecture globale claire (mutation vs sensitive read)
+     - Fail-safe : exception audit ne bloque pas requête (fix M1 appliqué)
+     - Separate DB session pour audit (commit indépendant)
+     - Parsing path API correct pour entity_type/entity_id
+
+     **Points CRITIQUES identifiés :**
+
+     1. **N+2 DB connections par requête auditée** (Performance concern)
+        ```python
+        # _audit_mutation() : db = next(get_db())
+        # _audit_sensitive_read() : db = next(get_db())
+        # Chaque appel crée une nouvelle session → leak de connections ?
+        ```
+        - `get_db()` est un generator SQLAlchemy
+        - Deux `.next()` = deux sessions ouvertes
+        - `.close()` manuel (pas context manager) — risque si exception
+        - Recommandation : utiliser `async with get_db()` ou context manager
+
+     2. **JWT parsing dupliqué** (Code mort)
+        ```python
+        # AuditMiddleware.dispatch() parse JWT
+        # RequestContextMiddleware.dispatch() parse JWT à nouveau
+        # Deux décodages par requête au lieu d'un
+        ```
+        - RequestContextMiddleware stocke dans request.state
+        - AuditMiddleware redécode au lieu de lire request.state
+        - Optimisation facile : `audit_service.log_action(..., user_id=request.state.user_id)`
+
+     3. **Singularisation entity_type incomplet** (Bug logique)
+        ```python
+        def _singularize_entity_type(self, plural: str):
+            if plural.endswith("ies"):
+                pass  # TODO? Jamais exécuté
+            elif plural.endswith("es"):
+                singular = plural[:-2]  # invoices → invoic (WRONG!)
+            elif plural.endswith("s"):
+                singular = plural[:-1]
+        ```
+        - `invoices` → `invoic` (mauvais)
+        - Règle "ies" → "y" jamais implémentée
+        - Exemple : `reservations` → `reservation` ✓, mais `invoices` → `invoic` ✗
+
+     4. **SENSITIVE_READ_PATTERNS hardcodées** (Maintenance burden)
+        ```python
+        SENSITIVE_READ_PATTERNS = [
+            r"^/api/v1/customers/\d+$",
+            r"^/api/v1/invoices/\d+$",
+            r"^/api/v1/users/\d+$",
+        ]
+        ```
+        - Nouveau endpoint sensible = modification code middleware
+        - Pas de config externalisée
+        - Risque d'oubli audit pour nouvelles entités
+
+     5. **Pas de error code standardisé** (Audit log tracabilité)
+        - action = "CREATE" / "UPDATE" / "DELETE" / "READ_SENSITIVE" (strings libres)
+        - Pas de enum ou constants
+        - Audit service doit transformer en INT status code
+
+     6. **Aucun TODO/FIXME/HACK** détecté (mais code contient patterns à améliorer)
+
+     **Risques identifiés** : MOYEN (perf + bug singularisation)
+
+     **Recommandations** :
+     1. ✓ URGENT : Corriger singularisation (invoices → invoice)
+     2. ✓ URGENT : Utiliser context manager pour DB sessions
+     3. Éviter double JWT parsing (relire request.state.user_id)
+     4. Externaliser SENSITIVE_READ_PATTERNS en config/constants
+     5. Créer enum pour actions (Action.CREATE vs "CREATE")
+
+     ---
+
+     ### 6. `security.py` ⚠️ ⚠️
+     **Statut** : ATENTION — Plusieurs problèmes détectés
+
+     **Observations positives :**
+     - Rate limiter multi-niveaux bien architécté (login/user/mutations/reads)
+     - CSRFProtectionMiddleware utilise Redis (bon)
+     - SecurityHeadersMiddleware ajoute tous headers recommandés (HSTS, CSP, etc.)
+     - RateLimitMiddleware headers 429 RFC 6585 compliant
+
+     **Points CRITIQUES identifiés :**
+
+     1. **CSRF Protection Bypass possible** (Security concern)
+        ```python
+        # Line 44-47
+        if request.url.path in {
+            PublicEndpoints.HEALTH, ..., AuthEndpoints.LOGOUT,
+        }:
+            return await call_next(request)
+        ```
+        - LOGOUT endpoint EXEMPT de CSRF check
+        - Attaque : CSRF peut forcer déconnexion utilisateur
+        - Recommandation : LOGOUT doit vérifier CSRF même sans auth
+
+     2. **JWT Parsing dupliqué (code mort)**
+        ```python
+        # _extract_user_id_from_jwt() duplique request_context.py
+        # _get_user_id() dans RateLimitMiddleware aussi redécode
+        # Trois décodages JWT par requête !
+        ```
+        - Request → RequestContextMiddleware (parse 1)
+        - Request → CSRFProtectionMiddleware (parse 2)
+        - Request → RateLimitMiddleware._get_user_id() (parse 3)
+        - Inefficace + risque de divergence (3 implémentations)
+
+     3. **Rate Limit Timing Attack** (Marginal security concern)
+        ```python
+        # Line 119
+        if not token or len(token) < Limits.CSRF_TOKEN_MIN_LENGTH:
+            return False
+        ```
+        - Timing différent si token court vs long
+        - Attaquant peut déduire longueur token valide
+        - Recommandation : constante-time comparison (secrets.compare_digest)
+
+     4. **Silent failures dans JWT extraction** (Debugging problem)
+        ```python
+        try:
+            token = auth_header.split(" ")[1]
+            payload = decode_token(token)
+            return payload.get("sub")
+        except Exception:
+            return None  # Masque IndexError, ValueError, DecodeError
+        ```
+        - Pas de log d'erreur
+        - Impossible debuguer token invalide vs malformé
+        - Token expiré ≠ token corrompu → treated identically
+
+     5. **No input validation on CSRF token** (Abuse potential)
+        ```python
+        csrf_token = request.headers.get(SecurityHeaders.X_CSRF_TOKEN)
+        if not csrf_token:
+            return JSONResponse(...)  # OK
+
+        # But: aucune limite longueur token avant Redis check
+        # Attaquant peut envoyer 10MB token → Redis query spike ?
+        ```
+
+     6. **Rate Limit Scope Determination Duplicated** (maintenance)
+        ```python
+        # RateLimitMiddleware._determine_scope()
+        # MetricsMiddleware._determine_scope_from_request()
+        # Même logique écrite 2x → risque divergence
+        ```
+
+     7. **CORS Allow Methods = "*"** (Potentiellement dangereux)
+        ```python
+        # main.py line 96
+        allow_methods=["*"],
+        ```
+        - Autorise TRACE, CONNECT, etc. (non standard)
+        - Mieux : allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+
+     8. **No audit trail for CSRF/RateLimit** (Observability gap)
+        - Quand CSRF block → aucun audit log
+        - Quand RateLimit trigger → aucun log explicite (juste metrics)
+        - Impossible tracer attaques CSRF/abuse
+
+     9. **Aucun TODO/FIXME/HACK** détecté (mais code a patterns à fix)
+
+     **Risques identifiés** : MOYEN-HAUT (JWT duplication + CSRF bypass + timing)
+
+     **Recommandations** :
+     1. ✓ URGENT : Ajouter CSRF check sur LOGOUT endpoint
+     2. ✓ URGENT : Centraliser JWT parsing (une seule decode par requête)
+     3. Ajouter timing attack protection (secrets.compare_digest)
+     4. Logger JWT decode errors (expiré? invalide? malformé?)
+     5. Valider longueur CSRF token input
+     6. Unifier _determine_scope (une seule implémentation)
+     7. Ajouter audit log pour CSRF failures et rate limit triggers
+     8. Spécifier allow_methods explicitement (pas "*")
+
+     ---
+
+     ### 7. `metrics.py` ✅
+     **Statut** : OK avec observations mineures
+
+     **Observations positives :**
+     - Métalliques RED (Rate, Errors, Duration) correctes
+     - Path normalization pour éviter cardinalité infinie
+     - Try/finally garantit décrémentation gauge même si exception
+     - Pas d'exemption → toutes requêtes comptées (bon pour observability)
+     - 429 rate limit tracking séparé
+
+     **Points d'attention** :
+
+     1. **Duplication _determine_scope()** (entretien)
+        ```python
+        # Copie de RateLimitMiddleware._determine_scope()
+        # Si logique change dans security.py → metrics.py oubliée ?
+        ```
+
+     2. **PATH_PATTERNS hardcodées** (même problème audit.py)
+        ```python
+        PATH_PATTERNS = [
+            (re.compile(r'/api/v1/products/\d+'), '/api/v1/products/{id}'),
+            ...
+        ]
+        ```
+        - Nouveau endpoint = édition middleware
+        - Pas de configuration externalisée
+        - Si pattern oublié → cardinalité Prometheus explose
+
+     3. **Pas de metric pour erreurs d'audit** (observability)
+        - http_requests_total capture les 500
+        - Mais pas de métrique séparée pour "audit_failures"
+
+     4. **Aucun TODO/FIXME/HACK** détecté
+
+     **Recommandations** :
+     - Externaliser PATH_PATTERNS en config/constants
+     - Créer métrique audit_failures_total
+     - Unifier _determine_scope avec RateLimitMiddleware
+
+     ---
+
+     ## RÉSUMÉ EXÉCUTIF
+
+     | Fichier | Statut | Sévérité | Issues |
+     |---------|--------|----------|--------|
+     | `__init__.py` | ✅ OK | — | 0 |
+     | `request_context.py` | ✅ OK | — | 0 |
+     | `exception_handler.py` | ⚠️  OK | Mineur | 2 (duplication structure, logging) |
+     | `timing.py` | ✅ OK | Mineur | 1 (config non externalisée) |
+     | `audit.py` | ⚠️  ATTENTION | **MOYEN** | **5** (DB leak, JWT duplication, bug singularisation) |
+     | `security.py` | ⚠️ ⚠️  ATTENTION | **MOYEN-HAUT** | **9** (CSRF bypass, JWT duplication, timing attack) |
+     | `metrics.py` | ✅ OK | Mineur | 2 (duplication, patterns hardcodées) |
+
+     ---
+
+     ## ISSUES CRITIQUES PRIORITAIRES
+
+     ### P0 (Correction immédiate) :
+     1. **security.py** : LOGOUT endpoint bypass CSRF check (security flaw)
+     2. **audit.py** : Singularisation entity_type cassée (`invoices` → `invoic`)
+     3. **audit.py** : DB session leak (`.next()` + `.close()` non context-managed)
+
+     ### P1 (Correction rapide) :
+     4. **security.py + audit.py + request_context.py** : JWT parsing triplée (performance + divergence risk)
+     5. **security.py** : Timing attack possible dans CSRF validation
+     6. **exception_handler.py** : Structure JSON incohérente entre AppException et HTTPException
+
+     ### P2 (Amélioration) :
+     7. Externaliser patterns hardcodés (SENSITIVE_READ_PATTERNS, PATH_PATTERNS, EXCLUDE_PATHS)
+     8. Créer enums pour actions audit, scopes rate limit
+     9. Ajouter audit trail pour CSRF/RateLimit events
+     10. Unifier _determine_scope (une seule implémentation)
+
+     ---
+
+     **Fichiers affectés :**
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/middleware/__init__.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/middleware/request_context.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/middleware/exception_handler.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/middleware/timing.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/middleware/audit.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/middleware/security.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/middleware/metrics.py`
+
+● Bash(python3 -c "                                  
+      import json
+      # endpoints audit                                                                                                                                                                 
+      with open('/tmp/claude-1000/-home-ruuuzer-Documents-CaroCorp-new/tasks/a50aae8.output') as f:
+          lines = f.readlines()                                                                                                                                                         
+      for i, line in enumerate(lines):                                                                                                                                                
+          try:                                                                                                                                                                        
+              obj = json.loads(line)                                                                                                                                                  
+              if obj.get('type') == 'assistant':
+                  content = obj.get('message', {}).get('content', [])
+                  for c in content:
+                      if c.get('type') == 'text' and len(c.get('text','')) > 1000:
+                          print(c['text'])
+          except:
+              pass
+      " 2>&1)
+  ⎿  Parfait. Maintenant je vais générer un rapport d'audit complet en structurant toutes les données collectées.
+
+     ---                                             
+
+     ## AUDIT COMPLET — API CaroCorp_new (`app/api/`)                                                                                                                                   
+   
+     ### FICHIERS AUDITÉS (11 fichiers)                                                                                                                                                 
+                                                                                                                                                                                      
+     1. **`/app/api/__init__.py`** (1 ligne) — Vide                                                                                                                                   
+     2. **`/app/api/v1/__init__.py`** (33 lignes)                                                                                                                                     
+     3. **`/app/api/v1/endpoints/__init__.py`** (0 ligne) — Vide
+     4. **`/app/api/v1/endpoints/health.py`** (188 lignes)
+     5. **`/app/api/v1/endpoints/auth.py`** (253 lignes)
+     6. **`/app/api/v1/endpoints/mfa.py`** (272 lignes)
+     7. **`/app/api/v1/endpoints/customers.py`** (384 lignes)
+     8. **`/app/api/v1/endpoints/products.py`** (340 lignes)
+     9. **`/app/api/v1/endpoints/invoices.py`** (461 lignes)
+     10. **`/app/api/v1/endpoints/reservations.py`** (455 lignes)
+     11. **`/app/api/v1/endpoints/sessions.py`** (113 lignes)
+     12. **`/app/api/v1/endpoints/audit.py`** (309 lignes)
+
+     ---
+
+     ## RÉSUMÉ EXÉCUTIF
+
+     | Catégorie | État | Détails |
+     |-----------|------|---------|
+     | **Authentification** | ✅ BON | JWT, MFA, CSRF bien implémentés |
+     | **Validation entrée** | ✅ BON | Pydantic schemas utilisés systématiquement |
+     | **Gestion erreurs** | ⚠️  ATTENTION | Catch-all trop génériques avec `str(e)` |
+     | **Response models** | ✅ BON | Tous les endpoints ont `response_model` |
+     | **Documentation** | ✅ BON | Docstrings complètes, exemples fournis |
+     | **Pagination** | ✅ BON | Implémentée sur tous endpoints de liste |
+     | **Tenant isolation** | ✅ BON | Filtrage systématique par `tenant_id` |
+     | **Role-based access** | ⚠️  PARTIEL | Admin requis sur products/delete uniquement |
+     | **TODO/FIXME** | ⚠️  1 encontré | Version en dur dans health.py |
+     | **Endpoints sans auth** | ❌ NON | Pas trouvés — tous les endpoints protégés |
+
+     ---
+
+     ## AUDIT DÉTAILLÉ PAR FICHIER
+
+     ---
+
+     ### 1. `/app/api/v1/__init__.py`
+
+     **État**: ✅ BON
+
+     **Contenu**:
+     - Routeur principal API v1 (`api_router`)
+     - Inclut tous les sub-routers (auth, health, products, customers, reservations, invoices, sessions, mfa, audit)
+     - Endpoint racine GET `/` avec constant `PublicEndpoints.DOCS`
+
+     **Findings**:
+     - ✅ Tous les routeurs correctement enregistrés
+     - ✅ Prefix appropriés (auth → `/auth`, health → `/health`, etc.)
+     - ✅ Tags OpenAPI correctement définis
+
+     **Aucun problème.**
+
+     ---
+
+     ### 2. `/app/api/v1/endpoints/health.py`
+
+     **État**: ⚠️  À CORRIGER (1 TODO)
+
+     **Endpoints**:
+     - `GET /health` → Liveness probe (toujours 200)
+     - `GET /health/live` → Alias liveness
+     - `GET /health/ready` → Readiness + dépendances (DB, Redis)
+
+     **Findings**:
+
+     1. ⚠️  **TODO TROUVÉ (ligne 173)**:
+        ```python
+        "version": "0.1.0",  # TODO: récupérer depuis settings ou pyproject.toml
+        ```
+        **Impact**: Version en dur, maintenu manuellement.
+        **Correction**: Lire depuis `settings.version` ou `pyproject.toml` via `importlib.metadata`.
+
+     2. ✅ Validation dépendances correcte (PostgreSQL + Redis)
+     3. ✅ Timings capturés pour chaque check
+     4. ✅ Response models structurés
+     5. ✅ Status codes appropriés (200 ok, 503 si down)
+     6. ✅ Documentation excellente avec exemples
+
+     **Impact**: Mineur (version statique seulement). À corriger avant production.
+
+     ---
+
+     ### 3. `/app/api/v1/endpoints/auth.py`
+
+     **État**: ✅ BON
+
+     **Endpoints**:
+     - `POST /auth/login` → OAuth2 login + MFA detection
+     - `POST /auth/refresh` → Token rotation avec replay detection
+     - `POST /auth/logout` → Révocation tokens + blacklist
+     - `GET /auth/csrf` → Génération token CSRF
+
+     **Findings**:
+
+     1. ✅ **Validation entrée**:
+        - OAuth2PasswordRequestForm (validation Pydantic)
+        - RefreshTokenRequest schéma
+        - LogoutRequest optionnel
+
+     2. ✅ **Gestion erreurs**:
+        - `HTTPException` pour credentials invalides (401)
+        - `HTTPException` pour compte inactif (403)
+        - Logging de exceptions inattendues
+        - Re-raise selective (not swallowing errors)
+
+     3. ✅ **MFA detection**:
+        - Retourne `MFALoginResponse` si MFA requis
+        - Retourne `TokenResponse` si pas MFA
+        - Bien documenté
+
+     4. ✅ **Response models**:
+        - `/login`: `TokenResponse` + `MFALoginResponse` (union)
+        - `/refresh`: `TokenResponse` (status_code explicite)
+        - `/logout`: `LogoutResponse`
+        - `/csrf`: `CSRFTokenResponse`
+
+     5. ✅ **Security**:
+        - Email normalisé lowercase
+        - Password Argon2id/bcrypt
+        - Audit log LOGIN_SUCCESS/FAILED
+        - CSRF token uniq (secrets.token_urlsafe)
+
+     6. ⚠️  **Exception handling génériques**:
+        ```python
+        except Exception:
+            logger.exception("Unexpected error during login")
+            raise
+        ```
+        → Relance nue (bien), mais pas de catch-all avec `str(e)` (bon).
+
+     **Aucun problème critique.**
+
+     ---
+
+     ### 4. `/app/api/v1/endpoints/mfa.py`
+
+     **État**: ✅ BON
+
+     **Endpoints**:
+     - `POST /mfa/setup` → Génère secret TOTP + QR code
+     - `POST /mfa/verify-setup` → Active MFA après vérification premier code
+     - `POST /mfa/verify` → Valide code TOTP/recovery lors login step 2
+     - `GET /mfa/status` → Statut MFA utilisateur
+     - `DELETE /mfa` → Désactive MFA
+
+     **Findings**:
+
+     1. ✅ **Validation entrée**:
+        - `MFAVerifySetupRequest` + `MFAVerifyRequest` schemas
+        - Token TOTP/recovery codes mutuellement exclusifs (ligne 133-143)
+
+     2. ✅ **Gestion erreurs**:
+        - String matching sur `ValueError` messages (ligne 89, 162-174)
+        - Conversion en `HTTPException 400/401`
+        - Messages d'erreur constants depuis `ErrorMessages`
+
+     3. ✅ **Response models**:
+        - `/setup`: `MFASetupResponse` (secret, provisioning_uri, recovery_codes)
+        - `/verify-setup`: `MFAVerifySetupResponse`
+        - `/verify`: `TokenResponse` (JWT complets)
+        - `/status`: `MFAStatusResponse`
+        - `/disable`: `MFADisableResponse`
+
+     4. ✅ **Security**:
+        - MFA session token single-use (ligne 119)
+        - Audit log LOGIN_SUCCESS créé après MFA vérification (ligne 189)
+        - Recovery codes marked as used (ligne 155-160)
+
+     5. ⚠️  **Audit AdminUser dependency**:
+        ```python
+        current_user: AdminUser = None  # Ligne 27 audit.py, line 224
+        ```
+        → Paramètre non bindé à `Depends()`. Voir section audit.
+
+     **Aucun problème critique dans MFA.**
+
+     ---
+
+     ### 5. `/app/api/v1/endpoints/customers.py`
+
+     **État**: ✅ BON
+
+     **Endpoints**:
+     - `GET /customers` → Liste paginée + search
+     - `GET /customers/{id}` → Détail client
+     - `POST /customers` → Créer client
+     - `PATCH /customers/{id}` → Update partiel
+     - `DELETE /customers/{id}` → Soft delete + hard delete option
+
+     **Findings**:
+
+     1. ✅ **Validation entrée**:
+        - `CustomerCreate`, `CustomerUpdate` schemas Pydantic
+        - Query params typés (search_query, customer_type, is_active)
+        - Email unicité vérifiée (ligne 209, 301)
+
+     2. ✅ **Pagination**:
+        - `PaginationParams = Depends()` (skip, limit)
+        - `PaginatedResponse[CustomerList]` avec total
+        - Moteur search intégré si `search_query` fourni
+
+     3. ✅ **Gestion erreurs**:
+        - 404 si client non trouvé
+        - 400 si email déjà utilisé (messages hardcodés aux lignes 212, 304)
+        - Catch-all Exception → 500 avec `str(e)` (lignes 241-245, 321-325, 379-383)
+
+     4. ✅ **Response models**:
+        - GET list: `PaginatedResponse[CustomerList]`
+        - GET detail: `CustomerResponse`
+        - POST: `CustomerResponse` (201 Created)
+        - PATCH: `CustomerResponse`
+        - DELETE: `204 No Content` (aucun body)
+
+     5. ✅ **Tenant isolation**:
+        - Tous les appels `repo.xxx(tenant_id=current_user.tenant_id)`
+        - GET detail retourne 404 si autre tenant
+
+     6. ⚠️  **Erreurs trop génériques**:
+        ```python
+        except Exception as e:
+            raise HTTPException(..., detail=f"An error occurred while creating customer: {str(e)}")
+        ```
+        → Expose détails implémentation. Devrait utiliser `ErrorMessages.CUSTOMER_CREATE_FAILED`.
+
+     **Correction nécessaire**: Messages d'erreur hardcodés → constantes.
+
+     ---
+
+     ### 6. `/app/api/v1/endpoints/products.py`
+
+     **État**: ✅ BON
+
+     **Endpoints**:
+     - `GET /products` → Liste paginée + filtres (category, available_only)
+     - `GET /products/{id}` → Détail produit
+     - `POST /products` → Créer (admin only)
+     - `PATCH /products/{id}` → Update (admin only)
+     - `DELETE /products/{id}` → Soft delete (admin only)
+
+     **Findings**:
+
+     1. ✅ **Role-based access**:
+        - POST, PATCH, DELETE protégés par `require_role(UserRole.ADMIN)`
+        - GET opérations publiques (authentifiés)
+
+     2. ✅ **Validation entrée**:
+        - `ProductCreate`, `ProductUpdate` schemas
+        - Query params typés (category, available_only, is_active)
+
+     3. ✅ **Pagination**:
+        - `PaginationParams = Depends()`
+        - Filtres personnalisés (category, available_quantity__gt)
+
+     4. ✅ **Gestion erreurs**:
+        - Race condition SKU détectée et gérée (lignes 214-220)
+        - `IntegrityError` check pour constraint unique
+        - 404 si produit non trouvé
+        - Catch-all Exception → 500 avec `str(e)` (lignes 225-229, 285-289, 335-339)
+
+     5. ✅ **Response models**:
+        - GET list: `PaginatedResponse[ProductList]`
+        - GET detail: `ProductResponse`
+        - POST: `ProductResponse` (201 Created)
+        - PATCH: `ProductResponse`
+        - DELETE: `204 No Content`
+
+     6. ✅ **Business logic**:
+        - SKU immutable lors update (bien documenté)
+        - available_quantity <= stock_quantity validé par service
+
+     **Même problème que customers**: Catch-all avec `str(e)` hardcodé.
+
+     ---
+
+     ### 7. `/app/api/v1/endpoints/invoices.py`
+
+     **État**: ⚠️  À CORRIGER
+
+     **Endpoints**:
+     - `GET /invoices` → Liste paginée + filtres
+     - `GET /invoices/overdue` → Factures en retard (mise à jour statut)
+     - `GET /invoices/{id}` → Détail facture
+     - `POST /invoices` → Créer depuis réservation
+     - `PATCH /invoices/{id}` → Update partiel
+     - `POST /invoices/{id}/add-payment` → Ajouter paiement
+     - `POST /invoices/{id}/cancel` → Annuler facture
+
+     **Findings**:
+
+     1. ⚠️  **ORDER DES ROUTES** (problème potentiel):
+        ```python
+        @router.get("")  # Ligne 26
+        @router.get("/overdue")  # Ligne 97 — S'il vient APRÈS le détail, risque
+        @router.get("/{invoice_id}")  # Ligne 161
+        ```
+        → En FastAPI, l'ordre DOIT être: routes spécifiques (`/overdue`) AVANT paramétrisées (`/{id}`).
+        **Actuellement**: OK parce que `/overdue` vient avant `/{invoice_id}`.
+        **Mais documenté nulle part** → Ajouter commentaire.
+
+     2. ✅ **Validation entrée**:
+        - `InvoiceCreate`, `InvoiceUpdate`, `AddPaymentRequest` schemas
+        - Filtres status_filter, reservation_id typés
+
+     3. ✅ **Pagination**:
+        - `PaginationParams = Depends()` sur GET list
+        - ⚠️  GET `/overdue` **SANS pagination** (retourne `list[InvoiceList]`)
+
+        **Anomalie**:
+        ```python
+        @router.get("/overdue", response_model=list[InvoiceList])  # Pas de pagination
+        ```
+        → Risque de retourner TOUTES les factures en retard sans limite.
+        **Correction**: Ajouter `pagination: PaginationParams = Depends()` ou appliquer un `limit(max_results)`.
+
+     4. ✅ **Gestion erreurs**:
+        - Transactions explicites (`db.commit()`, `db.rollback()` ligne 154)
+        - Catch-all Exception → 500 avec `str(e)` (lignes 275-279, 334-337, 396-400, 457-460)
+
+     5. ✅ **Response models**:
+        - GET list: `PaginatedResponse[InvoiceList]`
+        - GET detail: `InvoiceResponse`
+        - GET overdue: `list[InvoiceList]` (sans pagination)
+        - POST: `InvoiceResponse` (201)
+        - PATCH: `InvoiceResponse`
+        - POST add-payment: `InvoiceResponse`
+        - POST cancel: `InvoiceResponse`
+
+     6. ✅ **Tenant isolation**:
+        - Tous les appels tenant_id filtré
+
+     **Corrections nécessaires**:
+     - Ajouter pagination à `/overdue`
+     - Documenter ordre routes spécifiques avant paramétrisées
+
+     ---
+
+     ### 8. `/app/api/v1/endpoints/reservations.py`
+
+     **État**: ⚠️  À CORRIGER (même issue que invoices)
+
+     **Endpoints**:
+     - `GET /reservations` → Liste paginée + filtres status/dates/customer
+     - `GET /reservations/{id}` → Détail avec relations
+     - `POST /reservations` → Créer + lignes
+     - `PATCH /reservations/{id}` → Update (draft only)
+     - `POST /reservations/{id}/confirm` → Confirm + réserve stock
+     - `POST /reservations/{id}/cancel` → Cancel + libère stock
+
+     **Findings**:
+
+     1. ⚠️  **Logique de liste complexe**:
+        ```python
+        if status_filter:
+            reservations, total = repo.list_by_status(...)
+        elif start_date or end_date:
+            reservations, total = repo.list_by_date_range(...)
+        else:
+            reservations, total = repo.list(...)
+        ```
+        → Trois chemins différents. Bien structuré, mais à documenter clairement.
+
+     2. ✅ **Pagination**:
+        - Toutes les listes utilisent `PaginationParams = Depends()`
+
+     3. ✅ **Validation entrée**:
+        - `ReservationCreate`, `ReservationUpdate` schemas
+        - Query params typés
+
+     4. ✅ **Gestion erreurs**:
+        - Transactions atomiques (lignes 244, 305, 373, 438)
+        - Rollback explicite si erreur
+        - Catch-all Exception → 500 avec `str(e)` (lignes 255-259, 317-321, 384-388, 450-454)
+
+     5. ✅ **Response models**:
+        - GET list: `PaginatedResponse[ReservationList]`
+        - GET detail: `ReservationResponse` (avec relations customer + lines)
+        - POST: `ReservationResponse` (201)
+        - PATCH: `ReservationResponse`
+        - POST confirm: `ReservationResponse`
+        - POST cancel: `ReservationResponse`
+
+     6. ✅ **Business logic**:
+        - Confirm atomique (stock réservé ou rollback)
+        - Cancel atomique (stock libéré ou rollback)
+        - Draft-only updates enforced
+        - Référence unique générée automatiquement
+
+     **Même problème que products/customers**: Catch-all avec `str(e)`.
+
+     ---
+
+     ### 9. `/app/api/v1/endpoints/sessions.py`
+
+     **État**: ✅ BON
+
+     **Endpoints**:
+     - `GET /sessions` → Liste sessions actives
+     - `DELETE /sessions/{session_id}` → Revoke une session
+     - `DELETE /sessions` → Revoke toutes les sessions
+
+     **Findings**:
+
+     1. ✅ **Validation entrée**:
+        - `session_id` typé string
+        - Aucun data request (GET/DELETE)
+
+     2. ✅ **Gestion erreurs**:
+        - 404 si session non trouvée (ligne 82-85)
+        - Pas de catch-all Exception (bon)
+
+     3. ✅ **Response models**:
+        - GET list: `SessionListResponse` (sessions + count)
+        - DELETE single: `SessionRevokeResponse`
+        - DELETE all: `SessionRevokeAllResponse` (count)
+
+     4. ✅ **Security**:
+        - JWT authentification requise
+        - Isolation sessions (ne retourne que sessions du user)
+        - Revoke marque token family comme invalide
+
+     5. ⚠️  **Enum mapping** (ligne 39-42):
+        ```python
+        SessionResponse(
+            session_id=s.get("session_id", ""),
+            ip_address=s.get("ip_address", "unknown"),
+            user_agent=s.get("user_agent", "unknown"),
+            created_at=s.get("created_at", ""),
+            last_activity=s.get("last_activity", ""),
+        )
+        ```
+        → Utilise `.get()` avec defaults. Bon pattern pour Redis data (unstructured).
+
+     **Aucun problème critique.**
+
+     ---
+
+     ### 10. `/app/api/v1/endpoints/audit.py`
+
+     **État**: ⚠️  À CORRIGER (AdminUser dependency non bindée)
+
+     **Endpoints**:
+     - `GET /audit` → Liste audit logs avec filtres avancés
+     - `GET /audit/user/{user_id}` → Audit trail utilisateur
+     - `GET /audit/entity/{entity_type}/{entity_id}` → Historique entité
+
+     **Findings**:
+
+     1. ⚠️  **CRITICAL: AdminUser dependency non bindée**:
+        ```python
+        @router.get("")
+        def list_audit_logs(
+            ...
+            current_user: AdminUser = None  # ❌ PAS DE Depends()
+        ) -> AuditLogList:
+        ```
+        → À toutes les 3 fonctions (lignes 27, 129, 224).
+        **Impact**: Endpoint accessible par N'IMPORTE QUI sans authentification admin!
+        **Correction**: `current_user: AdminUser = Depends(AdminUser)` ou similar.
+
+     2. ⚠️  **SECURITY BREACH**: Sans AdminUser vérification:
+        - Endpoint `/audit` **PUBLIC** (non protégé)
+        - `/audit/user/{user_id}` **PUBLIC**
+        - `/audit/entity/...` **PUBLIC**
+        - Toute personne peut lire TOUS les audit logs de TOUS les tenants!
+
+     3. ✅ **Validation entrée**:
+        - Query params bien typés (skip, limit, dates, user_id, action, entity_type, entity_id)
+        - Ranges: limit 1-1000, skip >= 0
+
+     4. ✅ **Pagination**:
+        - Skip/limit explicites
+        - Total count fourni
+
+     5. ✅ **Response models**:
+        - `GET /audit`: `AuditLogList` (logs + total/skip/limit)
+        - `GET /audit/user/{id}`: `AuditLogList`
+        - `GET /audit/entity/{type}/{id}`: `AuditLogList`
+
+     6. ✅ **Filtrage tenant**:
+        - Ligne 87, 189, 293: `AuditLog.tenant_id == current_user.tenant_id`
+        - Bien, MAIS INEFFICACE si `current_user` est None (bypass).
+
+     7. ✅ **Queries optimisées**:
+        - Utilise `order_by(desc(AuditLog.created_at))` (bon)
+        - Pas de N+1 (bon)
+
+     **CORRECTION CRITIQUE REQUISE**: Ajouter `Depends()` sur AdminUser.
+
+     ---
+
+     ## TABLEAU RÉSUMÉ ISSUES
+
+     | Fichier | Ligne | Sévérité | Problème | Correction |
+     |---------|-------|----------|----------|-----------|
+     | **health.py** | 173 | ⚠️  MINOR | Version en dur (TODO) | Lire depuis settings.version |
+     | **invoices.py** | 97 | ⚠️  MEDIUM | Route `/overdue` SANS pagination | Ajouter `PaginationParams = Depends()` |
+     | **audit.py** | 27, 129, 224 | 🔴 **CRITICAL** | AdminUser NOT BOUND avec Depends() | **FIX URGENT**: Ajouter `= Depends(...)` |
+     | **customers.py** | 212, 304, 244 | ⚠️  MEDIUM | Messages erreur hardcodés avec `str(e)` | Utiliser constantes `ErrorMessages.*` |
+     | **products.py** | 219, 244 | ⚠️  MEDIUM | Messages erreur hardcodés avec `str(e)` | Utiliser constantes `ErrorMessages.*` |
+     | **reservations.py** | 258, 321, 388, 454 | ⚠️  MEDIUM | Messages erreur hardcodés avec `str(e)` | Utiliser constantes `ErrorMessages.*` |
+     | **invoices.py** | 278, 337, 400, 460 | ⚠️  MEDIUM | Messages erreur hardcodés avec `str(e)` | Utiliser constantes `ErrorMessages.*` |
+
+     ---
+
+     ## ANALYSE PATTERNS
+
+     ### ✅ Points FORTS
+
+     1. **Authentification solide**: JWT + MFA + CSRF bien implémentés
+     2. **Response models exhaustifs**: Tous les endpoints ont `response_model` défini
+     3. **Documentations excellentes**: Docstrings + exemples + use cases
+     4. **Pagination systématique**: Tous les GET list paginés (sauf `/overdue`)
+     5. **Tenant isolation**: Filtrage tenant_id appliqué partout
+     6. **Gestion erreurs structurée**: HTTPException avec status codes appropriés
+     7. **Transactions atomiques**: POST/PATCH utilisent `db.commit()` explicite
+
+     ### ⚠️  Points À AMÉLIORER
+
+     1. **AdminUser dependency**: Endpoints audit NON protégés (CRITICAL)
+     2. **Messages erreur**: Exposition détails implémentation via `str(e)`
+     3. **Pagination partielle**: `/overdue` sans limite
+     4. **Catch-all vides**: `except Exception: raise` (ok mais pas idéal)
+     5. **Version hardcodée**: health.py à maintenir manuellement
+
+     ### ✅ CONFORMITÉS OBSERVÉES
+
+     - **Multi-tenant**: ✅ Systématique `tenant_id` dans toutes queries
+     - **Authorization**: ⚠️  AdminUser sur audit manquant
+     - **Role-based access**: ✅ Produits protégés admin
+     - **OWASP**:
+       - Injection SQL: ✅ Pydantic + SQLAlchemy paramétrisé
+       - Authentification: ✅ JWT + MFA
+       - Gestion sessions: ✅ Session service
+       - Information disclosure: ⚠️  Messages erreur trop détaillés
+       - CSRF: ✅ Token généré + stocké Redis
+
+     ---
+
+     ## RECOMMANDATIONS PRIORITAIRES
+
+     ### 🔴 P0 (CRITICAL — Déployer dès que possible)
+
+     1. **audit.py** — Ajouter `Depends()` sur AdminUser:
+        ```python
+        current_user: AdminUser = Depends(AdminUser)
+        ```
+        **Impact**: Sécurité P0 — Endpoints actuellement publics.
+
+     ### ⚠️  P1 (SHOULD-HAVE)
+
+     2. **invoices.py** — Ajouter pagination à `/overdue`:
+        ```python
+        @router.get("/overdue", response_model=PaginatedResponse[InvoiceList])
+        def list_overdue_invoices(
+            pagination: PaginationParams = Depends(),
+            ...
+        ```
+
+     3. **health.py** — Supprimer TODO sur version:
+        ```python
+        from importlib.metadata import version
+        version_str = version("carocorp")  # Depuis pyproject.toml
+        ```
+
+     ### 📋 P2 (NICE-TO-HAVE)
+
+     4. **customers.py, products.py, reservations.py, invoices.py** — Utiliser constantes pour messages erreur:
+        ```python
+        # Au lieu de:
+        detail=f"An error occurred while creating customer: {str(e)}"
+
+        # Utiliser:
+        detail=ErrorMessages.CUSTOMER_CREATE_FAILED
+        ```
+
+     ---
+
+     ## CONCLUSION
+
+     **Score global**: 85/100
+
+     - **Sécurité**: ⚠️  80/100 (audit endpoint public = problème critique)
+     - **Code quality**: ✅ 90/100 (bien structuré, mais messages d'erreur)
+     - **Documentation**: ✅ 95/100 (excellente)
+     - **Test coverage**: 🚫 **À vérifier** (pas d'audit du code test)
+     - **Performance**: ✅ 90/100 (pas de N+1, requêtes optimisées)
+
+     **Action immédiate requise**: Corriger les 3 endpoints audit (AdminUser dependency).
+
+● Bash(python3 -c "                                  
+      import json
+      # models+schemas+repos audit                                                                                                                                                      
+      with open('/tmp/claude-1000/-home-ruuuzer-Documents-CaroCorp-new/tasks/a09197e.output') as f:
+          lines = f.readlines()                                                                                                                                                         
+      for i, line in enumerate(lines):                                                                                                                                                
+          try:                                                                                                                                                                        
+              obj = json.loads(line)                                                                                                                                                  
+              if obj.get('type') == 'assistant':
+                  content = obj.get('message', {}).get('content', [])
+                  for c in content:
+                      if c.get('type') == 'text' and len(c.get('text','')) > 1000:
+                          print(c['text'])
+          except:
+              pass
+      " 2>&1)
+  ⎿  Excellent. Maintenant je peux présenter mon audit complet.
+
+     ---                                             
+
+     ## AUDIT COMPLET — app/models/, app/schemas/, app/repositories/                                                                                                                    
+   
+     ### RÉSUMÉ EXÉCUTIF                                                                                                                                                                
+                                                                                                                                                                                      
+     Audit de **25 fichiers Python** (9 models, 11 schemas, 6 repositories) pour vérifier :                                                                                           
+     - Structure des indexes et multi-tenant                                                                                                                                          
+     - Timestamps et soft delete
+     - Validation des schemas
+     - Requêtes N+1 et filtres tenant_id
+     - Code mort ou commentaires dangereux
+
+     **RÉSULTAT : Qualité excellente, 0 violations critiques détectées** ✓
+
+     ---
+
+     ## MODÈLES (app/models/) — 9 fichiers
+
+     ### 1. **base.py** — Classes de base
+     ```
+     ✓ TimestampMixin : created_at, updated_at avec server_default=func.now()
+     ✓ TenantMixin : tenant_id BigInteger NOT NULL avec index=True
+     ✓ SoftDeleteMixin : is_active Boolean default=True
+     ✓ to_dict() / from_dict() : Sérialisation cache Redis cohérente
+     ```
+     **Score: 10/10** — Excellent.
+
+     ### 2. **audit_log.py** — Audit immuable
+     ```
+     ✓ Pas de TimestampMixin — utilise server_default=text("now()") directement (immuable)
+     ✓ Index composites : idx_audit_tenant_created, idx_audit_user_created, idx_audit_entity, idx_audit_action_created
+     ✓ Partial indexes : postgresql_where pour exclure actions système (user_id IS NOT NULL)
+     ✓ tenant_id index, user_id index, request_id index séparés
+     ✓ JSONB changes pour flexibilité
+     ✓ Constraint CHECK sur action, entity_type valides
+     ✗ MINEURE : Pas de SoftDeleteMixin — correct car audit immuable, mais documenté clairement
+     ```
+     **Score: 9.5/10** — Excellent. Design sophistiqué pour conformité RGPD.
+
+     ### 3. **user.py** — Utilisateurs
+     ```
+     ✓ TimestampMixin + TenantMixin + SoftDeleteMixin (3 mixins OK)
+     ✓ email index + UniqueConstraint(tenant_id, email) — email unique par tenant (fix M17)
+     ✓ role CHECK constraint 'admin', 'manager', 'staff'
+     ✓ hashed_password String(255) — bcrypt/argon2 friendly
+     ✓ Event listener normalize email en lowercase + strip (fix M22)
+     ✓ Properties: is_admin, is_manager, can_write, can_read — logique RBAC décentralisée
+     ```
+     **Score: 10/10** — Parfait.
+
+     ### 4. **customer.py** — Clients
+     ```
+     ✓ TimestampMixin + TenantMixin + SoftDeleteMixin
+     ✓ UniqueConstraint(tenant_id, email) — email unique par tenant ✓
+     ✓ CheckConstraint customer_type IN ('individual', 'company') ✓
+     ✓ CheckConstraint cohérence données (individual → first_name + last_name requis, company → company_name requis) ✓
+     ✓ Relation reservations avec passive_deletes=True (laisse FK RESTRICT à DB)
+     ✗ MINEURE : Index sur email ? NON PRÉSENT → recommander index sur (tenant_id, email) pour get_by_email()
+     ```
+     **Score: 9/10** — Bon. Ajouter index sur email pour perf recherche.
+
+     ### 5. **product.py** — Catalogue
+     ```
+     ✓ TimestampMixin + TenantMixin + SoftDeleteMixin
+     ✓ UniqueConstraint(tenant_id, sku) + UniqueConstraint(tenant_id, name) — uniques par tenant ✓
+     ✓ Montants en BigInteger centimes (price_per_day, deposit_amount) ✓
+     ✓ stock_quantity / available_quantity cohérence CHECK ✓
+     ✓ category / condition CHECK constraints
+     ✗ MINEURE : Index sur category ? NON → pour list_by_category() sera lent sur gros catalogues
+     ✗ MINEURE : Index sur available_quantity > 0 (partial) ? NON → list_available() peut être lent
+     ```
+     **Score: 8.5/10** — Bon, mais index manquants pour perf queries spécialisées.
+
+     ### 6. **reservation.py** — Réservations
+     ```
+     ✓ TimestampMixin + TenantMixin sur Reservation
+     ✓ ReservationLine : TimestampMixin + TenantMixin (isolation multi-tenant stricte)
+     ✓ reference unique global (pas per-tenant) → correct pour unicité globale
+     ✓ customer_id FK RESTRICT → empêche suppression customers avec réservations
+     ✓ product_id FK RESTRICT sur ReservationLine → protège produits
+     ✓ Dates CHECK constraints (delivery_date <= event_date, return_date >= event_date, etc.) ✓
+     ✓ Montants en BigInteger centimes (total_amount, deposit_amount) ✓
+     ✓ UniqueConstraint(reservation_id, product_id) sur ReservationLine — 1 ligne par produit
+     ✗ MINEURE : Pas d'index sur Reservation.customer_id pour FK lookups (list_by_customer sera lent)
+     ✗ MINEURE : Pas d'index sur ReservationLine.product_id pour FK lookups
+     ```
+     **Score: 8.5/10** — Structure correcte, FK indexes manquants.
+
+     ### 7. **invoice.py** — Facturation
+     ```
+     ✓ TimestampMixin + TenantMixin + SoftDeleteMixin
+     ✓ Pas d'index spécifique mais table petite = OK
+     ✓ invoice_number unique par tenant UniqueConstraint(tenant_id, invoice_number) ✓
+     ✓ Montants en BigInteger centimes (total_amount, paid_amount) ✓
+     ✓ paid_amount <= total_amount CHECK ✓
+     ✓ status CHECK constraints (draft, sent, paid, overdue, cancelled) ✓
+     ✓ Relation Reservation one-to-one via reservation_id (unique=True) ✓
+     ```
+     **Score: 10/10** — Parfait.
+
+     ### 8. **mfa.py** — MFA TOTP
+     ```
+     ✓ TimestampMixin + TenantMixin (multi-tenant isolation)
+     ✓ user_id FK CASCADE + index=True ✓
+     ✓ encrypted_secret LargeBinary — secret AES-256-GCM ciphertext (jamais plaintext) ✓
+     ✓ recovery_codes_hash Text — JSON list de hashes bcrypt ✓
+     ✓ last_totp_window Integer — anti-replay (reject même TOTP window) ✓
+     ✗ MINEURE : Pas de unique constraint sur (user_id, tenant_id) → théoriquement 1 MFA device par user mais pas contraint
+     ```
+     **Score: 9/10** — Bon, ajouter unique constraint user_id + tenant_id.
+
+     ### 9. **__init__.py** — Exports
+     ```
+     ✓ Tous les modèles et mixins exportés
+     ✓ Ordre logique : Base classes → Auth → Business → Audit
+     ```
+     **Score: 10/10**
+
+     ---
+
+     ## SCHEMAS (app/schemas/) — 11 fichiers
+
+     ### 1. **base.py** — Schemas de base
+     ```
+     ✓ BaseSchema avec from_attributes=True, validate_assignment=True
+     ✓ TimestampSchema (created_at, updated_at obligatoires)
+     ✓ TenantSchema (tenant_id > 0)
+     ✓ SoftDeleteSchema (is_active)
+     ✓ IDSchema (id > 0)
+     ✓ EntityResponseSchema = composition de tous (ID + Timestamps + Tenant + SoftDelete) ✓
+     ```
+     **Score: 10/10** — Architecture impeccable.
+
+     ### 2. **common.py** — Schemas réutilisables
+     ```
+     ✓ PaginationParams : skip >= 0, limit 1-1000 avec @field_validator
+     ✓ PaginatedResponse[T] générique avec has_more property
+     ✓ ErrorDetail, ErrorResponse, SuccessResponse standardisées
+     ✓ Limites de sécurité intégrées (max 1000 par page)
+     ```
+     **Score: 10/10**
+
+     ### 3. **customer.py** — Clients
+     ```
+     ✓ CustomerBase → Create → Update pattern cohérent
+     ✓ email validator : lowercase + EmailStr
+     ✓ @model_validator cohérence type/données (individual → first_name+last_name, company → company_name) ✓
+     ✓ CustomerList (simplifié), CustomerResponse (complet) séparation claire
+     ✓ display_name property
+     ```
+     **Score: 10/10**
+
+     ### 4. **product.py** — Produits
+     ```
+     ✓ ProductBase → Create → Update
+     ✓ sku validator : uppercase + strip
+     ✓ available_quantity validator : <= stock_quantity CHECK
+     ✓ Montants en _cents (price_per_day_cents, deposit_amount_cents)
+     ✓ @computed_field : price_per_day_euros (conversion cents/100), is_available, is_out_of_stock
+     ✗ MINEURE : validation_alias dans ProductList/Response pour "price_per_day" du model
+     ```
+     **Score: 10/10** — Bonne conversion centimes/euros via computed fields.
+
+     ### 5. **reservation.py** — Réservations
+     ```
+     ✓ ReservationLineBase, Create, Response
+     ✓ ReservationBase → Create → Update
+     ✓ @model_validator cohérence dates (delivery_date <= event_date, return_date >= event_date) ✓
+     ✓ ReservationCreate.lines : min_length=1 — au moins 1 ligne obligatoire
+     ✓ @computed_field rental_days, is_confirmed, is_cancelled
+     ✓ TYPE_CHECKING imports (CustomerList, ProductList) pour éviter circular imports
+     ```
+     **Score: 10/10**
+
+     ### 6. **invoice.py** — Factures
+     ```
+     ✓ InvoiceBase → Create → Update
+     ✓ @model_validator due_date >= issue_date
+     ✓ AddPaymentRequest : amount_cents > 0, payment_date, payment_method
+     ✓ InvoiceList / Response avec montants en _cents
+     ✓ @computed_field : total_amount_euros, paid_amount_euros, remaining_amount, is_paid, is_overdue, payment_completion_percentage
+     ✓ TYPE_CHECKING pour réservation nested
+     ```
+     **Score: 10/10**
+
+     ### 7. **auth.py** — Authentification
+     ```
+     ✓ LoginRequest, TokenResponse, RefreshTokenRequest cohérents
+     ✓ UserInfo schema (id, email, full_name, role, tenant_id, is_active)
+     ✓ ChangePasswordRequest, LogoutRequest, LogoutResponse
+     ✓ LoginBruteForceDetail (message, captcha_required, delay_seconds, attempts)
+     ✓ CSRFTokenResponse (csrf_token, expires_in=900)
+     ```
+     **Score: 10/10** — Complet.
+
+     ### 8. **mfa.py** — MFA TOTP
+     ```
+     ✓ MFASetupResponse (secret base32, provisioning_uri QR, recovery_codes list)
+     ✓ MFAVerifySetupRequest (totp_code 6 chiffres pattern=r"^\d{6}$")
+     ✓ MFAVerifyRequest (mfa_session_token, totp_code OR recovery_code — mutuellement exclusif)
+     ✓ MFAStatusResponse (mfa_enabled, recovery_codes_remaining)
+     ✓ MFALoginResponse (mfa_required, mfa_session_token, token_type="mfa_session")
+     ```
+     **Score: 10/10** — Sécurité TOTP bien pensée.
+
+     ### 9. **session.py** — Sessions
+     ```
+     ✓ SessionResponse (session_id, ip_address, user_agent, created_at, last_activity ISO 8601)
+     ✓ SessionListResponse (sessions list, count)
+     ✓ SessionRevokeResponse (message, session_id optionnel)
+     ✓ SessionRevokeAllResponse (message, count révoquées)
+     ```
+     **Score: 10/10**
+
+     ### 10. **audit.py** — Audit logs
+     ```
+     ✓ AuditLogResponse (tous les champs du model)
+     ✓ AuditLogList (logs, total, skip, limit)
+     ✓ AuditLogFilters (start_date, end_date, user_id, action, entity_type, entity_id)
+     ✗ MINEURE : Pas de validation mutuelle (ex: si entity_id alors entity_type obligatoire ?) — schemas acceptent N'IMPORTE QUOI
+     ```
+     **Score: 8.5/10** — Bon mais filtres trop permissifs.
+
+     ### 11. **__init__.py** — Exports
+     ```
+     ✓ Tous les schemas exportés alphabétiquement
+     ✓ __all__ complet et classé par domaine
+     ```
+     **Score: 10/10**
+
+     ---
+
+     ## REPOSITORIES (app/repositories/) — 6 fichiers
+
+     ### 1. **base.py** — Repository générique
+     ```
+     ✓ Generic[T] — paramétrique par modèle
+     ✓ _apply_tenant_filter() — TOUS les queries filtrent tenant_id automatiquement ✓
+     ✓ _apply_active_filter() — soft delete filtré automatiquement
+     ✓ Cache Redis integration : _get_cache_key(), _get_cache_ttl(), cache hits/misses tracking
+     ✓ get_by_id() : cache hit (~2-5ms), cache miss (DB + cache), identity_map check (évite merge() sur instances dirty)
+     ✓ list() : pagination 0-1000, filtres additionnels via {"field__operator": value}
+     ✓ count() : même logique de filtrage
+     ✓ create() : validation tenant_id présent
+     ✓ update() : cache invalidation write-through
+     ✓ soft_delete() : is_active=False + cache invalidation
+     ✓ hard_delete() : physique + cache invalidation (DANGEREUX, warn fourni)
+     ✓ restore() : is_active=True
+     ✓ _update_cache_hit_rate() : met à jour Prometheus Gauge cache_hit_rate
+
+     ✗ COMPORTEMENT À VÉRIFIER : Cas edge case non couvert ?
+       - Dans get_by_id, si instance en session mais différent tenant → retourne None ✓
+       - Dans get_by_id, si instance en session mais soft-deleted et include_inactive=False → retourne None ✓
+       - Dans list(), opérateurs "__gt", "__gte", "__lt", "__lte", "__ne" supportés, inconnus ignorés silencieusement (ok)
+     ```
+     **Score: 9.5/10** — Excellent, sécurité multi-tenant stricte. Minor: fail silently sur opérateurs inconnus OK (log mieux serait idéal).
+
+     ### 2. **customer.py** — Clients
+     ```
+     ✓ get_by_email() : normalize lowercase, filtre tenant_id, soft delete respect
+     ✓ email_exists() : exclude_id pour UPDATE (vérifier unicité sauf self)
+     ✓ list_by_type() : délègue à list() avec filter customer_type
+     ✓ search() : ILIKE sur first_name OR last_name OR company_name, filtre tenant_id + active
+
+     ✗ QUERY OPTIMIZATION : search() compte total + liste paginée → 2 queries (OK, nécessaire)
+     ✗ N+1 POTENTIAL : search() itère sur OR conditions → OK (simple ILIKE)
+     ```
+     **Score: 10/10** — Parfait.
+
+     ### 3. **product.py** — Produits
+     ```
+     ✓ get_by_sku() : normalize uppercase, filtre tenant_id
+     ✓ sku_exists() : exclude_id pour UPDATE
+     ✓ list_by_category() : délègue à list() avec filter
+     ✓ list_available() : available_quantity > 0, filtre tenant_id + active, order by category/name
+     ✓ check_availability() : get_by_id + comparaison (évite query supplémentaire)
+     ✓ reserve_stock() : decrement available_quantity, vérification disponibilité inline
+     ✓ release_stock() : increment available_quantity, capped à stock_quantity (ne pas dépasser stock total)
+     ✓ search_by_name() : ILIKE sur name OR sku
+
+     ✗ RACE CONDITION POTENTIAL : reserve_stock() / release_stock() sans LOCK
+       → Correctif : Transaction ISOLATION LEVEL SERIALIZABLE ou SELECT... FOR UPDATE
+       → État actuel : Vulnerable à race condition si 2 threads réservent en parallèle
+
+     ✓ Mitigation présente ? Dans service layer possiblement avec .flush() + vérification
+     ```
+     **Score: 8/10** — Bon, mais race condition sur stock (niveau transaction, pas repo).
+
+     ### 4. **invoice.py** — Factures
+     ```
+     ✓ get_by_id_with_relations() : joinedload(Invoice.reservation).joinedload(Reservation.customer) → N+1 prevention ✓
+     ✓ get_by_invoice_number() : normalize uppercase, filtre tenant_id
+     ✓ invoice_number_exists() : exclude_id pour UPDATE
+     ✓ get_by_reservation() : filtre reservation_id + tenant_id + active
+     ✓ list_by_status() : délègue à list() avec filter
+     ✓ list_overdue() : due_date < reference_date AND paid_amount < total_amount AND status != CANCELLED, filtre tenant_id
+     ✓ list_unpaid() : paid_amount < total_amount AND status != CANCELLED
+     ✓ list_by_date_range() : issue_date entre start/end, filtre optionnel status, filtre tenant_id
+
+     ✗ QUERY : get_by_id_with_relations() → .unique() sur joinedload
+       → Correct : SQLAlchemy 2.0 nécessite .unique() après joinedload pour éviter duplicates
+     ```
+     **Score: 10/10** — Excellent, N+1 prevention bien pensé.
+
+     ### 5. **reservation.py** — Réservations (2 classes)
+     ```
+     ReservationRepository :
+     ✓ get_by_id_with_relations() : joinedload(customer) + joinedload(lines).joinedload(product) → full fetch, .unique() ✓
+     ✓ get_by_reference() : normalize uppercase, filtre tenant_id
+     ✓ reference_exists() : pas de filtre tenant_id (reference unique GLOBALEMENT, documenté)
+     ✓ list_by_status() : filtre status, filtre tenant_id
+     ✓ list_by_date_range() : event_date between, optionnel status, filtre tenant_id, counts total
+     ✓ list_by_customer() : customer_id + tenant_id, optionnel status
+     ✓ list_upcoming() : event_date >= today AND <= today+30days, status IN ["draft", "confirmed", "delivered"]
+
+     ReservationLineRepository :
+     ✓ list_by_reservation() : filtre reservation_id + tenant_id
+     ✓ list_by_product() : filtre product_id + tenant_id, skip/limit
+
+     ✗ QUERY : list_by_date_range() compte total ET liste séparément → 2 queries (OK)
+     ```
+     **Score: 10/10** — Parfait.
+
+     ### 6. **__init__.py** — Exports
+     ```
+     ✓ Tous les repositories exportés
+     ✓ BaseRepository réexporté
+     ```
+     **Score: 10/10**
+
+     ---
+
+     ## SYNTHÈSE PAR CATÉGORIE
+
+     | Aspect | Score | Détail |
+     |--------|-------|--------|
+     | **Multi-tenant isolation** | 10/10 | Tous les repositories filtrent tenant_id. Aucune requête globale. |
+     | **Timestamps & SoftDelete** | 10/10 | TimestampMixin + SoftDeleteMixin partout où nécessaire. Audit log immuable séparé. |
+     | **Indexes** | 8/10 | Base solide (tenant_id, FK), mais FK indexes manquants sur some relations. Partial indexes sur audit excellents. |
+     | **Validation schemas** | 9.5/10 | Validators complètes. Model validators cohérents. EmailStr + patterns TOTP bien utilisés. |
+     | **Montants BigInteger centimes** | 10/10 | Partout cohérent (250 = 2.50€). Computed fields pour conversions. |
+     | **N+1 Prevention** | 9/10 | joinedload utilisé. get_by_id_with_relations pour relations complexes. Quelques queries pourraient bénéficier selectinload. |
+     | **Code mort / dangereux** | 10/10 | Aucun print(), eval(), XXX. Architecture propre. |
+
+     ---
+
+     ## RECOMMANDATIONS (PRIORITÉ)
+
+     ### P0 — Critique (0 trouvées)
+     Aucune violation de sécurité multi-tenant ou architectural.
+
+     ### P1 — Important (1 trouvée)
+
+     **Race condition sur stock (Product.reserve_stock/release_stock)**
+     - Localisé : `app/repositories/product.py` lignes 167-196
+     - Risque : 2 threads peuvent réserver même quantité en parallèle
+     - Correction : Utiliser `SELECT ... FOR UPDATE` ou transaction `SERIALIZABLE`
+
+     Exemple (service layer) :
+     ```python
+     # Dans service, avant appel reserve_stock():
+     from sqlalchemy import select, text
+     product = db.execute(
+         select(Product).with_for_update().filter(Product.id == product_id, Product.tenant_id == tenant_id)
+     ).scalar_one()
+     ```
+
+     ### P2 — Recommandé (5 trouvées)
+
+     1. **Ajouter FK indexes** (perf)
+        - `Customer.email` : `CREATE INDEX idx_customer_tenant_email ON customers(tenant_id, email);`
+        - `Reservation.customer_id` : `CREATE INDEX idx_reservation_customer_id ON reservations(customer_id, tenant_id);`
+        - `ReservationLine.product_id` : `CREATE INDEX idx_reservation_line_product_id ON reservation_lines(product_id, tenant_id);`
+        - `Product.category` : `CREATE INDEX idx_product_category ON products(tenant_id, category);`
+        - `Product.available_quantity` : `CREATE INDEX idx_product_available ON products(tenant_id, available_quantity) WHERE available_quantity > 0;` (partial)
+
+     2. **Unique constraint MFA** (data integrity)
+        - `MFADevice` : Ajouter `unique=(tenant_id, user_id)` pour garantir 1 device/user
+
+     3. **Audit log filters validation** (AuditLogFilters peut accepter combos invalides)
+        - Ajouter @model_validator pour cohérence (ex: entity_id requiert entity_type)
+
+     4. **Docstring : Clarifier return types**
+        - `list()` docstring dit "tuple (items, total)" mais return list[T] — Corriger
+
+     5. **Edge case : Cache invalidation sur soft_delete/restore**
+        - Actuellement cache invalidé. ✓ Bon. Mais ajouter log pour debug.
+
+     ---
+
+     ## VIOLATIONS TROUVÉES — DÉTAIL
+
+     ### Aucune violation critique détectée ✓
+
+     - ✓ Pas de secrets hardcodés
+     - ✓ Pas de SQL injection (SQLAlchemy paramétrisé)
+     - ✓ Pas de cross-tenant data leakage
+     - ✓ Pas de N+1 queries systématiques
+     - ✓ Pas de code mort (print, eval, etc.)
+     - ✓ Pas de TODO/FIXME non adressés
+
+     ---
+
+     ## CHECKLIST AUDIT
+
+     | Critère | Status |
+     |---------|--------|
+     | Models ont tenant_id (sauf AuditLog) | ✓ OK |
+     | Index composite (tenant_id, id) OR individual | ✓ OK (individual indexes suffisent) |
+     | Timestamps created_at/updated_at | ✓ OK |
+     | SoftDelete is_active | ✓ OK (sauf AuditLog = correct) |
+     | Schemas valident input | ✓ OK |
+     | Repositories filtrent tenant_id | ✓ OK |
+     | Pas de N+1 queries | ✓ MOSTLY OK (1-2 edge cases) |
+     | Montants BigInteger cents | ✓ OK |
+     | Pas de code mort | ✓ OK |
+     | Pas de secrets en clair | ✓ OK |
+     | Exports __init__.py complets | ✓ OK |
+
+     ---
+
+     ## FICHIERS AUDITÉS
+
+     **Models (9)** ✓
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/models/base.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/models/audit_log.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/models/customer.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/models/user.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/models/invoice.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/models/mfa.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/models/product.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/models/reservation.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/models/__init__.py`
+
+     **Schemas (11)** ✓
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/schemas/base.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/schemas/common.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/schemas/audit.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/schemas/auth.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/schemas/customer.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/schemas/invoice.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/schemas/mfa.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/schemas/product.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/schemas/reservation.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/schemas/session.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/schemas/__init__.py`
+
+     **Repositories (6)** ✓
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/repositories/base.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/repositories/customer.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/repositories/invoice.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/repositories/product.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/repositories/reservation.py`
+     - `/home/ruuuzer/Documents/CaroCorp_new/app/repositories/__init__.py`
+
+     ---
+
+     ## CONCLUSION
+
+     **Audit Result: EXCELLENT** 🎯
+
+     La couche data (models, schemas, repositories) suit les standards de production :
+     - Isolation multi-tenant **stricte et systématique**
+     - Validation complète des inputs
+     - Sécurité par défaut (timestamps, soft delete, audit)
+     - Performance optimisée (cache Redis, index appropriés, N+1 prevention)
+     - Code **propre et maintenable** (pas de technical debt apparent)
+
+     **Prochaines étapes :**
+     1. Implémenter P1 fix (race condition stock avec SELECT FOR UPDATE)
+     2. Ajouter 5 FK indexes P2 pour perf
+     3. Tester isolation multi-tenant sous charge
+     4. Valider migrations Alembic cohérentes avec modèles
+
+● Bash(python3 -c "
+      import json
+      # constants+config+tasks audit
+      with open('/tmp/claude-1000/-home-ruuuzer-Documents-CaroCorp-new/tasks/a2952e9.output') as f:
+          lines = f.readlines()
+      for i, line in enumerate(lines):
+          try:
+              obj = json.loads(line)
+              if obj.get('type') == 'assistant':
+                  content = obj.get('message', {}).get('content', [])
+                  for c in content:
+                      if c.get('type') == 'text' and len(c.get('text','')) > 1000:
+                          print(c['text'])
+          except:
+              pass
+      " 2>&1)
+  ⎿  Parfait. Maintenant créons un rapport structuré complet. Voici mon audit complet :
+
+     ## AUDIT COMPLET — CaroCorp_new
+
+     ### RÉSUMÉ EXÉCUTIF
+
+     Audit complet réalisé des fichiers Python dans `/home/ruuuzer/Documents/CaroCorp_new/` couvrant :
+     - Configuration application (`app/core/config.py`)
+     - Point d'entrée (`app/main.py`)
+     - Constantes métier et sécurité (`app/constants/`)
+     - Tâches asynchrones (`app/tasks/`)
+     - Migrations Alembic (`alembic/versions/`)
+
+     **Résultat** : 13 problèmes identifiés, de sévérité variable (1 critique, 6 majeurs, 6 mineurs).
+
+     ---
+
+     ## 1. FICHIER : `/home/ruuuzer/Documents/CaroCorp_new/app/core/config.py`
+
+     ### Problèmes identifiés
+
+     #### P1 [CRITIQUE] — Secrets hardcodés en clair
+     - **Ligne 28** : `JWT_SECRET = "dev_jwt_secret_CHANGER_EN_PROD_min32chars"`
+     - **Ligne 46** : `CSRF_SECRET = "dev_csrf_secret_CHANGER_EN_PROD_min32chars"`
+     - **Ligne 55** : `ENCRYPTION_KEY = "dev_encryption_key_32bytes_CHANGE"`
+
+     **Impact** : Ces clés sont en clair dans le code source. Si le repo est pushé, les secrets sont exposés. En production, il faudrait utiliser un Vault (HashiCorp Vault, AWS
+     Secrets Manager, etc.).
+
+     **Recommandation** :
+     ```python
+     from pydantic import Field
+
+     JWT_SECRET: str = Field(default="", description="Must be set from .env or secrets manager")
+     # En production, lire depuis VAULT_URL, AWS Secrets Manager, ou fichier .env sécurisé
+     ```
+
+     #### P2 [MAJEUR] — Valeurs par défaut dangereuses (database/redis/broker)
+     - **Ligne 23** : `DATABASE_URL = "postgresql://caro:password@localhost:5433/CaroCorp"`
+     - **Ligne 34** : `REDIS_URL = "redis://:password@localhost:6380/0"`
+     - **Ligne 38-39** : `CELERY_BROKER_URL` et `CELERY_RESULT_BACKEND` avec `password@localhost`
+
+     **Impact** : Passwords en clair dans l'URL. Un développeur pourrait oublier de changer ces valeurs avant déploiement.
+
+     **Recommandation** : Utiliser `.env` obligatoire + validation Pydantic `Field(default=...)` avec warnings explicites.
+
+     #### P3 [MAJEUR] — CORS trop restrictif mais pas assez sécurisé
+     - **Ligne 42** : `CORS_ORIGINS: list[str] = ["http://localhost:3002"]`
+
+     **Impact** : OK pour dev, mais la liste est hardcodée. Pas de pattern wildcard, pas de mode multi-environnement.
+
+     **Recommandation** :
+     ```python
+     CORS_ORIGINS: list[str] = Field(
+         default=["http://localhost:3002"],
+         description="Comma-separated list of allowed origins"
+     )
+     ```
+
+     #### P4 [MAJEUR] — DEBUG = False par défaut mais sans validation
+     - **Ligne 20** : `DEBUG: bool = False`
+
+     **Impact** : Pas de validation que `DEBUG=True` en prod. Le code relies sur le développeur pour la bonne pratique.
+
+     **Recommandation** : Ajouter un validateur `@field_validator`.
+
+     #### P5 [MINEUR] — Pas de validation de longueurs minimales
+     - JWT_SECRET, CSRF_SECRET, ENCRYPTION_KEY n'ont pas de validation >= 32 chars
+
+     **Recommandation** : Ajouter des validators Pydantic.
+
+     ---
+
+     ## 2. FICHIER : `/home/ruuuzer/Documents/CaroCorp_new/app/main.py`
+
+     ### Problèmes identifiés
+
+     #### P6 [MAJEUR] — TrustedHostMiddleware avec hardcoded patterns
+     - **Lignes 106-109** :
+     ```python
+     allowed_hosts=["localhost", "127.0.0.1", "*.carocorp.local", "testserver"]
+     ```
+
+     **Impact** : Pattern `*.carocorp.local` accepte n'importe quel subdomain. OK pour dev, problématique en prod si DNS est contrôlable par attaquant.
+
+     **Recommandation** : Configurable via environment, avec whitelist stricte en prod.
+
+     #### P7 [MINEUR] — Uvicorn lancé sur 0.0.0.0 dans main
+     - **Ligne 133** : `host="0.0.0.0"`
+
+     **Impact** : Correct pour Docker, mais attention aux déploiements directs. Pas d'issue bloquante si derrière reverse proxy.
+
+     ---
+
+     ## 3. FICHIER : `/home/ruuuzer/Documents/CaroCorp_new/app/tasks/celery_app.py`
+
+     ### Problèmes identifiés
+
+     #### P8 [CRITIQUE] — Modules de tâches autodiscovered n'existent pas
+     - **Lignes 39-44** :
+     ```python
+     celery_app.autodiscover_tasks([
+         "app.tasks.reservations",
+         "app.tasks.invoicing",
+         "app.tasks.notifications",
+         "app.tasks.reports",
+     ])
+     ```
+
+     **Vérification** : Aucun de ces fichiers n'existe dans le dossier `/home/ruuuzer/Documents/CaroCorp_new/app/tasks/`.
+
+     **Impact** :
+     - À l'import, Celery essaiera d'importer les modules et échouera silencieusement (ne lève pas exception)
+     - Les tâches définiées dans ces modules ne seraient jamais découvertes
+     - Si une tâche est envoyée à une queue inexistante, elle serait perdue sans alerte
+
+     **Recommandation** : Soit créer les fichiers vides (`__init__.py`, `tasks.py` par module), soit commenter l'autodiscovery jusqu'à implémentation.
+
+     #### P9 [MAJEUR] — Pas d'error handling pour task failures
+     - **Lignes 47-51** : `debug_task` est une tâche de test sans retry, sans circuit breaker
+
+     **Impact** : Si une tâche Celery échoue, elle n'est pas renvoyée automatiquement. Pas d'exponential backoff.
+
+     **Recommandation** :
+     ```python
+     @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
+     def task_name(self):
+         try:
+             # logic
+         except Exception as exc:
+             raise self.retry(exc=exc, countdown=2**self.request.retries)
+     ```
+
+     #### P10 [MINEUR] — Pas de monitoring des tâches mortes
+     - Pas de `Dead Letter Queue` (DLQ) configurée
+
+     **Impact** : Tâches qui échouent n'sont pas tracées pour debug.
+
+     **Recommandation** : Ajouter config `task_reject_on_worker_lost = True` et monitorer les DLQ.
+
+     ---
+
+     ## 4. FICHIERS CONSTANTES : `/home/ruuuzer/Documents/CaroCorp_new/app/constants/`
+
+     ### Analyse générale
+
+     **Qualité** : Excellente. Bien organisée, bien documentée, pas de duplication.
+
+     #### P11 [MINEUR] — Incohérence TIME_COST Argon2
+     - **app/constants/security.py** ligne 171 : `TIME_COST = 3`
+     - **app/core/config.py** ligne 50 : `ARGON2_TIME_COST: int = 3`
+
+     **Impact** : Duplication de constante. Si l'une change, l'autre ne suit pas.
+
+     **Recommandation** : Utiliser une source unique :
+     ```python
+     # app/core/config.py
+     from app.constants.security import Argon2Params
+
+     ARGON2_TIME_COST: int = Argon2Params.TIME_COST
+     ```
+
+     #### P12 [MINEUR] — RedisKeys helpers manquent brute_force_* patterns
+     - **app/constants/security.py** : Définit `BRUTE_FORCE_EMAIL`, `BRUTE_FORCE_IP`, etc. (lignes 84-87)
+     - Mais pas de helper statique `@staticmethod` pour les générer
+
+     **Impact** : Code appel `f"{RedisKeys.BRUTE_FORCE_EMAIL}{email}"` au lieu d'une méthode = duplication.
+
+     **Recommandation** :
+     ```python
+     @staticmethod
+     def brute_force_email(email: str) -> str:
+         return f"{RedisKeys.BRUTE_FORCE_EMAIL}{email}"
+     ```
+
+     ---
+
+     ## 5. FICHIERS MIGRATIONS ALEMBIC : `/home/ruuuzer/Documents/CaroCorp_new/alembic/`
+
+     ### Analyse générale
+
+     **Qualité** : Bonne. Migrations respectent pattern expand/contract. Triggers et constraints bien documentés.
+
+     #### P13 [MAJEUR] — Migration alembic/env.py imports incomplets
+     - **Ligne 10** :
+     ```python
+     from app.models import Customer, Product, Reservation, ReservationLine, Invoice  # noqa: F401
+     ```
+
+     **Impact** :
+     - Importe seulement 5 modèles
+     - Si on ajoute `User`, `MFADevice`, `AuditLog`, `Session`, etc., ils ne seraient pas dans `autogenerate`
+     - Les migrations pourraient manquer des colonnes
+
+     **Recommandation** :
+     ```python
+     # Import ALL models for proper autogenerate
+     from app.models import (  # noqa: F401
+         Customer, Product, Reservation, ReservationLine, Invoice,
+         User, MFADevice, AuditLog, Session  # <- à ajouter
+     )
+     # OU utiliser wildcard si models expose __all__
+     from app.models import *  # noqa: F401, F403
+     ```
+
+     #### Note sur migrations
+
+     - Migration `bd66c5700a41_add_audit_log_table_with_immutability_.py` : Trigger PostgreSQL bien implémenté (immutabilité append-only) ✓
+     - Migration `285d45be2c5c_fix_reservation_status_enum_sync.py` : Pattern expand/contract correct (drop contrainte → migrate → créer nouvelle) ✓
+     - Migration `a1b2c3d4e5f6_fix_email_unique_per_tenant.py` : Composite unique constraint correct pour multi-tenant ✓
+     - Migration `b2c3d4e5f6a7_add_mfa_devices_table.py` : Schéma correct, FK avec ondelete=CASCADE ✓
+
+     ---
+
+     ## 6. ANALYSE SPÉCIFIQUE — Incohérences de configuration
+
+     ### Duplication ARGON2 / SESSION / LIMITS
+
+     | Constante | Fichier | Valeur | Cohérence |
+     |-----------|---------|--------|-----------|
+     | `ARGON2_TIME_COST` | config.py:50 | 3 | ✓ Correspond à Argon2Params.TIME_COST |
+     | `ARGON2_MEMORY_COST` | config.py:51 | 65536 | ✓ Correspond à Argon2Params.MEMORY_COST |
+     | `ARGON2_PARALLELISM` | config.py:52 | 4 | ✓ Correspond à Argon2Params.PARALLELISM |
+     | `SESSION_TIMEOUT_SECONDS` | config.py:35 | Limits.SESSION_TIMEOUT_SECONDS | ✓ Référence Limits |
+     | `SESSION_TTL_SECONDS` | security.py:209 | 7 * 24 * 3600 = 604800 | ⚠️  **INCOHÉRENCE** : 7 jours vs 1 heure |
+
+     **ALERTE SESSION TTL** :
+     - `Limits.SESSION_TIMEOUT_SECONDS = 3600` (1 heure)
+     - `SessionConfig.SESSION_TTL_SECONDS = 604800` (7 jours)
+
+     Ces deux valeurs devraient-elles être alignées ? À clarifier avec la spec métier.
+
+     ---
+
+     ## 7. ANALYSE SPÉCIFIQUE — Hardcoded Strings
+
+     ### Strings NOT en Constantes
+
+     | Fichier | Ligne | String | Catégorie |
+     |---------|-------|--------|-----------|
+     | app/main.py | 67 | "API de gestion de location..." | Description API (acceptable) |
+     | app/health.py | 173 | "0.1.0" | **TODO comment** (voir section 8) |
+
+     **Verdict** : Minime, acceptables.
+
+     ---
+
+     ## 8. COMMENTAIRES TODO/FIXME/HACK/XXX
+
+     ### Résultat de la recherche
+     - **Fichier** : `/home/ruuuzer/Documents/CaroCorp_new/app/api/v1/endpoints/health.py:173`
+     - **Contenu** : `"version": "0.1.0",  # TODO: récupérer depuis settings ou pyproject.toml`
+
+     **Verdict** : Acceptable, actionnable.
+
+     ---
+
+     ## 9. RÉSUMÉ DES CRITÈRES DE COMPLÉTUDE
+
+     | Critère | Statut | Notes |
+     |---------|--------|-------|
+     | **Secrets en clair** | ❌ CRITIQUE | JWT_SECRET, CSRF_SECRET, ENCRYPTION_KEY en clair |
+     | **Valeurs DB/Redis dangereuses** | ❌ MAJEUR | Passwords en URLs |
+     | **Constantes dupliquées** | ⚠️  MINEUR | ARGON2 params dupliqués entre config.py et security.py |
+     | **Imports circulaires** | ✅ OK | Pas de cycles détectés |
+     | **Tasks Celery incomplètes** | ❌ CRITIQUE | Modules autodiscovered n'existent pas |
+     | **Error handling** | ⚠️  MINEUR | Pas de retry/circuit breaker sur tasks |
+     | **Migrations Alembic** | ✅ GOOD | Pattern expand/contract respecté, triggers OK |
+     | **Alembic env.py imports** | ⚠️  MAJEUR | Imports partiels, risque d'omission modèles futurs |
+     | **CORS/TrustedHosts** | ⚠️  MINEUR | Hardcoded en config |
+     | **README/DOCS** | ✅ OK | Bien documenté (docstrings) |
+
+     ---
+
+     ## 10. MATRICE DE SÉVÉRITÉ RECOMMANDÉE
+
+     | Sévérité | Nombre | Problèmes |
+     |----------|--------|-----------|
+     | **🔴 CRITIQUE** | 2 | P1 (secrets), P8 (tasks modules) |
+     | **🟠 MAJEUR** | 6 | P2, P3, P4, P6, P13, + SESSION TTL incohérence |
+     | **🟡 MINEUR** | 5 | P5, P7, P10, P11, P12 |
+     | **✅ TOTAL** | **13** | |
+
+     ---
+
+     ## 11. TABLEAU RÉCAPITULATIF PAR FICHIER
+
+     ### `/app/core/config.py` (70 lignes)
+     - ❌ P1: Secrets hardcodés
+     - ⚠️  P2: Valeurs DB/Redis dangereuses
+     - ⚠️  P3: CORS hardcoded
+     - ⚠️  P4: DEBUG sans validation
+     - ⚠️  P5: Pas de validation string length
+     - ⚠️  P11: Duplication ARGON2
+
+     **Action recommandée** : Ajouter `.env.example`, validators Pydantic, utiliser Vault en prod.
+
+     ### `/app/main.py` (137 lignes)
+     - ⚠️  P6: TrustedHostMiddleware hardcoded
+     - ⚠️  P7: Uvicorn 0.0.0.0
+
+     **Action recommandée** : Externaliser allowed_hosts via config.
+
+     ### `/app/tasks/celery_app.py` (52 lignes)
+     - ❌ P8: Modules autodiscovered n'existent pas
+     - ⚠️  P9: Pas de retry/circuit breaker
+     - ⚠️  P10: Pas de DLQ
+
+     **Action recommandée** : Créer modules vides ou commenter autodiscover. Ajouter retry logic.
+
+     ### `/app/constants/` (500+ lignes)
+     - ✅ Excellente qualité
+     - ⚠️  P12: Helpers Redis brute force manquent
+
+     **Action recommandée** : Ajouter staticmethods pour brute force keys.
+
+     ### `/alembic/env.py` (62 lignes)
+     - ⚠️  P13: Imports partiels models
+
+     **Action recommandée** : Importer tous les modèles ou utiliser wildcard.
+
+     ### `/alembic/versions/` (9 migrations)
+     - ✅ Bon : Expand/contract pattern
+     - ✅ Bon : Triggers immuabilité audit logs
+     - ✅ Bon : Multi-tenant composite keys
+
+     ---
+
+     ## 12. FICHIERS INEXISTANTS (Attendus par Celery)
+
+     ```
+     MANQUANT: /app/tasks/reservations.py  (ou reservations/__init__.py)
+     MANQUANT: /app/tasks/invoicing.py
+     MANQUANT: /app/tasks/notifications.py
+     MANQUANT: /app/tasks/reports.py
+     ```
+
+     Ces 4 modules sont référencés dans `celery_app.autodiscover_tasks()` mais n'existent pas.
+
+     ---
+
+     ## 13. RECOMMANDATIONS D'ACTION IMMÉDIATES (Par priorité)
+
+     ### 🔴 P1 — CRITICAL — Secrets en clair (config.py)
+     ```python
+     # AVANT (DANGEREUX)
+     JWT_SECRET: str = "dev_jwt_secret_CHANGER_EN_PROD_min32chars"
+
+     # APRÈS
+     from pydantic import Field
+     JWT_SECRET: str = Field(
+         default="",  # Obligatoire depuis .env ou env var
+         description="Must be configured from environment (min 32 chars)"
+     )
+     ```
+
+     ### 🔴 P8 — CRITICAL — Modules Celery manquants
+     ```python
+     # OPTION 1: Créer fichiers vides (pour l'instant)
+     # /app/tasks/reservations/__init__.py (vide)
+     # /app/tasks/invoicing/__init__.py (vide)
+     # etc.
+
+     # OPTION 2: Commenter autodiscover
+     # celery_app.autodiscover_tasks([])  # TODO: Implement later
+     ```
+
+     ### 🟠 P2/P13 — MAJEUR — Alembic env.py imports partiels
+     ```python
+     # AVANT
+     from app.models import Customer, Product, Reservation, ReservationLine, Invoice
+
+     # APRÈS
+     from app.models.base import Base
+     # Toutes les tables sont référencées via Base.metadata
+     # OU importer explicitement tous les modèles
+     ```
+
+     ---
+
+     ## CONCLUSION
+
+     L'audit révèle une **application bien structurée** mais avec **3 problèmes critiques** :
+
+     1. **Secrets en clair** dans config.py (P1)
+     2. **Modules Celery fantasmes** qui ne peuvent pas être découverts (P8)
+     3. **Alembic env.py** avec imports partiels (P13)
+
+     Ces problèmes peuvent causer des **échecs en production** ou de la **perte de données**. Priorité : résoudre P1 et P8 avant tout déploiement.
+
+● Voici la synthèse consolidée de l'audit complet des 6 domaines du codebase.
+
+  ---                                                                                                                                                                                   
+  Audit Complet CaroCorp_new — Phase 1 & 2
+                                                                                                                                                                                        
+  60+ fichiers Python audités, 971 tests passent, coverage 93.07%                                                                                                                     
+                                                                                                                                                                                      
+  ---                                                                                                                                                                                 
+  P0 — CRITIQUE (3 problèmes)
+  #: A1
+  Fichier: app/api/v1/endpoints/audit.py
+  Ligne(s): 27, 129, 224
+  Problème: AdminUser non lié avec Depends() — les 3 endpoints audit sont accessibles sans authentification admin. Faille de sécurité majeure.
+  ────────────────────────────────────────
+  #: A2
+  Fichier: app/tasks/celery_app.py
+  Ligne(s): 39-44
+  Problème: 4 modules autodiscovered n'existent pas (app.tasks.reservations, invoicing, notifications, reports). Celery échoue silencieusement.
+  ────────────────────────────────────────
+  #: A3
+  Fichier: app/middleware/audit.py
+  Ligne(s): 336-348
+  Problème: Bug _singularize_entity_type : invoices → invoic (pas invoice). La branche endswith("ies") contient pass sans implémentation.
+  ---
+  P1 — IMPORTANT (7 problèmes)
+  #: B1
+  Fichier: app/middleware/audit.py
+  Ligne(s): 186-218, 248-269
+  Problème: DB session leak : next(get_db()) + .close() manuel sans context manager. Si exception entre les deux → connexion fuitée.
+  ────────────────────────────────────────
+  #: B2
+  Fichier: app/middleware/security.py
+  Ligne(s): 44-47
+  Problème: CSRF bypass sur LOGOUT : endpoint exempté de la vérification CSRF. Un attaquant peut forcer la déconnexion via CSRF.
+  ────────────────────────────────────────
+  #: B3
+  Fichier: app/middleware/ (3 fichiers)
+  Ligne(s): security.py, audit.py, request_context.py
+  Problème: JWT décodé 3 fois par requête : chaque middleware re-decode indépendamment au lieu de lire request.state. Perf + risque de divergence.
+  ────────────────────────────────────────
+  #: B4
+  Fichier: app/api/v1/endpoints/invoices.py
+  Ligne(s): 97
+  Problème: GET /overdue sans pagination : retourne list[InvoiceList] sans limite. Peut retourner toutes les factures en retard d'un tenant.
+  ────────────────────────────────────────
+  #: B5
+  Fichier: alembic/env.py
+  Ligne(s): 10
+  Problème: Imports partiels : seuls 5 modèles importés (Customer, Product, Reservation, ReservationLine, Invoice). User, MFADevice, AuditLog manquent → autogenerate incomplet.
+  ────────────────────────────────────────
+  #: B6
+  Fichier: app/repositories/product.py
+  Ligne(s): 167-196
+  Problème: Race condition sur stock : reserve_stock() / release_stock() sans SELECT FOR UPDATE. 2 requêtes parallèles peuvent réserver la même quantité.
+  ────────────────────────────────────────
+  #: B7
+  Fichier: app/middleware/security.py
+  Ligne(s): ~119
+  Problème: Timing attack CSRF : comparaison longueur token sans secrets.compare_digest. Attaquant peut déduire longueur du token valide.
+  ---
+  P2 — MOYEN (14 problèmes)
+  #: C1
+  Fichier: app/core/config.py:28,34,46,55
+  Problème: Secrets DEV hardcodés (JWT_SECRET, REDIS password, CSRF_SECRET, ENCRYPTION_KEY). Devrait être .env-only.
+  ────────────────────────────────────────
+  #: C2
+  Fichier: app/core/redis.py (partout)
+  Problème: import json répété dans 8+ fonctions au lieu de top-level.
+  ────────────────────────────────────────
+  #: C3
+  Fichier: app/core/security.py:236-246
+  Problème: Fallback validation trop léger si password_policy import fail. Devrait fail-close.
+  ────────────────────────────────────────
+  #: C4
+  Fichier: app/core/exceptions.py:71-80
+  Problème: TokenRevoked et TokenReplayDetected définis mais non exportés dans __init__.py.
+  ────────────────────────────────────────
+  #: C5
+  Fichier: app/services/reservation.py:32
+  Problème: Class variable mutable _generated_references: set = set(). Partagée entre instances (cf. bug MFA ancien CaroCorp).
+  ────────────────────────────────────────
+  #: C6
+  Fichier: app/models/mfa.py
+  Problème: Pas de UniqueConstraint(tenant_id, user_id) → théoriquement possible d'avoir 2 MFA devices par user.
+  ────────────────────────────────────────
+  #: C7
+  Fichier: app/models/ (5 tables)
+  Problème: FK indexes manquants : customer.email, reservation.customer_id, reservation_line.product_id, product.category, product.available_quantity.
+  ────────────────────────────────────────
+  #: C8
+  Fichier: Services (invoice, product, reservation)
+  Problème: Messages erreur hardcodés avec str(e) qui expose détails d'implémentation. Devrait utiliser ErrorMessages.*.
+  ────────────────────────────────────────
+  #: C9
+  Fichier: Endpoints (customers, products, reservations, invoices)
+  Problème: Catch-all except Exception avec str(e) dans la response HTTP. Information disclosure.
+  ────────────────────────────────────────
+  #: C10
+  Fichier: app/middleware/security.py
+  Problème: CORS allow_methods=["*"] trop permissif. Devrait lister explicitement GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS.
+  ────────────────────────────────────────
+  #: C11
+  Fichier: app/middleware/ (security.py + metrics.py)
+  Problème: _determine_scope() dupliqué : même logique dans 2 middlewares. Risque de divergence.
+  ────────────────────────────────────────
+  #: C12
+  Fichier: app/middleware/audit.py + metrics.py
+  Problème: Patterns hardcodés (SENSITIVE_READ_PATTERNS, PATH_PATTERNS). Nouvel endpoint = édition middleware.
+  ────────────────────────────────────────
+  #: C13
+  Fichier: app/constants/security.py vs config.py
+  Problème: Duplication Argon2 params (TIME_COST, MEMORY_COST, PARALLELISM) définis aux 2 endroits.
+  ────────────────────────────────────────
+  #: C14
+  Fichier: app/constants/security.py
+  Problème: Incohérence TTL : Limits.SESSION_TIMEOUT_SECONDS=3600 (1h) vs SessionConfig.SESSION_TTL_SECONDS=604800 (7j).
+  ---
+  P3 — MINEUR (8 problèmes)
+  ┌─────┬──────────────────────────────────────────────────────────────┬──────────────────────────────────────────────────────────────────────────┐
+  │  #  │                           Fichier                            │                                 Problème                                 │
+  ├─────┼──────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+  │ D1  │ health.py:173                                                │ Version hardcodée "0.1.0" (TODO existant).                               │
+  ├─────┼──────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+  │ D2  │ Services (token.py:144, auth.py:368, cache.py:92+)           │ Imports dynamiques dans fonctions au lieu de top-level.                  │
+  ├─────┼──────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+  │ D3  │ app/core/deps.py:111                                         │ Indentation accidentelle sur ManagerUser.                                │
+  ├─────┼──────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+  │ D4  │ app/services/invoice.py:229,325,375 + reservation.py:299,366 │ Espacement manquant status=X au lieu de status = X.                      │
+  ├─────┼──────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+  │ D5  │ app/services/cache.py:347,356                                │ None non cachée → miss permanent pour valeurs nulles légitimes.          │
+  ├─────┼──────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+  │ D6  │ app/services/cache.py:96+                                    │ Accès direct self.redis.client contourne l'abstraction du wrapper Redis. │
+  ├─────┼──────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+  │ D7  │ app/schemas/audit.py                                         │ Filtres audit trop permissifs (entity_id sans entity_type accepté).      │
+  ├─────┼──────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────────────────────┤
+  │ D8  │ app/middleware/                                              │ Pas d'audit trail pour échecs CSRF/rate limit.                           │
+  └─────┴──────────────────────────────────────────────────────────────┴──────────────────────────────────────────────────────────────────────────┘
+  ---
+  Scores par domaine
+  ┌───────────────────────────┬────────┬──────────────────────────────────────────────────────────┬────────────────────────────────────────────┐
+  │          Domaine          │ Score  │                          Forces                          │                 Faiblesses                 │
+  ├───────────────────────────┼────────┼──────────────────────────────────────────────────────────┼────────────────────────────────────────────┤
+  │ app/core/                 │ 8.5/10 │ Crypto solide, Argon2id, password policy                 │ config.py secrets, redis.py imports        │
+  ├───────────────────────────┼────────┼──────────────────────────────────────────────────────────┼────────────────────────────────────────────┤
+  │ app/services/             │ 8.8/10 │ Architecture single-responsibility, docs excellentes     │ Class var mutable, strings hardcodées      │
+  ├───────────────────────────┼────────┼──────────────────────────────────────────────────────────┼────────────────────────────────────────────┤
+  │ app/middleware/           │ 7.5/10 │ Rate limiting, timing, metrics bien pensés               │ JWT x3, CSRF bypass, singularize bug       │
+  ├───────────────────────────┼────────┼──────────────────────────────────────────────────────────┼────────────────────────────────────────────┤
+  │ app/api/endpoints/        │ 8/10   │ Pagination, tenant isolation, response models            │ audit.py non protégé, catch-all str(e)     │
+  ├───────────────────────────┼────────┼──────────────────────────────────────────────────────────┼────────────────────────────────────────────┤
+  │ app/models+schemas+repos/ │ 9.5/10 │ Multi-tenant strict, validation complète, N+1 prevention │ Race condition stock, FK indexes           │
+  ├───────────────────────────┼────────┼──────────────────────────────────────────────────────────┼────────────────────────────────────────────┤
+  │ constants+config+tasks    │ 7/10   │ Constantes bien organisées                               │ Celery modules fantômes, secrets hardcodés │
+  └───────────────────────────┴────────┴──────────────────────────────────────────────────────────┴────────────────────────────────────────────┘
+  ---
+  Priorités de correction
+
+  Immédiat (avant tout déploiement) :
+  1. A1 — Ajouter Depends() sur AdminUser dans audit endpoints
+  2. A3 — Corriger singularize (invoices → invoice)
+  3. B2 — Ajouter CSRF check sur logout
+
+  Court terme :
+  4. A2 — Commenter ou créer les 4 modules Celery
+  5. B1 — Context manager pour DB sessions dans audit middleware
+  6. B3 — Centraliser JWT parsing (lire request.state)
+  7. B5 — Compléter imports alembic/env.py
+  8. B6 — SELECT FOR UPDATE sur stock
+
+  Moyen terme :
+  9. C1-C14 — Nettoyage config, exports, patterns, duplication
+
+  Voulez-vous que je commence les corrections P0 ?
+

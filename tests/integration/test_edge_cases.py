@@ -70,7 +70,7 @@ def test_create_product_without_auth_returns_401(client: TestClient):
     product_data = {
         "name": "Unauthorized Product",
         "sku": "UNAUTH-SKU",
-        "category": "autre",
+        "category": "mobilier",
         "price_per_day_cents": 1000,
         "deposit_amount_cents": 2000,
         "stock_quantity": 10,
@@ -118,7 +118,7 @@ def test_create_product_missing_required_field_returns_422(client: TestClient, a
     product_data = {
         "name": "Incomplete Product",
         # sku manquant (requis)
-        "category": "autre",
+        "category": "mobilier",
         "price_per_day_cents": 1000,
         "deposit_amount_cents": 2000
     }
@@ -133,7 +133,7 @@ def test_create_product_negative_price_returns_422(client: TestClient, auth_head
     product_data = {
         "name": "Negative Price Product",
         "sku": "NEGATIVE-SKU",
-        "category": "autre",
+        "category": "mobilier",
         "price_per_day_cents": -1000,  # Négatif
         "deposit_amount_cents": 2000,
         "stock_quantity": 10,
@@ -180,7 +180,7 @@ def test_create_reservation_invalid_dates_returns_422(client: TestClient, test_d
         tenant_id=1,
         name="Date Product",
         sku="DATE-PRODUCT",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -216,7 +216,7 @@ def test_create_product_duplicate_sku_returns_400(client: TestClient, test_db, a
         tenant_id=1,
         name="Existing Product",
         sku="DUPLICATE-SKU",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -230,7 +230,7 @@ def test_create_product_duplicate_sku_returns_400(client: TestClient, test_db, a
     product_data = {
         "name": "New Product",
         "sku": "DUPLICATE-SKU",  # Déjà existant
-        "category": "autre",
+        "category": "mobilier",
         "price_per_day_cents": 1000,
         "deposit_amount_cents": 2000,
         "stock_quantity": 10,
@@ -292,7 +292,7 @@ def test_confirm_reservation_insufficient_stock_returns_400(client: TestClient, 
         tenant_id=1,
         name="Low Stock Product",
         sku="LOW-STOCK-TEST",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,

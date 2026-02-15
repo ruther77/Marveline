@@ -17,30 +17,31 @@ export interface CategoryTreeNode extends Category {
   children: CategoryTreeNode[]
 }
 
-// Produits
+// Produits — Correspond au schema backend ProductList
 export interface Product {
   id: number
   tenant_id: number
-  category_id: number | null
-  sku: string
   name: string
-  slug: string
-  description: string | null
-  short_description: string | null
+  sku: string
+  category: string
+  price_per_day_cents: number
   stock_quantity: number
-  stock_status: string
-  base_price: number
-  featured: boolean
+  available_quantity: number
+  condition: string
   is_active: boolean
   created_at: string
   updated_at: string
+  // Computed fields (backend)
+  price_per_day_euros: number
+  is_available: boolean
 }
 
+// Correspond au schema backend ProductResponse (detail)
 export interface ProductWithRelations extends Product {
-  category: Category | null
-  variations: ProductVariation[]
-  images: ProductImage[]
-  prices: ProductPrice[]
+  deposit_amount_cents: number
+  deposit_amount_euros: number
+  image_url: string | null
+  is_out_of_stock: boolean
 }
 
 export interface ProductVariation {
@@ -60,15 +61,6 @@ export interface ProductImage {
   alt_text: string | null
   display_order: number
   is_primary: boolean
-}
-
-export interface ProductPrice {
-  id: number
-  product_id: number
-  price_type: string
-  amount: number
-  valid_from: string | null
-  valid_until: string | null
 }
 
 // Bundles/Formules
@@ -122,28 +114,29 @@ export interface CategoryUpdate {
   is_active?: boolean
 }
 
+// Correspond au schema backend ProductCreate
 export interface ProductCreate {
-  category_id?: number
-  sku: string
   name: string
-  description?: string
-  short_description?: string
+  sku: string
+  category: string
+  price_per_day_cents: number
+  deposit_amount_cents?: number
   stock_quantity?: number
-  base_price: number
-  featured?: boolean
-  is_active?: boolean
+  available_quantity?: number
+  condition?: string
+  image_url?: string
 }
 
+// Correspond au schema backend ProductUpdate
 export interface ProductUpdate {
-  category_id?: number
-  sku?: string
   name?: string
-  description?: string
-  short_description?: string
+  category?: string
+  price_per_day_cents?: number
+  deposit_amount_cents?: number
   stock_quantity?: number
-  base_price?: number
-  featured?: boolean
-  is_active?: boolean
+  available_quantity?: number
+  condition?: string
+  image_url?: string
 }
 
 export interface BundleCreate {
@@ -193,6 +186,13 @@ export interface ProductImageCreate {
 
 // Stock statuses
 export type StockStatus = 'in_stock' | 'low_stock' | 'out_of_stock'
+
+/** Derive stock status from product quantities (backend ne retourne pas stock_status) */
+export function getStockStatus(product: { available_quantity: number; stock_quantity: number }): StockStatus {
+  if (product.available_quantity === 0) return 'out_of_stock'
+  if (product.available_quantity <= Math.max(product.stock_quantity * 0.2, 3)) return 'low_stock'
+  return 'in_stock'
+}
 
 // Pagination response
 export interface PaginatedProducts {

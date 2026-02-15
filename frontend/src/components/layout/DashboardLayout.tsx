@@ -4,6 +4,8 @@ import { useAuthStore } from '@/stores/authStore'
 import { authApi } from '@/api/auth'
 import { cn } from '@/lib/utils'
 import { useResponsive } from '@/hooks/useMediaQuery'
+import { PageErrorBoundary } from '@/components/errors'
+import OfflineBanner from '@/components/errors/OfflineBanner'
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -59,7 +61,7 @@ const navigation: NavGroup[] = [
   {
     name: 'Ventes', icon: ShoppingCart,
     children: [
-      { name: 'Événements', href: '/events', icon: Calendar },
+      { name: 'Réservations', href: '/events', icon: Calendar },
     ],
   },
   {
@@ -474,9 +476,14 @@ export default function DashboardLayout() {
           </div>
         </header>
 
+        {/* Offline banner */}
+        <OfflineBanner />
+
         {/* Page content */}
         <main className="p-4 lg:p-6">
-          <Outlet />
+          <PageErrorBoundary>
+            <Outlet />
+          </PageErrorBoundary>
         </main>
       </div>
 

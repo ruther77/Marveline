@@ -1,106 +1,77 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { eventsApi } from '@/api/events'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { reservationsApi } from '@/api/reservations'
 import { useMultiModal } from '@/hooks/useModal'
-import { EventFormModal, EventDeleteModal, EventDetailsModal } from './components'
-import type { EventListItem, EventStatus, EventType } from '@/types/event'
+import { ReservationFormModal, ReservationDetailsModal } from './components'
+import type { ReservationList, ReservationStatus } from '@/types/reservation'
 import {
-  Calendar,
+  CalendarCheck,
   Plus,
-  Edit,
-  Trash2,
   Eye,
+  Check,
+  XCircle,
   MoreVertical,
   ChevronLeft,
   ChevronRight,
-  TrendingUp,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { formatDate } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 
-type ModalType = 'create' | 'edit' | 'delete' | 'details'
+type ModalType = 'create' | 'edit' | 'details'
 
-const EVENT_TYPE_LABELS: Record<EventType, string> = {
-  wedding: 'Mariage',
-  baptism: 'Baptême',
-  birthday: 'Anniversaire',
-  seminar: 'Séminaire',
-  other: 'Autre',
+const STATUS_LABELS: Record<ReservationStatus, string> = {
+  draft: 'Brouillon',
+  confirmed: 'Confirmee',
+  delivered: 'Livree',
+  returned: 'Retournee',
+  cancelled: 'Annulee',
 }
 
-const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
-  pending: 'En attente',
-  confirmed: 'Confirmé',
-  in_progress: 'En cours',
-  completed: 'Terminé',
-  cancelled: 'Annulé',
+const STATUS_COLORS: Record<ReservationStatus, string> = {
+  draft: 'bg-dark-700 text-dark-300',
+  confirmed: 'bg-blue-500/10 text-blue-500',
+  delivered: 'bg-orange-500/10 text-orange-500',
+  returned: 'bg-green-500/10 text-green-500',
+  cancelled: 'bg-red-500/10 text-red-500',
 }
 
-const PAYMENT_STATUS_LABELS = {
-  unpaid: 'Non payé',
-  partial: 'Partiel',
-  paid: 'Payé',
-  refunded: 'Remboursé',
-}
-
-export default function EventsPage() {
+export default function ReservationsPage() {
   const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState<EventStatus | ''>('')
-  const [typeFilter, setTypeFilter] = useState<EventType | ''>('')
+  const [statusFilter, setStatusFilter] = useState<ReservationStatus | ''>('')
   const [openMenuId, setOpenMenuId] = useState<number | null>(null)
+  const queryClient = useQueryClient()
 
-  const modal = useMultiModal<EventListItem>()
+  const modal = useMultiModal<ReservationList>()
 
   const { data, isLoading } = useQuery({
-    queryKey: ['events', page, statusFilter, typeFilter],
+    queryKey: ['reservations', page, statusFilter],
     queryFn: () =>
-      eventsApi.getEvents({
+      reservationsApi.getReservations({
         page,
         page_size: 20,
         status: statusFilter || undefined,
-        event_type: typeFilter || undefined,
       }),
   })
 
-  const { data: stats } = useQuery({
-    queryKey: ['events-stats'],
-    queryFn: () => eventsApi.getStatistics(),
+  const confirmMutation = useMutation({
+    mutationFn: (id: number) => reservationsApi.confirmReservation(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reservations'] })
+    },
   })
 
-  const events = data?.items || []
+  const cancelMutation = useMutation({
+    mutationFn: (id: number) => reservationsApi.cancelReservation(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reservations'] })
+    },
+  })
+
+  const reservations = data?.items || []
   const totalPages = data?.total_pages || 1
 
-  const handleOpenModal = (type: ModalType, event?: EventListItem) => {
+  const handleOpenModal = (type: ModalType, reservation?: ReservationList) => {
     setOpenMenuId(null)
-    modal.open(type, event as any)
-  }
-
-  const getStatusColor = (status: EventStatus) => {
-    switch (status) {
-      case 'confirmed':
-        return 'bg-blue-500/10 text-blue-500'
-      case 'in_progress':
-        return 'bg-yellow-500/10 text-yellow-500'
-      case 'completed':
-        return 'bg-green-500/10 text-green-500'
-      case 'cancelled':
-        return 'bg-red-500/10 text-red-500'
-      default:
-        return 'bg-dark-700 text-dark-400'
-    }
-  }
-
-  const getPaymentStatusColor = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return 'text-green-500'
-      case 'partial':
-        return 'text-yellow-500'
-      case 'refunded':
-        return 'text-blue-500'
-      default:
-        return 'text-red-500'
-    }
+    modal.open(type, reservation as ReservationList)
   }
 
   return (
@@ -108,9 +79,9 @@ export default function EventsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Événements & Ventes</h1>
+          <h1 className="text-2xl font-bold">Reservations</h1>
           <p className="text-dark-400 mt-1">
-            Gérez les événements clients et locations
+            Gerez les reservations et locations
           </p>
         </div>
         <button
@@ -118,101 +89,38 @@ export default function EventsPage() {
           className="btn-primary flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
-          Nouvel événement
+          Nouvelle reservation
         </button>
       </div>
-
-      {/* Stats Cards */}
-      {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-dark-400">Total événements</p>
-                <p className="text-2xl font-bold mt-1">{stats.total_events}</p>
-              </div>
-              <Calendar className="w-8 h-8 text-primary-500" />
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-dark-400">Confirmés</p>
-                <p className="text-2xl font-bold mt-1 text-blue-500">
-                  {stats.confirmed}
-                </p>
-              </div>
-              <TrendingUp className="w-8 h-8 text-blue-500" />
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-dark-400">En cours</p>
-                <p className="text-2xl font-bold mt-1 text-yellow-500">
-                  {stats.in_progress}
-                </p>
-              </div>
-              <TrendingUp className="w-8 h-8 text-yellow-500" />
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-dark-400">Revenu total</p>
-                <p className="text-2xl font-bold mt-1 text-green-500">
-                  {Number(stats.total_revenue).toFixed(0)} €
-                </p>
-              </div>
-              <TrendingUp className="w-8 h-8 text-green-500" />
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Filters */}
       <div className="card">
         <div className="flex gap-4 flex-wrap">
           <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as EventType | '')}
-            className="input"
-          >
-            <option value="">Tous les types</option>
-            {Object.entries(EVENT_TYPE_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-
-          <select
             value={statusFilter}
-            onChange={(e) =>
-              setStatusFilter(e.target.value as EventStatus | '')
-            }
+            onChange={(e) => {
+              setStatusFilter(e.target.value as ReservationStatus | '')
+              setPage(1)
+            }}
             className="input"
           >
             <option value="">Tous les statuts</option>
-            {Object.entries(EVENT_STATUS_LABELS).map(([value, label]) => (
+            {Object.entries(STATUS_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
             ))}
           </select>
 
-          {(statusFilter || typeFilter) && (
+          {statusFilter && (
             <button
               onClick={() => {
                 setStatusFilter('')
-                setTypeFilter('')
+                setPage(1)
               }}
               className="btn-secondary"
             >
-              Réinitialiser
+              Reinitialiser
             </button>
           )}
         </div>
@@ -225,22 +133,22 @@ export default function EventsPage() {
             <thead>
               <tr className="border-b border-dark-700">
                 <th className="text-left py-3 px-4 text-sm font-medium text-dark-400">
+                  Reference
+                </th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-dark-400">
                   Client
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-dark-400">
-                  Type
+                  Date evenement
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-dark-400">
-                  Date événement
+                  Livraison / Retour
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-dark-400">
                   Statut
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-dark-400">
-                  Paiement
-                </th>
-                <th className="text-left py-3 px-4 text-sm font-medium text-dark-400">
-                  Total
+                  Montant
                 </th>
                 <th className="text-right py-3 px-4 text-sm font-medium text-dark-400">
                   Actions
@@ -254,61 +162,52 @@ export default function EventsPage() {
                     Chargement...
                   </td>
                 </tr>
-              ) : events.length === 0 ? (
+              ) : reservations.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="text-center py-8 text-dark-400">
-                    Aucun événement trouvé
+                    Aucune reservation trouvee
                   </td>
                 </tr>
               ) : (
-                events.map((event) => (
+                reservations.map((reservation) => (
                   <tr
-                    key={event.id}
+                    key={reservation.id}
                     className="border-b border-dark-700 hover:bg-dark-800/50"
                   >
                     <td className="py-3 px-4">
-                      <div>
-                        <div className="font-medium">{event.customer_name}</div>
-                        {event.customer_email && (
-                          <div className="text-sm text-dark-400">
-                            {event.customer_email}
-                          </div>
-                        )}
+                      <span className="font-mono text-sm text-primary-400">
+                        {reservation.reference}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="text-sm">
+                        Client #{reservation.customer_id}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="text-sm">
+                        {formatDate(reservation.event_date)}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="text-sm">
+                        <div>{formatDate(reservation.delivery_date)}</div>
+                        <div className="text-dark-500">{formatDate(reservation.return_date)}</div>
                       </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="text-sm">
-                        {EVENT_TYPE_LABELS[event.event_type]}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="text-sm">
-                        {formatDate(event.event_date)}
-                      </span>
                     </td>
                     <td className="py-3 px-4">
                       <span
                         className={cn(
                           'inline-flex items-center px-2 py-1 rounded text-xs',
-                          getStatusColor(event.status)
+                          STATUS_COLORS[reservation.status]
                         )}
                       >
-                        {EVENT_STATUS_LABELS[event.status]}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={cn(
-                          'text-sm font-medium',
-                          getPaymentStatusColor(event.payment_status)
-                        )}
-                      >
-                        {PAYMENT_STATUS_LABELS[event.payment_status as keyof typeof PAYMENT_STATUS_LABELS]}
+                        {STATUS_LABELS[reservation.status]}
                       </span>
                     </td>
                     <td className="py-3 px-4">
                       <span className="font-medium">
-                        {Number(event.total_amount).toFixed(2)} €
+                        {Number(reservation.total_amount_euros).toFixed(2)} EUR
                       </span>
                     </td>
                     <td className="py-3 px-4">
@@ -317,7 +216,7 @@ export default function EventsPage() {
                           <button
                             onClick={() =>
                               setOpenMenuId(
-                                openMenuId === event.id ? null : event.id
+                                openMenuId === reservation.id ? null : reservation.id
                               )
                             }
                             className="p-1 hover:bg-dark-700 rounded"
@@ -325,7 +224,7 @@ export default function EventsPage() {
                             <MoreVertical className="w-4 h-4" />
                           </button>
 
-                          {openMenuId === event.id && (
+                          {openMenuId === reservation.id && (
                             <>
                               <div
                                 className="fixed inset-0 z-10"
@@ -334,29 +233,48 @@ export default function EventsPage() {
                               <div className="absolute right-0 mt-2 w-48 bg-dark-800 border border-dark-700 rounded-lg shadow-lg z-20">
                                 <button
                                   onClick={() =>
-                                    handleOpenModal('details', event)
+                                    handleOpenModal('details', reservation)
                                   }
                                   className="w-full px-4 py-2 text-left hover:bg-dark-700 flex items-center gap-2 first:rounded-t-lg"
                                 >
                                   <Eye className="w-4 h-4" />
-                                  Voir détails
+                                  Voir details
                                 </button>
-                                <button
-                                  onClick={() => handleOpenModal('edit', event)}
-                                  className="w-full px-4 py-2 text-left hover:bg-dark-700 flex items-center gap-2"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                  Modifier
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    handleOpenModal('delete', event)
-                                  }
-                                  className="w-full px-4 py-2 text-left hover:bg-dark-700 flex items-center gap-2 text-red-500 last:rounded-b-lg"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                  Supprimer
-                                </button>
+                                {reservation.status === 'draft' && (
+                                  <>
+                                    <button
+                                      onClick={() =>
+                                        handleOpenModal('edit', reservation)
+                                      }
+                                      className="w-full px-4 py-2 text-left hover:bg-dark-700 flex items-center gap-2"
+                                    >
+                                      <CalendarCheck className="w-4 h-4" />
+                                      Modifier
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setOpenMenuId(null)
+                                        confirmMutation.mutate(reservation.id)
+                                      }}
+                                      className="w-full px-4 py-2 text-left hover:bg-dark-700 flex items-center gap-2 text-blue-400"
+                                    >
+                                      <Check className="w-4 h-4" />
+                                      Confirmer
+                                    </button>
+                                  </>
+                                )}
+                                {(reservation.status === 'draft' || reservation.status === 'confirmed') && (
+                                  <button
+                                    onClick={() => {
+                                      setOpenMenuId(null)
+                                      cancelMutation.mutate(reservation.id)
+                                    }}
+                                    className="w-full px-4 py-2 text-left hover:bg-dark-700 flex items-center gap-2 text-red-500 last:rounded-b-lg"
+                                  >
+                                    <XCircle className="w-4 h-4" />
+                                    Annuler
+                                  </button>
+                                )}
                               </div>
                             </>
                           )}
@@ -397,23 +315,17 @@ export default function EventsPage() {
       </div>
 
       {/* Modals */}
-      <EventFormModal
+      <ReservationFormModal
         isOpen={modal.isOpen('create') || modal.isOpen('edit')}
         onClose={modal.close}
-        event={modal.data}
+        reservation={modal.data}
         mode={modal.isOpen('edit') ? 'edit' : 'create'}
       />
 
-      <EventDetailsModal
+      <ReservationDetailsModal
         isOpen={modal.isOpen('details')}
         onClose={modal.close}
-        eventId={modal.data?.id}
-      />
-
-      <EventDeleteModal
-        isOpen={modal.isOpen('delete')}
-        onClose={modal.close}
-        event={modal.data}
+        reservationId={modal.data?.id}
       />
     </div>
   )

@@ -1,10 +1,16 @@
-"""Point d'entrée principal de l'API CaroCorp."""
+"""Point d'entree principal de l'API CaroCorp."""
+
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.core.config import settings
 from app.constants import PublicEndpoints
+from app.core.logging import configure_logging
 from app.core.metrics import metrics_endpoint
 from app.api.v1 import api_router
 from app.middleware.security import (
@@ -13,77 +19,105 @@ from app.middleware.security import (
     RateLimitMiddleware,
 )
 from app.middleware.audit import AuditMiddleware
+from app.middleware.exception_handler import register_exception_handlers
 from app.middleware.metrics import MetricsMiddleware
+from app.middleware.request_context import RequestContextMiddleware
+from app.middleware.timing import TimingMiddleware
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan handler — startup et shutdown (fix M14)."""
+    configure_logging(
+        level="DEBUG" if settings.DEBUG else "INFO",
+        json_format=not settings.DEBUG,
+    )
+    logger.info(
+        "Starting %s v%s (debug=%s)",
+        settings.APP_NAME,
+        settings.APP_VERSION,
+        settings.DEBUG,
+    )
+    yield
+    logger.info("Shutting down %s", settings.APP_NAME)
 
 
 def create_application() -> FastAPI:
-    """Factory pour créer l'application FastAPI."""
+    """Factory pour creer l'application FastAPI.
 
+    Ordre d'execution des middlewares (LIFO — dernier ajoute = premier execute) :
+        Request ->
+        MetricsMiddleware          (outermost — capture tout, y compris 429)
+        TimingMiddleware           (mesure duree totale)
+        TrustedHostMiddleware      (bloque hosts non autorises)
+        CORSMiddleware             (preflight CORS)
+        CSRFProtectionMiddleware   (validation CSRF)
+        SecurityHeadersMiddleware  (ajout headers securite)
+        RateLimitMiddleware        (rate limiting)
+        GZipMiddleware             (compression reponses)
+        RequestContextMiddleware   (X-Request-ID, JWT claims, ContextVars)
+        AuditMiddleware            (innermost — audit actions)
+        -> Exception Handlers -> Routes
+    """
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
-        description="API de gestion de location de vaisselle et accessoires pour événements",
+        description="API de gestion de location de vaisselle et accessoires pour evenements",
         docs_url=PublicEndpoints.DOCS if settings.DEBUG else None,
         redoc_url=PublicEndpoints.REDOC if settings.DEBUG else None,
+        lifespan=lifespan,
     )
 
-    # Security Headers Middleware
-    app.add_middleware(SecurityHeadersMiddleware)
+    # --- Exception handlers (s'appliquent apres les middlewares) ---
+    register_exception_handlers(app)
 
-    # CORS Middleware
+    # --- Middlewares (LIFO : dernier ajoute = premier execute) ---
+    # Ordre d'ajout : innermost (premier) → outermost (dernier)
+    # Execution requete : outermost → ... → innermost → handler
+    # Execution reponse : handler → innermost → ... → outermost
+
+    # Innermost — proche du handler
+    app.add_middleware(AuditMiddleware)
+    app.add_middleware(RequestContextMiddleware)
+    app.add_middleware(GZipMiddleware, minimum_size=settings.GZIP_MIN_SIZE)
+
+    # Couche securite
+    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(CSRFProtectionMiddleware)
+
+    # Couche reseau
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
         allow_headers=["*"],
+        expose_headers=[
+            "X-Request-ID",
+            "X-Response-Time",
+            "X-RateLimit-Limit",
+            "X-RateLimit-Remaining",
+            "X-RateLimit-Reset",
+        ],
     )
-
-    # Trusted Host Middleware (protection contre Host Header Injection)
-    # Note: "testserver" est ajouté pour compatibilité avec TestClient
-    allowed_hosts = ["localhost", "127.0.0.1", "*.carocorp.local", "testserver"]
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=allowed_hosts,
+        allowed_hosts=["localhost", "127.0.0.1", "*.carocorp.local", "testserver"],
     )
 
-    # CSRF Protection Middleware
-    app.add_middleware(CSRFProtectionMiddleware)
-
-    # Rate Limiting Middleware
-    app.add_middleware(RateLimitMiddleware)
-
-    # Audit Middleware (trace toutes les actions authentifiées)
-    app.add_middleware(AuditMiddleware)
-
-    # Metrics Middleware (DERNIER ajouté = PREMIER exécuté en LIFO, capture TOUTES les responses incluant 429)
+    # Outermost — capturent TOUTES les responses (y compris 429 rate limit)
+    app.add_middleware(TimingMiddleware)
     app.add_middleware(MetricsMiddleware)
 
-    # Routes API v1 (inclut /api/v1/health/*, /api/v1/auth/*, etc.)
+    # --- Routes ---
     app.include_router(api_router, prefix="/api/v1")
 
-    # Endpoint Prometheus metrics (scraping externe)
     @app.get("/metrics")
     def metrics():
-        """Endpoint Prometheus metrics.
-
-        Exposition métriques RED (Rate, Errors, Duration) pour monitoring production.
-
-        Returns:
-            Response text/plain format Prometheus
-
-        Example curl:
-            $ curl http://localhost:8001/metrics
-            # HELP http_requests_total Total HTTP requests
-            # TYPE http_requests_total counter
-            http_requests_total{method="GET",path="/api/v1/products",status="200"} 42.0
-            ...
-
-        Notes:
-            - Appelé toutes les 15s par Prometheus (scrape_interval)
-            - Pas d'authentification requise (endpoint public)
-            - Compression gzip automatique si supportée
-        """
+        """Endpoint Prometheus metrics (scraping externe, public)."""
         return metrics_endpoint()
 
     return app

@@ -2,11 +2,11 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { productsApi } from '@/api/products'
 import { categoriesApi } from '@/api/categories'
-import { formatDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import { useMultiModal } from '@/hooks/useModal'
 import { ProductFormModal, ProductDeleteModal } from './components'
 import type { Product } from '@/types/product'
+import { getStockStatus } from '@/types/product'
 import {
   Search,
   Package,
@@ -15,7 +15,6 @@ import {
   Edit,
   Trash2,
   Plus,
-  Star,
   MoreVertical,
 } from 'lucide-react'
 
@@ -24,21 +23,18 @@ type ModalType = 'create' | 'edit' | 'delete'
 export default function ProductsPage() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState<number | null>(null)
-  const [featuredFilter, setFeaturedFilter] = useState<boolean | null>(null)
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [openMenuId, setOpenMenuId] = useState<number | null>(null)
 
   const modal = useMultiModal<Product>()
 
   const { data, isLoading } = useQuery({
-    queryKey: ['products', page, categoryFilter, search, featuredFilter],
+    queryKey: ['products', page, categoryFilter, search],
     queryFn: () =>
       productsApi.getProducts({
         page,
         page_size: 20,
-        category_id: categoryFilter || undefined,
-        search: search || undefined,
-        featured: featuredFilter || undefined,
+        category: categoryFilter || undefined,
         active_only: true,
       }),
   })
@@ -50,6 +46,15 @@ export default function ProductsPage() {
 
   const products = data?.items || []
   const totalPages = data?.total_pages || 1
+
+  // Filtrer par recherche côté client (backend n'a pas de param search)
+  const filteredProducts = search
+    ? products.filter(
+        (p) =>
+          p.name.toLowerCase().includes(search.toLowerCase()) ||
+          p.sku.toLowerCase().includes(search.toLowerCase())
+      )
+    : products
 
   const handleOpenModal = (type: ModalType, product?: Product) => {
     setOpenMenuId(null)
@@ -118,43 +123,22 @@ export default function ProductsPage() {
           <select
             value={categoryFilter || ''}
             onChange={(e) =>
-              setCategoryFilter(e.target.value ? Number(e.target.value) : null)
+              setCategoryFilter(e.target.value || null)
             }
             className="input"
           >
             <option value="">Toutes les catégories</option>
             {categories?.map((cat) => (
-              <option key={cat.id} value={cat.id}>
+              <option key={cat.id} value={cat.slug}>
                 {cat.name}
               </option>
             ))}
           </select>
 
-          <select
-            value={
-              featuredFilter === null
-                ? ''
-                : featuredFilter
-                  ? 'true'
-                  : 'false'
-            }
-            onChange={(e) =>
-              setFeaturedFilter(
-                e.target.value === '' ? null : e.target.value === 'true'
-              )
-            }
-            className="input"
-          >
-            <option value="">Tous les produits</option>
-            <option value="true">En vedette uniquement</option>
-            <option value="false">Non vedette</option>
-          </select>
-
-          {(categoryFilter || featuredFilter !== null || search) && (
+          {(categoryFilter || search) && (
             <button
               onClick={() => {
                 setCategoryFilter(null)
-                setFeaturedFilter(null)
                 setSearch('')
               }}
               className="btn-secondary"
@@ -184,7 +168,7 @@ export default function ProductsPage() {
                   Stock
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-dark-400">
-                  Prix
+                  Prix/jour
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-dark-400">
                   Statut
@@ -201,121 +185,112 @@ export default function ProductsPage() {
                     Chargement...
                   </td>
                 </tr>
-              ) : products.length === 0 ? (
+              ) : filteredProducts.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="text-center py-8 text-dark-400">
                     Aucun produit trouvé
                   </td>
                 </tr>
               ) : (
-                products.map((product) => (
-                  <tr
-                    key={product.id}
-                    className="border-b border-dark-700 hover:bg-dark-800/50"
-                  >
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        {product.featured && (
-                          <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                        )}
-                        <div>
-                          <div className="font-medium">{product.name}</div>
-                          {product.short_description && (
-                            <div className="text-sm text-dark-400 line-clamp-1">
-                              {product.short_description}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="font-mono text-sm">{product.sku}</span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="text-sm text-dark-300">
-                        {categories?.find((c) => c.id === product.category_id)
-                          ?.name || '-'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">
-                          {product.stock_quantity}
+                filteredProducts.map((product) => {
+                  const stockStatus = getStockStatus(product)
+                  return (
+                    <tr
+                      key={product.id}
+                      className="border-b border-dark-700 hover:bg-dark-800/50"
+                    >
+                      <td className="py-3 px-4">
+                        <div className="font-medium">{product.name}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="font-mono text-sm">{product.sku}</span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="text-sm text-dark-300">
+                          {categories?.find((c) => c.slug === product.category)
+                            ?.name || product.category}
                         </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">
+                            {product.available_quantity}/{product.stock_quantity}
+                          </span>
+                          <span
+                            className={cn(
+                              'text-sm',
+                              getStockStatusColor(stockStatus)
+                            )}
+                          >
+                            {getStockStatusLabel(stockStatus)}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="font-medium">
+                          {product.price_per_day_euros.toFixed(2)} €
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
                         <span
                           className={cn(
-                            'text-sm',
-                            getStockStatusColor(product.stock_status)
+                            'inline-flex items-center px-2 py-1 rounded text-xs',
+                            product.is_active
+                              ? 'bg-green-500/10 text-green-500'
+                              : 'bg-dark-700 text-dark-400'
                           )}
                         >
-                          {getStockStatusLabel(product.stock_status)}
+                          {product.is_active ? 'Actif' : 'Inactif'}
                         </span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="font-medium">
-                        {Number(product.base_price).toFixed(2)} €
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={cn(
-                          'inline-flex items-center px-2 py-1 rounded text-xs',
-                          product.is_active
-                            ? 'bg-green-500/10 text-green-500'
-                            : 'bg-dark-700 text-dark-400'
-                        )}
-                      >
-                        {product.is_active ? 'Actif' : 'Inactif'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <div className="relative">
-                          <button
-                            onClick={() =>
-                              setOpenMenuId(
-                                openMenuId === product.id ? null : product.id
-                              )
-                            }
-                            className="p-1 hover:bg-dark-700 rounded"
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="relative">
+                            <button
+                              onClick={() =>
+                                setOpenMenuId(
+                                  openMenuId === product.id ? null : product.id
+                                )
+                              }
+                              className="p-1 hover:bg-dark-700 rounded"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
 
-                          {openMenuId === product.id && (
-                            <>
-                              <div
-                                className="fixed inset-0 z-10"
-                                onClick={() => setOpenMenuId(null)}
-                              />
-                              <div className="absolute right-0 mt-2 w-48 bg-dark-800 border border-dark-700 rounded-lg shadow-lg z-20">
-                                <button
-                                  onClick={() =>
-                                    handleOpenModal('edit', product)
-                                  }
-                                  className="w-full px-4 py-2 text-left hover:bg-dark-700 flex items-center gap-2 first:rounded-t-lg"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                  Modifier
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    handleOpenModal('delete', product)
-                                  }
-                                  className="w-full px-4 py-2 text-left hover:bg-dark-700 flex items-center gap-2 text-red-500 last:rounded-b-lg"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                  Supprimer
-                                </button>
-                              </div>
-                            </>
-                          )}
+                            {openMenuId === product.id && (
+                              <>
+                                <div
+                                  className="fixed inset-0 z-10"
+                                  onClick={() => setOpenMenuId(null)}
+                                />
+                                <div className="absolute right-0 mt-2 w-48 bg-dark-800 border border-dark-700 rounded-lg shadow-lg z-20">
+                                  <button
+                                    onClick={() =>
+                                      handleOpenModal('edit', product)
+                                    }
+                                    className="w-full px-4 py-2 text-left hover:bg-dark-700 flex items-center gap-2 first:rounded-t-lg"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                    Modifier
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handleOpenModal('delete', product)
+                                    }
+                                    className="w-full px-4 py-2 text-left hover:bg-dark-700 flex items-center gap-2 text-red-500 last:rounded-b-lg"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                    Supprimer
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>

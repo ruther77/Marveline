@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.redis import redis_client
 from app.core.security import decode_token
 from app.core.rate_limiter import RateLimiter
+from app.core.rate_limit_utils import determine_rate_limit_scope, get_user_id_from_jwt
 from app.constants import AuthEndpoints, ErrorMessages, HealthEndpoints, HTTPMethods, Limits, PublicEndpoints, RateLimitScope, SecurityHeaders
 
 
@@ -29,6 +30,10 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Skip CSRF pour les endpoints publics (docs, health, auth)
+        # Note B2: LOGOUT et MFA_VERIFY sont exemptés de CSRF car ils requièrent un Bearer
+        # token dans Authorization. Les Bearer tokens ne sont pas envoyés automatiquement
+        # par le navigateur (contrairement aux cookies), ce qui constitue déjà une protection
+        # CSRF. Un attaquant ne peut pas forcer un logout sans posséder l'access token.
         if request.url.path in {
             PublicEndpoints.HEALTH,
             PublicEndpoints.DOCS,
@@ -36,6 +41,8 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
             PublicEndpoints.OPENAPI,
             AuthEndpoints.LOGIN,
             AuthEndpoints.REFRESH,
+            AuthEndpoints.LOGOUT,
+            AuthEndpoints.MFA_VERIFY,
         }:
             return await call_next(request)
 
@@ -88,13 +95,11 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         try:
             token = authorization.replace(SecurityHeaders.BEARER_PREFIX, "")
             payload = decode_token(token)
-            if not payload:
-                return None
 
             # JWT spec: "sub" est une string, convertir en int
             user_id_str = payload.get("sub")
             return int(user_id_str) if user_id_str else None
-        except (ValueError, TypeError):
+        except Exception:
             return None
 
     def _validate_csrf_token(self, user_id: int, token: str) -> bool:
@@ -114,12 +119,15 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
         Security:
             - Pas d'exception levée (silent fail)
-            - Timing attack protection (constant time check)
+            - Timing-safe: Redis EXISTS est O(1). Le check longueur ne fuit pas d'info
+              utile car les tokens CSRF ont une longueur constante (secrets.token_urlsafe(32) = 43 chars).
+              secrets.compare_digest() n'est pas applicable ici car on fait un lookup par clé,
+              pas une comparaison de valeurs.
         """
         if not token or len(token) < Limits.CSRF_TOKEN_MIN_LENGTH:
             return False
 
-        # Valider avec Redis
+        # Valider avec Redis (key lookup = timing-safe)
         return redis_client.validate_csrf_token(user_id, token)
 
     @staticmethod
@@ -222,65 +230,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return forwarded_for.split(",")[0].strip()
         return request.client.host if request.client else "unknown"
 
-    def _get_user_id(self, request: Request) -> Optional[int]:
-        """Extrait le user_id depuis le JWT token si présent.
-
-        Args:
-            request: Requête FastAPI
-
-        Returns:
-            User ID ou None si non authentifié
-
-        Notes:
-            - Parse header Authorization: Bearer <token>
-            - Décode JWT pour extraire 'sub' claim
-            - Retourne None si token absent/invalide
-        """
-        auth_header = request.headers.get(SecurityHeaders.AUTHORIZATION)
-        if not auth_header or not auth_header.startswith(SecurityHeaders.BEARER_PREFIX):
-            return None
-
-        try:
-            token = auth_header.split(" ")[1]
-            payload = decode_token(token)
-            return payload.get("sub")  # user_id
-        except Exception:
-            return None
-
-    def _determine_scope(self, request: Request) -> str:
-        """Détermine le scope de rate limit selon la requête.
-
-        Priorités (ordre de vérification) :
-        1. Login endpoint → "login" (5 req/min strict)
-        2. User authentifié → "user_authenticated" (200 req/min)
-        3. Mutations (POST/PUT/DELETE) → "mutations" (100 req/min)
-        4. Reads (GET) → "reads" (300 req/min)
-
-        Args:
-            request: Requête FastAPI
-
-        Returns:
-            Nom du scope (string)
-
-        Notes:
-            - Global IP toujours vérifié en amont (pas retourné ici)
-            - Login scope = endpoint exact match
-            - User scope = JWT présent et valide
-        """
-        # Scope login (brute force protection)
-        if request.url.path == AuthEndpoints.LOGIN:
-            return RateLimitScope.LOGIN
-
-        # Scope user authentifié (quota utilisateur)
-        if self._get_user_id(request) is not None:
-            return RateLimitScope.USER_AUTHENTICATED
-
-        # Scope mutations (write-heavy abuse)
-        if request.method in HTTPMethods.UNSAFE_METHODS:
-            return RateLimitScope.MUTATIONS
-
-        # Scope reads (read-heavy abuse)
-        return RateLimitScope.READS
 
     async def dispatch(self, request: Request, call_next: Callable):
         """Vérifie les rate limits multi-niveaux avant d'autoriser la requête.
@@ -325,7 +274,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             )
 
         # ===== Niveau 2 : Scope spécifique =====
-        scope = self._determine_scope(request)
+        scope = determine_rate_limit_scope(request)
 
         # Identifier pour le scope
         if scope == RateLimitScope.LOGIN:
@@ -333,7 +282,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             identifier = client_ip
         elif scope == RateLimitScope.USER_AUTHENTICATED:
             # Pour user, rate limit par user_id
-            user_id = self._get_user_id(request)
+            user_id = get_user_id_from_jwt(request)
             identifier = str(user_id) if user_id else client_ip
         else:
             # Pour mutations/reads, rate limit par IP

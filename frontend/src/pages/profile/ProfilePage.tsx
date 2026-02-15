@@ -3,8 +3,9 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useAuthStore } from '@/stores/authStore'
-import { Loader2, Check } from 'lucide-react'
+import { Loader2, Check, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import apiClient from '@/api/client'
 
 const profileSchema = z.object({
   first_name: z.string().min(2, 'Prénom trop court'),
@@ -17,6 +18,7 @@ type ProfileForm = z.infer<typeof profileSchema>
 export default function ProfilePage() {
   const { user } = useAuthStore()
   const [success, setSuccess] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const {
     register,
@@ -32,10 +34,15 @@ export default function ProfilePage() {
   })
 
   const onSubmit = async (data: ProfileForm) => {
-    // TODO: Implement profile update API
-    console.log('Update profile:', data)
-    setSuccess(true)
-    setTimeout(() => setSuccess(false), 3000)
+    setError(null)
+    try {
+      await apiClient.put('/users/me', data)
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erreur lors de la mise à jour du profil'
+      setError(message)
+    }
   }
 
   return (
@@ -80,6 +87,12 @@ export default function ProfilePage() {
             <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-sm">
               <Check className="w-4 h-4" />
               Profil mis à jour avec succès
+            </div>
+          )}
+          {error && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+              <AlertCircle className="w-4 h-4" />
+              {error}
             </div>
           )}
 

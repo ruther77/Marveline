@@ -1,0 +1,147 @@
+"""Endpoints CRUD pour les categories de produits."""
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+from app.core.database import get_db
+from app.core.deps import get_current_user, require_role
+from app.models.user import User
+from app.services.category import CategoryService
+from app.repositories.category import CategoryRepository
+from app.schemas.category import (
+    CategoryCreate,
+    CategoryUpdate,
+    CategoryResponse,
+    CategoryTreeNode,
+)
+from app.schemas.common import PaginationParams, PaginatedResponse
+from app.constants import ErrorMessages, UserRole
+
+
+router = APIRouter(prefix="/categories", tags=["Categories"])
+
+
+@router.get("", response_model=PaginatedResponse[CategoryResponse])
+def list_categories(
+    pagination: PaginationParams = Depends(),
+    active_only: bool = Query(True, description="Filtrer categories actives uniquement"),
+    parent_id: Optional[int] = Query(None, description="Filtrer par categorie parente"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PaginatedResponse[CategoryResponse]:
+    """Liste les categories avec pagination."""
+    repo = CategoryRepository(db)
+
+    filters = {}
+    if parent_id is not None:
+        filters["parent_id"] = parent_id
+
+    categories, total = repo.list(
+        tenant_id=current_user.tenant_id,
+        skip=pagination.skip,
+        limit=pagination.limit,
+        filters=filters,
+        include_inactive=not active_only,
+        order_by="display_order",
+    )
+
+    return PaginatedResponse(
+        items=[CategoryResponse.model_validate(c) for c in categories],
+        total=total,
+        skip=pagination.skip,
+        limit=pagination.limit,
+    )
+
+
+@router.get("/tree", response_model=list[CategoryTreeNode])
+def get_category_tree(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[CategoryTreeNode]:
+    """Retourne l'arbre hierarchique des categories."""
+    service = CategoryService(db)
+    return service.get_tree(current_user.tenant_id)
+
+
+@router.get("/{category_id}", response_model=CategoryResponse)
+def get_category(
+    category_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CategoryResponse:
+    """Recupere les details d'une categorie."""
+    repo = CategoryRepository(db)
+    category = repo.get_by_id(category_id, current_user.tenant_id)
+    if not category:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ErrorMessages.CATEGORY_NOT_FOUND,
+        )
+    return CategoryResponse.model_validate(category)
+
+
+@router.post("", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
+def create_category(
+    data: CategoryCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+) -> CategoryResponse:
+    """Cree une nouvelle categorie (admin uniquement)."""
+    service = CategoryService(db)
+    try:
+        category = service.create_category(data, current_user.tenant_id)
+        db.commit()
+        db.refresh(category)
+        return CategoryResponse.model_validate(category)
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating category: {str(e)}",
+        )
+
+
+@router.patch("/{category_id}", response_model=CategoryResponse)
+def update_category(
+    category_id: int,
+    data: CategoryUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+) -> CategoryResponse:
+    """Met a jour une categorie (admin uniquement)."""
+    service = CategoryService(db)
+    try:
+        category = service.update_category(category_id, data, current_user.tenant_id)
+        db.commit()
+        db.refresh(category)
+        return CategoryResponse.model_validate(category)
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating category: {str(e)}",
+        )
+
+
+@router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_category(
+    category_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
+) -> None:
+    """Soft delete une categorie (admin uniquement)."""
+    service = CategoryService(db)
+    try:
+        service.delete_category(category_id, current_user.tenant_id)
+        db.commit()
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting category: {str(e)}",
+        )

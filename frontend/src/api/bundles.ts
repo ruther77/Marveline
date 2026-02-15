@@ -10,20 +10,31 @@ import type {
 } from '../types/product'
 
 export const bundlesApi = {
+  // List — Backend retourne PaginatedResponse: { items: [...], total, skip, limit }
   getBundles: async (params?: {
     page?: number
     page_size?: number
     featured?: boolean
     active_only?: boolean
   }): Promise<PaginatedBundles> => {
-    const { data } = await apiClient.get('/bundles', { params })
-    // Backend retourne { success, data, pagination }
+    const pageSize = params?.page_size || 20
+    const page = params?.page || 1
+    const backendParams: Record<string, unknown> = {
+      skip: (page - 1) * pageSize,
+      limit: pageSize,
+    }
+    if (params?.featured !== undefined) backendParams.featured = params.featured
+    if (params?.active_only !== undefined) backendParams.is_active = params.active_only
+
+    const { data } = await apiClient.get('/bundles', { params: backendParams })
+    const items = Array.isArray(data.items) ? data.items : []
+    const total = data.total ?? 0
     return {
-      items: data.data || [],
-      total: data.pagination?.total_items || 0,
-      page: data.pagination?.page || 1,
-      page_size: data.pagination?.page_size || 20,
-      total_pages: data.pagination?.total_pages || 0,
+      items,
+      total,
+      page,
+      page_size: pageSize,
+      total_pages: Math.ceil(total / pageSize) || 0,
     }
   },
 

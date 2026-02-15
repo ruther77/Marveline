@@ -24,7 +24,7 @@ def test_base_repository_get_by_id_success(test_db):
         tenant_id=1,
         name="Test Product",
         sku="TEST-SKU-001",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -50,7 +50,7 @@ def test_base_repository_get_by_id_wrong_tenant(test_db):
         tenant_id=1,
         name="Test Product",
         sku="TEST-SKU-002",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -74,7 +74,7 @@ def test_base_repository_get_by_id_inactive_excluded(test_db):
         tenant_id=1,
         name="Inactive Product",
         sku="TEST-SKU-003",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -97,7 +97,7 @@ def test_base_repository_get_by_id_inactive_included(test_db):
         tenant_id=1,
         name="Inactive Product",
         sku="TEST-SKU-004",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -123,7 +123,7 @@ def test_base_repository_list_pagination(test_db):
             tenant_id=1,
             name=f"Product {i}",
             sku=f"SKU-{i:03d}",
-            category=ProductCategory.AUTRE,
+            category=ProductCategory.MOBILIER,
             price_per_day=1000,
             deposit_amount=2000,
             stock_quantity=10,
@@ -153,7 +153,7 @@ def test_base_repository_create_requires_tenant_id(test_db):
         # tenant_id manquant intentionnellement
         name="No Tenant Product",
         sku="NO-TENANT-SKU",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -174,7 +174,7 @@ def test_base_repository_update_success(test_db):
         tenant_id=1,
         name="Original Name",
         sku="UPDATE-TEST",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -199,7 +199,7 @@ def test_base_repository_soft_delete_sets_inactive(test_db):
         tenant_id=1,
         name="To Delete",
         sku="DELETE-TEST",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -224,7 +224,7 @@ def test_base_repository_soft_delete_wrong_tenant(test_db):
         tenant_id=1,
         name="Protected Product",
         sku="PROTECTED-SKU",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -253,7 +253,7 @@ def test_product_repository_get_by_sku_success(test_db):
         tenant_id=1,
         name="Unique SKU Product",
         sku="UNIQUE-SKU-001",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -274,7 +274,7 @@ def test_product_repository_get_by_sku_success(test_db):
 def test_product_repository_list_by_category(test_db):
     """Test list_by_category filtre correctement."""
     # Créer produits de différentes catégories (utiliser vraies valeurs enum)
-    categories = [ProductCategory.ASSIETTE, ProductCategory.ASSIETTE, ProductCategory.VERRE, ProductCategory.VERRE, ProductCategory.NAPPE]
+    categories = [ProductCategory.ASSIETTES, ProductCategory.ASSIETTES, ProductCategory.VERRES, ProductCategory.VERRES, ProductCategory.NAPPES]
     for idx, cat in enumerate(categories):
         product = Product(
             tenant_id=1,
@@ -292,11 +292,11 @@ def test_product_repository_list_by_category(test_db):
     test_db.commit()
 
     repo = ProductRepository(test_db)
-    assiettes, total = repo.list(tenant_id=1, filters={"category": ProductCategory.ASSIETTE})
+    assiettes, total = repo.list(tenant_id=1, filters={"category": ProductCategory.ASSIETTES})
 
     assert len(assiettes) == 2
     assert total == 2
-    assert all(p.category == ProductCategory.ASSIETTE for p in assiettes)
+    assert all(p.category == ProductCategory.ASSIETTES for p in assiettes)
 
 
 def test_product_repository_check_availability_success(test_db):
@@ -305,7 +305,7 @@ def test_product_repository_check_availability_success(test_db):
         tenant_id=1,
         name="Available Product",
         sku="AVAILABLE-SKU",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -328,7 +328,7 @@ def test_product_repository_check_availability_insufficient(test_db):
         tenant_id=1,
         name="Low Stock Product",
         sku="LOW-STOCK-SKU",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -351,7 +351,7 @@ def test_product_repository_reserve_stock_success(test_db):
         tenant_id=1,
         name="Reserve Product",
         sku="RESERVE-SKU",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -376,7 +376,7 @@ def test_product_repository_reserve_stock_insufficient(test_db):
         tenant_id=1,
         name="Low Stock Product",
         sku="LOW-STOCK-2",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -401,7 +401,7 @@ def test_product_repository_release_stock_success(test_db):
         tenant_id=1,
         name="Release Product",
         sku="RELEASE-SKU",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,

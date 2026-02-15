@@ -115,8 +115,9 @@ def test_auth_service_login_email_case_insensitive(test_db):
 
 
 def test_refresh_access_token_valid(test_db):
-    """Test refresh d'un token valide génère nouveau access token."""
-    from app.core.security import create_refresh_token, decode_token
+    """Test refresh d'un token valide génère nouveau access + refresh token (rotation)."""
+    from app.core.security import decode_token
+    from app.services.token import token_service
 
     user = User(
         tenant_id=1,
@@ -130,18 +131,23 @@ def test_refresh_access_token_valid(test_db):
     test_db.commit()
     test_db.refresh(user)
 
-    # Créer refresh token valide
-    refresh_token = create_refresh_token({"sub": user.id, "tenant_id": user.tenant_id})
+    # Émettre tokens via TokenService (whitelist refresh JTI)
+    _, refresh_token, _ = token_service.issue_tokens(
+        user_id=user.id, tenant_id=user.tenant_id,
+        email=user.email, role=user.role,
+    )
 
     service = AuthService(test_db)
-    new_access_token, expires_in = service.refresh_access_token(refresh_token)
+    new_access_token, new_refresh_token, expires_in = service.refresh_access_token(refresh_token)
 
     assert new_access_token is not None
+    assert new_refresh_token is not None
+    assert new_refresh_token != refresh_token  # Rotation: nouveau refresh
     assert expires_in == 30 * 60
 
     # Vérifier claims du nouveau access token
     payload = decode_token(new_access_token)
-    assert int(payload["sub"]) == user.id  # JWT claims sont strings
+    assert int(payload["sub"]) == user.id
     assert int(payload["tenant_id"]) == user.tenant_id
     assert payload["email"] == user.email
     assert payload["role"] == user.role
@@ -403,7 +409,7 @@ def test_product_service_reserve_stock_success(test_db):
         tenant_id=1,
         name="Test Product",
         sku="TEST-SKU",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -428,7 +434,7 @@ def test_product_service_reserve_stock_insufficient(test_db):
         tenant_id=1,
         name="Low Stock",
         sku="LOW-SKU",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -464,7 +470,7 @@ def test_product_service_release_stock_success(test_db):
         tenant_id=1,
         name="Reserved Product",
         sku="RESERVED-SKU",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=1000,
         deposit_amount=2000,
         stock_quantity=10,
@@ -505,7 +511,7 @@ def test_reservation_service_confirm_success(test_db):
         tenant_id=1,
         name="Table",
         sku="TABLE-001",
-        category=ProductCategory.NAPPE,
+        category=ProductCategory.NAPPES,
         price_per_day=2000,
         deposit_amount=5000,
         stock_quantity=10,
@@ -610,7 +616,7 @@ def test_reservation_service_cancel_releases_stock(test_db):
         tenant_id=1,
         name="Chair",
         sku="CHAIR-001",
-        category="autre",
+        category="mobilier",
         price_per_day=500,
         deposit_amount=1000,
         stock_quantity=50,

@@ -49,11 +49,8 @@ class Limits:
     """Fenêtre de temps pour le rate limiting (1 minute)."""
 
     # ─────────────────────────────────────────────────────────────────────
-    # Sessions & Tokens
+    # Tokens
     # ─────────────────────────────────────────────────────────────────────
-
-    SESSION_TIMEOUT_SECONDS = 3600
-    """Timeout de session (1 heure)."""
 
     ACCESS_TOKEN_EXPIRE_MINUTES = 30
     """Durée de validité d'un access token JWT."""

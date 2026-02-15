@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.coverage
+coverage.xml
+htmlcov/
+.venv/
+.venv-mcp/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Documentation
+docs/
+*.md
+LICENSE
+
+# Tests (not needed in production image)
+tests/
+
+# Frontend (built separately)
+frontend/
+
+# Docker
+docker-compose*.yml
+Dockerfile
+
+# Misc
+.context/
+.claude/
+scripts/

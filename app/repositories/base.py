@@ -2,6 +2,7 @@
 from typing import Generic, TypeVar, Type, Optional, Any
 from sqlalchemy import select, func, and_
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.util import identity_key
 from app.models.base import Base, TenantMixin, SoftDeleteMixin
 from app.services.cache import cache_service, cache_invalidate
 from app.core.metrics import cache_hits_total, cache_misses_total, cache_hit_rate
@@ -164,16 +165,28 @@ class BaseRepository(Generic[T]):
         cached_data = cache_service.get(cache_key)
 
         if cached_data is not None:
-            # Cache HIT → désérialiser dict → ORM instance
+            # Cache HIT
             entity_name = self.model_class.__name__.lower()
             cache_hits_total.labels(entity=entity_name).inc()
             self._update_cache_hit_rate(entity_name)
 
-            # Reconstruire instance ORM depuis dict
-            instance = self.model_class.from_dict(cached_data)
+            # Vérifier si l'instance est déjà dans la session (identity map).
+            # Si oui, retourner l'instance en session — elle a l'état le plus récent
+            # (avec d'éventuelles modifications dirty non encore flush).
+            # merge() écraserait ces modifications avec les données stales du cache.
+            key = identity_key(class_=self.model_class, ident=(id,))
+            existing = self.db.identity_map.get(key)
+            if existing is not None:
+                # Valider isolation tenant
+                if self._has_tenant_mixin() and existing.tenant_id != tenant_id:
+                    return None
+                # Valider soft delete
+                if not include_inactive and self._has_soft_delete_mixin() and not existing.is_active:
+                    return None
+                return existing
 
-            # Attacher l'instance à la session (nécessaire pour mutations UPDATE/DELETE)
-            # merge() évite les conflits si l'instance existe déjà dans la session
+            # Pas en session → reconstruire depuis cache et attacher
+            instance = self.model_class.from_dict(cached_data)
             instance = self.db.merge(instance)
             return instance
 

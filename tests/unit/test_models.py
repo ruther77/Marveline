@@ -45,7 +45,7 @@ class TestCustomerModel:
         """Test contrainte CHECK customer_type valide."""
         customer = Customer(
             tenant_id=1,
-            customer_type=ProductCategory.AUTRE,  # Invalide
+            customer_type=ProductCategory.MOBILIER,  # Invalide
             company_name="Test Company",  # Fournir company_name pour éviter check_data_coherence
             email="test@example.com"
         )
@@ -172,7 +172,7 @@ class TestProductModel:
             tenant_id=1,
             name="Assiette plate blanche 28cm",
             sku="ASS-PLATE-28-WHI",
-            category=ProductCategory.ASSIETTE,
+            category=ProductCategory.ASSIETTES,
             price_per_day=250,  # 2.50€
             deposit_amount=500,  # 5€
             stock_quantity=100,
@@ -208,7 +208,7 @@ class TestProductModel:
             tenant_id=1,
             name="Test Product",
             sku="TEST-002",
-            category=ProductCategory.VERRE,
+            category=ProductCategory.VERRES,
             price_per_day=100,
             stock_quantity=50,
             available_quantity=60  # > stock_quantity → erreur
@@ -224,7 +224,7 @@ class TestProductModel:
             tenant_id=1,
             name="Test",
             sku="TEST-003",
-            category=ProductCategory.COUVERT,
+            category=ProductCategory.COUVERTS,
             price_per_day=-100,  # Négatif → erreur
             stock_quantity=10,
             available_quantity=10
@@ -240,7 +240,7 @@ class TestProductModel:
             tenant_id=1,
             name="Produit 1",
             sku="UNIQUE-SKU",
-            category=ProductCategory.NAPPE,
+            category=ProductCategory.NAPPES,
             price_per_day=100,
             stock_quantity=10,
             available_quantity=10
@@ -253,7 +253,7 @@ class TestProductModel:
             tenant_id=1,
             name="Produit 2",
             sku="UNIQUE-SKU",
-            category=ProductCategory.DECO,
+            category=ProductCategory.DECORATIONS,
             price_per_day=200,
             stock_quantity=5,
             available_quantity=5
@@ -373,7 +373,7 @@ class TestReservationLineModel:
             tenant_id=1,
             name="Verre à vin",
             sku="VERRE-VIN-001",
-            category=ProductCategory.VERRE,
+            category=ProductCategory.VERRES,
             price_per_day=150,
             stock_quantity=200,
             available_quantity=200
@@ -425,7 +425,7 @@ class TestReservationLineModel:
             tenant_id=1,
             name="Test Product",
             sku="QTY-001",
-            category=ProductCategory.AUTRE,
+            category=ProductCategory.MOBILIER,
             price_per_day=100,
             stock_quantity=10,
             available_quantity=10

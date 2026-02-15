@@ -34,7 +34,7 @@ class TestCancelReservationWorkflow:
             tenant_id=1,
             name="Assiette blanche",
             sku="ASS-001",
-            category=ProductCategory.ASSIETTE,
+            category=ProductCategory.ASSIETTES,
             price_per_day=200,
             deposit_amount=500,
             stock_quantity=100,
@@ -188,7 +188,7 @@ class TestProductSoftDelete:
             tenant_id=1,
             name="Verre à champagne",
             sku="VERR-CHAMP-001",
-            category=ProductCategory.VERRE,
+            category=ProductCategory.VERRES,
             price_per_day=150,
             deposit_amount=400,
             stock_quantity=50,
@@ -299,7 +299,7 @@ class TestMultiTenantIsolation:
             tenant_id=1,
             name="Assiette Tenant 1",
             sku="ASS-T1-001",
-            category=ProductCategory.ASSIETTE,
+            category=ProductCategory.ASSIETTES,
             price_per_day=100,
             stock_quantity=10,
             available_quantity=10
@@ -308,7 +308,7 @@ class TestMultiTenantIsolation:
             tenant_id=2,
             name="Assiette Tenant 2",
             sku="ASS-T2-001",  # Même SKU dans tenant différent = OK
-            category=ProductCategory.ASSIETTE,
+            category=ProductCategory.ASSIETTES,
             price_per_day=200,
             stock_quantity=20,
             available_quantity=20

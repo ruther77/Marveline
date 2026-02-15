@@ -1,5 +1,2 @@
-export { EventFormModal } from './EventFormModal'
-export { EventDetailsModal } from './EventDetailsModal'
-export { EventDeleteModal } from './EventDeleteModal'
-export { EventItemFormModal } from './EventItemFormModal'
-export { EventItemDeleteModal } from './EventItemDeleteModal'
+export { ReservationFormModal } from './EventFormModal'
+export { ReservationDetailsModal } from './EventDetailsModal'

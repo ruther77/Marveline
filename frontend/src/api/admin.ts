@@ -2,16 +2,17 @@ import apiClient from './client'
 import type { User, UserCreate, UserUpdate, Session, AuditLog, PaginatedResponse } from '@/types'
 
 export const adminApi = {
-  // Users
+  // Users — Backend utilise skip/limit, retourne { items: [...], total, skip, limit }
   getUsers: async (page = 1, perPage = 20): Promise<{ items: User[]; total: number; page: number; pages: number }> => {
+    const skip = (page - 1) * perPage
     const response = await apiClient.get('/users', {
-      params: { page, per_page: perPage },
+      params: { skip, limit: perPage },
     })
-    // Transform API response to match expected format
     const data = response.data
+    const items = Array.isArray(data.items) ? data.items : (Array.isArray(data.users) ? data.users : [])
     const total = data.total || 0
     const pages = Math.ceil(total / perPage)
-    return { items: data.users || [], total, page, pages }
+    return { items, total, page, pages }
   },
 
   getUser: async (id: number): Promise<User> => {
@@ -41,7 +42,8 @@ export const adminApi = {
 
   getUserSessions: async (): Promise<Session[]> => {
     const response = await apiClient.get('/sessions')
-    return response.data.sessions
+    const data = response.data
+    return Array.isArray(data.sessions) ? data.sessions : (Array.isArray(data.items) ? data.items : [])
   },
 
   terminateSession: async (sessionId: string): Promise<void> => {
@@ -52,13 +54,23 @@ export const adminApi = {
     await apiClient.delete('/sessions')
   },
 
-  // Audit Logs - TODO: Implement when backend endpoint is available
+  // Audit Logs
   getAuditLogs: async (
     page = 1,
     perPage = 50,
-    _filters?: { user_id?: number; action?: string; from_date?: string; to_date?: string }
+    filters?: { user_id?: number; action?: string; from_date?: string; to_date?: string }
   ): Promise<PaginatedResponse<AuditLog>> => {
-    // Backend audit logs endpoint not yet exposed, return empty
-    return { items: [], total: 0, page, per_page: perPage, pages: 0 }
+    const skip = (page - 1) * perPage
+    const params: Record<string, unknown> = { skip, limit: perPage }
+    if (filters?.user_id) params.user_id = filters.user_id
+    if (filters?.action) params.action = filters.action
+    if (filters?.from_date) params.start_date = filters.from_date
+    if (filters?.to_date) params.end_date = filters.to_date
+    const response = await apiClient.get('/audit', { params })
+    const data = response.data
+    const total = data.total || 0
+    const pages = Math.ceil(total / perPage)
+    const items = Array.isArray(data.logs) ? data.logs : (Array.isArray(data.items) ? data.items : [])
+    return { items, total, page, per_page: perPage, pages }
   },
 }

@@ -11,8 +11,8 @@ import {
   Trash2,
   AlertTriangle,
   Loader2,
-  CheckCircle,
 } from 'lucide-react'
+import type { Session } from '@/types'
 
 // Fonction pour détecter le type d'appareil à partir du user agent
 function getDeviceIcon(userAgent: string) {
@@ -56,9 +56,6 @@ export default function SessionsPage() {
     },
   })
 
-  const activeSessions = sessions?.filter((s) => s.is_active) || []
-  const currentSession = sessions?.find((s) => s.is_current)
-
   const handleTerminate = (sessionId: string) => {
     setTerminatingId(sessionId)
     terminateMutation.mutate(sessionId)
@@ -67,11 +64,51 @@ export default function SessionsPage() {
   const handleTerminateAll = () => {
     if (
       confirm(
-        'Êtes-vous sûr de vouloir terminer toutes les autres sessions ? Vous resterez connecté sur cette session.'
+        'Êtes-vous sûr de vouloir terminer toutes les sessions ? Vous serez déconnecté de tous vos appareils.'
       )
     ) {
       terminateAllMutation.mutate()
     }
+  }
+
+  const renderSession = (session: Session) => {
+    const DeviceIcon = getDeviceIcon(session.user_agent)
+    return (
+      <div
+        key={session.session_id}
+        className="card flex items-start justify-between"
+      >
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-lg bg-dark-700 flex items-center justify-center">
+            <DeviceIcon className="w-6 h-6 text-dark-400" />
+          </div>
+          <div>
+            <h3 className="font-medium">{session.user_agent}</h3>
+            <div className="flex items-center gap-4 mt-2 text-sm text-dark-400">
+              <span className="flex items-center gap-1">
+                <MapPin className="w-4 h-4" />
+                {session.ip_address}
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock className="w-4 h-4" />
+                {formatRelativeTime(session.last_activity)}
+              </span>
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={() => handleTerminate(session.session_id)}
+          disabled={terminatingId === session.session_id}
+          className="btn-ghost text-red-400 hover:text-red-300 hover:bg-red-500/10"
+        >
+          {terminatingId === session.session_id ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Trash2 className="w-4 h-4" />
+          )}
+        </button>
+      </div>
+    )
   }
 
   return (
@@ -84,7 +121,7 @@ export default function SessionsPage() {
             Gérez vos sessions actives sur tous vos appareils
           </p>
         </div>
-        {activeSessions.length > 1 && (
+        {sessions && sessions.length > 1 && (
           <button
             onClick={handleTerminateAll}
             disabled={terminateAllMutation.isPending}
@@ -95,101 +132,28 @@ export default function SessionsPage() {
             ) : (
               <Trash2 className="w-4 h-4 mr-2" />
             )}
-            Terminer toutes les autres
+            Terminer toutes les sessions
           </button>
         )}
       </div>
 
-      {/* Current Session */}
-      {currentSession && (() => {
-        const DeviceIcon = getDeviceIcon(currentSession.user_agent)
-        return (
-          <div className="card border-green-500/20">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center">
-                  <DeviceIcon className="w-6 h-6 text-green-500" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold">Session actuelle</h3>
-                    <CheckCircle className="w-4 h-4 text-green-500" />
-                  </div>
-                  <p className="text-sm text-dark-400 mt-1">
-                    {currentSession.user_agent}
-                  </p>
-                  <div className="flex items-center gap-4 mt-2 text-sm text-dark-400">
-                    <span className="flex items-center gap-1">
-                      <MapPin className="w-4 h-4" />
-                      {currentSession.ip_address}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
-                      Connecté {formatRelativeTime(currentSession.created_at)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )
-      })()}
-
-      {/* Other Sessions */}
+      {/* Sessions List */}
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold">Autres sessions</h2>
+        <h2 className="text-lg font-semibold">
+          Sessions actives ({sessions?.length || 0})
+        </h2>
 
         {isLoading ? (
           <div className="card text-center py-8 text-dark-400">
             Chargement...
           </div>
-        ) : activeSessions.filter((s) => !s.is_current).length === 0 ? (
+        ) : !sessions || sessions.length === 0 ? (
           <div className="card text-center py-8 text-dark-400">
-            Aucune autre session active
+            Aucune session active
           </div>
         ) : (
           <div className="space-y-3">
-            {activeSessions
-              .filter((s) => !s.is_current)
-              .map((session) => {
-                const DeviceIcon = getDeviceIcon(session.user_agent)
-                return (
-                  <div
-                    key={session.id}
-                    className="card flex items-start justify-between"
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-lg bg-dark-700 flex items-center justify-center">
-                        <DeviceIcon className="w-6 h-6 text-dark-400" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium">{session.user_agent}</h3>
-                        <div className="flex items-center gap-4 mt-2 text-sm text-dark-400">
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-4 h-4" />
-                            {session.ip_address}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-4 h-4" />
-                            {formatRelativeTime(session.last_seen_at)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleTerminate(session.id)}
-                      disabled={terminatingId === session.id}
-                      className="btn-ghost text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                    >
-                      {terminatingId === session.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                )
-              })}
+            {sessions.map((session) => renderSession(session))}
           </div>
         )}
       </div>

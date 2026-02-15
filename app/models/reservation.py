@@ -36,6 +36,7 @@ class Reservation(Base, TimestampMixin, TenantMixin):
         BigInteger,
         ForeignKey("customers.id", ondelete="RESTRICT"),
         nullable=False,
+        index=True,
         comment="ID du client"
     )
 
@@ -176,6 +177,7 @@ class ReservationLine(Base, TimestampMixin, TenantMixin):
         BigInteger,
         ForeignKey("reservations.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
         comment="ID de la réservation"
     )
 
@@ -184,6 +186,7 @@ class ReservationLine(Base, TimestampMixin, TenantMixin):
         BigInteger,
         ForeignKey("products.id", ondelete="RESTRICT"),
         nullable=False,
+        index=True,
         comment="ID du produit"
     )
 

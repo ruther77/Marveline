@@ -53,10 +53,42 @@ from app.schemas.auth import (
     UserInfo,
     ChangePasswordRequest,
 )
+from app.schemas.session import (
+    SessionResponse,
+    SessionListResponse,
+    SessionRevokeResponse,
+    SessionRevokeAllResponse,
+)
+from app.schemas.mfa import (
+    MFASetupResponse,
+    MFAVerifySetupRequest,
+    MFAVerifyRequest,
+    MFAVerifySetupResponse,
+    MFAStatusResponse,
+    MFADisableResponse,
+    MFALoginResponse,
+)
 from app.schemas.audit import (
     AuditLogResponse,
     AuditLogList,
     AuditLogFilters,
+)
+from app.schemas.category import (
+    CategoryCreate,
+    CategoryUpdate,
+    CategoryResponse,
+    CategoryTreeNode,
+    CategoryListResponse,
+)
+from app.schemas.bundle import (
+    BundleCreate,
+    BundleUpdate,
+    BundleResponse,
+    BundleWithItems,
+    BundleItemCreate,
+    BundleItemUpdate,
+    BundleItemResponse,
+    BundlePriceResponse,
 )
 
 __all__ = [
@@ -107,8 +139,36 @@ __all__ = [
     "RefreshTokenRequest",
     "UserInfo",
     "ChangePasswordRequest",
+    # Session schemas
+    "SessionResponse",
+    "SessionListResponse",
+    "SessionRevokeResponse",
+    "SessionRevokeAllResponse",
+    # MFA schemas
+    "MFASetupResponse",
+    "MFAVerifySetupRequest",
+    "MFAVerifyRequest",
+    "MFAVerifySetupResponse",
+    "MFAStatusResponse",
+    "MFADisableResponse",
+    "MFALoginResponse",
     # Audit schemas
     "AuditLogResponse",
     "AuditLogList",
     "AuditLogFilters",
+    # Category schemas
+    "CategoryCreate",
+    "CategoryUpdate",
+    "CategoryResponse",
+    "CategoryTreeNode",
+    "CategoryListResponse",
+    # Bundle schemas
+    "BundleCreate",
+    "BundleUpdate",
+    "BundleResponse",
+    "BundleWithItems",
+    "BundleItemCreate",
+    "BundleItemUpdate",
+    "BundleItemResponse",
+    "BundlePriceResponse",
 ]

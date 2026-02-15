@@ -127,6 +127,11 @@ class UserInfo(BaseSchema):
         description="Compte actif"
     )
 
+    created_at: str | None = Field(
+        default=None,
+        description="Date de création du compte"
+    )
+
 
 class ChangePasswordRequest(BaseSchema):
     """Schema pour changement de mot de passe.
@@ -152,6 +157,67 @@ class ChangePasswordRequest(BaseSchema):
         max_length=100,
         description="Nouveau mot de passe"
     )
+
+
+class LogoutRequest(BaseSchema):
+    """Schema pour requête de logout.
+
+    Example:
+        POST /auth/logout
+        {
+            "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        }
+    """
+
+    refresh_token: str = Field(
+        default=None,
+        min_length=20,
+        description="Refresh token JWT à révoquer (optionnel mais recommandé)"
+    )
+
+
+class LogoutResponse(BaseSchema):
+    """Schema pour réponse de logout.
+
+    Example:
+        {
+            "message": "Logged out successfully",
+            "tokens_revoked": true
+        }
+    """
+
+    message: str = Field(
+        default="Logged out successfully",
+        description="Message de confirmation"
+    )
+
+    tokens_revoked: bool = Field(
+        default=True,
+        description="True si les tokens ont été révoqués avec succès"
+    )
+
+
+class LoginBruteForceDetail(BaseSchema):
+    """Détails brute force inclus dans la réponse 401 quand l'escalation est active.
+
+    Retourné dans ``detail`` de la réponse 401 à partir de 3 tentatives échouées.
+    Sous 3 tentatives, ``detail`` reste une chaîne simple.
+
+    Example (≥ 3 tentatives échouées):
+        {
+            "detail": {
+                "message": "Invalid email or password",
+                "captcha_required": true,
+                "delay_seconds": 0,
+                "attempts": 3
+            }
+        }
+    """
+
+    message: str = Field(description="Message d'erreur")
+    captcha_required: bool = Field(default=False, description="True si un CAPTCHA doit être présenté")
+    delay_seconds: int = Field(default=0, description="Délai imposé avant la prochaine tentative")
+    attempts: int = Field(default=0, description="Nombre de tentatives échouées dans la fenêtre")
 
 
 class CSRFTokenResponse(BaseSchema):

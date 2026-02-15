@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { productsApi } from '@/api/products'
 import { Search, Package, AlertCircle, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getStockStatus } from '@/types/product'
 
 export default function InventoryPage() {
   const [search, setSearch] = useState('')
@@ -13,24 +14,21 @@ export default function InventoryPage() {
     queryFn: () =>
       productsApi.getProducts({
         page: 1,
-        page_size: 100, // Limite maximale de l'API
-        search: search || undefined,
+        page_size: 100,
         active_only: true,
       }),
   })
 
-  // Requête séparée pour les statistiques (endpoint dédié)
-  const { data: statsData } = useQuery({
-    queryKey: ['products-inventory-stats'],
-    queryFn: () => productsApi.getStatistics(true),
-  })
-
   const products = data?.items || []
 
-  const getStockLevel = (quantity: number, status: string) => {
-    if (status === 'out_of_stock') return 0
-    if (status === 'low_stock') return 30
-    return 100
+  // Calculer statistiques côté frontend (backend n'a pas d'endpoint statistics)
+  const inStock = products.filter((p) => getStockStatus(p) === 'in_stock').length
+  const lowStock = products.filter((p) => getStockStatus(p) === 'low_stock').length
+  const outStock = products.filter((p) => getStockStatus(p) === 'out_of_stock').length
+
+  const getStockLevel = (product: { available_quantity: number; stock_quantity: number }) => {
+    if (product.stock_quantity === 0) return 0
+    return Math.round((product.available_quantity / product.stock_quantity) * 100)
   }
 
   const getStockColor = (status: string) => {
@@ -59,10 +57,14 @@ export default function InventoryPage() {
     }
   }
 
-  // Utiliser les statistiques de l'endpoint dédié
-  const inStock = statsData?.in_stock || 0
-  const lowStock = statsData?.low_stock || 0
-  const outStock = statsData?.out_of_stock || 0
+  // Filtrer par recherche côté client
+  const filteredProducts = search
+    ? products.filter(
+        (p) =>
+          p.name.toLowerCase().includes(search.toLowerCase()) ||
+          p.sku.toLowerCase().includes(search.toLowerCase())
+      )
+    : products
 
   return (
     <div className="space-y-6">
@@ -124,55 +126,58 @@ export default function InventoryPage() {
           <div className="col-span-full text-center py-8 text-dark-400">
             Chargement...
           </div>
-        ) : products.length === 0 ? (
+        ) : filteredProducts.length === 0 ? (
           <div className="col-span-full text-center py-8 text-dark-400">
             Aucun produit trouvé
           </div>
         ) : (
-          products.map((product) => (
-            <div key={product.id} className="card">
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-dark-800 rounded-lg">
-                  {getStockIcon(product.stock_status)}
-                </div>
+          filteredProducts.map((product) => {
+            const stockStatus = getStockStatus(product)
+            return (
+              <div key={product.id} className="card">
+                <div className="flex items-start gap-4">
+                  <div className="p-3 bg-dark-800 rounded-lg">
+                    {getStockIcon(stockStatus)}
+                  </div>
 
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium truncate">{product.name}</h3>
-                  <p className="text-sm text-dark-400 font-mono">{product.sku}</p>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium truncate">{product.name}</h3>
+                    <p className="text-sm text-dark-400 font-mono">{product.sku}</p>
 
-                  <div className="mt-3 space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-dark-400">Stock</span>
-                      <span
-                        className={cn('font-medium', getStockColor(product.stock_status))}
-                      >
-                        {product.stock_quantity}
-                      </span>
-                    </div>
+                    <div className="mt-3 space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-dark-400">Stock</span>
+                        <span
+                          className={cn('font-medium', getStockColor(stockStatus))}
+                        >
+                          {product.available_quantity} / {product.stock_quantity}
+                        </span>
+                      </div>
 
-                    <div className="w-full bg-dark-700 rounded-full h-2">
-                      <div
-                        className={cn(
-                          'h-2 rounded-full transition-all',
-                          product.stock_status === 'in_stock' && 'bg-green-500',
-                          product.stock_status === 'low_stock' && 'bg-yellow-500',
-                          product.stock_status === 'out_of_stock' && 'bg-red-500'
-                        )}
-                        style={{
-                          width: `${Math.min(getStockLevel(product.stock_quantity, product.stock_status), 100)}%`,
-                        }}
-                      />
-                    </div>
+                      <div className="w-full bg-dark-700 rounded-full h-2">
+                        <div
+                          className={cn(
+                            'h-2 rounded-full transition-all',
+                            stockStatus === 'in_stock' && 'bg-green-500',
+                            stockStatus === 'low_stock' && 'bg-yellow-500',
+                            stockStatus === 'out_of_stock' && 'bg-red-500'
+                          )}
+                          style={{
+                            width: `${Math.min(getStockLevel(product), 100)}%`,
+                          }}
+                        />
+                      </div>
 
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-dark-400">Prix</span>
-                      <span className="font-medium">{Number(product.base_price).toFixed(2)} €</span>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-dark-400">Prix/jour</span>
+                        <span className="font-medium">{product.price_per_day_euros.toFixed(2)} €</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
     </div>

@@ -102,7 +102,7 @@ def test_product_create_price_must_be_positive():
         ProductCreate(
             name="Test Product",
             sku="TEST-SKU",
-            category=ProductCategory.AUTRE,
+            category=ProductCategory.MOBILIER,
             price_per_day_cents=-1000,  # Négatif
             deposit_amount_cents=2000,
             stock_quantity=10,
@@ -120,7 +120,7 @@ def test_product_create_deposit_must_be_positive():
         ProductCreate(
             name="Test Product",
             sku="TEST-SKU",
-            category=ProductCategory.AUTRE,
+            category=ProductCategory.MOBILIER,
             price_per_day_cents=1000,
             deposit_amount_cents=-2000,  # Négatif
             stock_quantity=10,
@@ -138,7 +138,7 @@ def test_product_create_available_lte_stock():
         ProductCreate(
             name="Test Product",
             sku="TEST-SKU",
-            category=ProductCategory.AUTRE,
+            category=ProductCategory.MOBILIER,
             price_per_day_cents=1000,
             deposit_amount_cents=2000,
             stock_quantity=10,
@@ -156,7 +156,7 @@ def test_product_create_condition_enum():
         ProductCreate(
             name="Test Product",
             sku="TEST-SKU",
-            category=ProductCategory.AUTRE,
+            category=ProductCategory.MOBILIER,
             price_per_day_cents=1000,
             deposit_amount_cents=2000,
             stock_quantity=10,
@@ -173,7 +173,7 @@ def test_product_create_sku_stripped():
     product = ProductCreate(
         name="Test Product",
         sku="  TEST-SKU-001  ",  # Espaces
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day_cents=1000,
         deposit_amount_cents=2000,
         stock_quantity=10,
@@ -321,7 +321,7 @@ def test_product_response_computed_field_euros(test_db):
         tenant_id=1,
         name="Test Product",
         sku="COMPUTED-TEST",
-        category=ProductCategory.AUTRE,
+        category=ProductCategory.MOBILIER,
         price_per_day=2500,  # 2500 centimes
         deposit_amount=5000,
         stock_quantity=10,

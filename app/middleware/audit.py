@@ -1,14 +1,17 @@
-"""Middleware pour audit automatique des requêtes API."""
+"""Middleware pour audit automatique des requetes API."""
+
+import logging
+import re
+from typing import Callable
+
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from typing import Callable
-import uuid
-import re
 
+from app.constants import AuthEndpoints, HTTPMethods, PublicEndpoints
 from app.core.database import get_db
 from app.services.audit import AuditService
-from app.core.security import decode_token
-from app.constants import AuthEndpoints, HTTPMethods, PublicEndpoints, SecurityHeaders
+
+logger = logging.getLogger(__name__)
 
 
 class AuditMiddleware(BaseHTTPMiddleware):
@@ -85,20 +88,23 @@ class AuditMiddleware(BaseHTTPMiddleware):
         Returns:
             Response inchangée (pas de modification)
         """
-        # Générer request_id unique pour corrélation logs
-        request_id = str(uuid.uuid4())
-        request.state.request_id = request_id  # Disponible dans endpoints via request.state
+        # Utiliser request_id depuis RequestContextMiddleware (fix B3: plus de double generation)
+        request_id = getattr(request.state, "request_id", None)
+
+        # Skip audit si request_id manquant (bug de configuration middleware)
+        if not request_id:
+            logger.error(
+                "request_id absent de request.state — RequestContextMiddleware mal configure ou manquant"
+            )
+            return await call_next(request)
 
         # Skip audit pour endpoints exclus
         if request.url.path in self.EXCLUDED_PATHS:
             return await call_next(request)
 
-        # Extraire user info depuis JWT
-        token = request.headers.get(SecurityHeaders.AUTHORIZATION, "").replace(SecurityHeaders.BEARER_PREFIX, "")
-        payload = decode_token(token) if token else None
-
-        user_id = int(payload.get("sub")) if payload and payload.get("sub") else None
-        tenant_id = int(payload.get("tenant_id")) if payload and payload.get("tenant_id") else None
+        # Utiliser user_id/tenant_id depuis RequestContextMiddleware (fix B3: plus de JWT triple decode)
+        user_id = getattr(request.state, "user_id", None)
+        tenant_id = getattr(request.state, "tenant_id", None)
 
         # Skip audit si non authentifié (JWT obligatoire pour audit)
         if not user_id or not tenant_id:
@@ -171,6 +177,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
             >>> _audit_mutation("PUT", "/api/v1/reservations/123", ...)
             >>> # → action=UPDATE, entity_type=Reservation, entity_id=123
         """
+        db = None
         try:
             # Ouvrir nouvelle session DB (commit séparé pour audit)
             db = next(get_db())
@@ -203,13 +210,14 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
             # Commit séparé (pas de rollback si audit échoue)
             db.commit()
-            db.close()
 
-        except Exception as e:
-            # Fail-safe: Ne pas crasher requête si audit échoue
-            # TODO: Logger erreur pour monitoring
-            print(f"[AuditMiddleware] Error auditing mutation: {e}")
-            pass
+        except Exception:
+            # Fail-safe : ne pas crasher requete si audit echoue (fix M1)
+            logger.exception("Erreur audit mutation %s %s", method, path)
+        finally:
+            # Fix B1: toujours fermer la session DB (eviter connection leak)
+            if db:
+                db.close()
 
     def _audit_sensitive_read(
         self,
@@ -235,6 +243,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
             >>> _audit_sensitive_read("/api/v1/customers/456", ...)
             >>> # → action=READ_SENSITIVE, entity_type=Customer, entity_id=456
         """
+        db = None
         try:
             # Ouvrir nouvelle session DB
             db = next(get_db())
@@ -256,12 +265,14 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
             # Commit séparé
             db.commit()
-            db.close()
 
-        except Exception as e:
-            # Fail-safe
-            print(f"[AuditMiddleware] Error auditing sensitive read: {e}")
-            pass
+        except Exception:
+            # Fail-safe (fix M1)
+            logger.exception("Erreur audit lecture sensible %s", path)
+        finally:
+            # Fix B1: toujours fermer la session DB (eviter connection leak)
+            if db:
+                db.close()
 
     def _parse_entity_from_path(self, path: str) -> tuple[str | None, int | None]:
         """Extrait entity_type et entity_id depuis path API.
@@ -323,15 +334,28 @@ class AuditMiddleware(BaseHTTPMiddleware):
             >>> _singularize_entity_type("invoices")
             "Invoice"
         """
-        # Règles simples de singularisation (suffisant pour CaroCorp)
+        # Mapping explicite pour les entités CaroCorp
+        known = {
+            "customers": "Customer",
+            "reservations": "Reservation",
+            "invoices": "Invoice",
+            "users": "User",
+            "products": "Product",
+            "categories": "Category",
+            "services": "Service",
+            "sessions": "Session",
+            "mfa": "MFA",
+            "audit": "Audit",
+        }
+        if plural in known:
+            return known[plural]
+
+        # Fallback : règles simples
         if plural.endswith("ies"):
-            # reservations → Reservation (pas applicable ici)
-            pass
-        elif plural.endswith("es"):
-            # invoices → Invoice
+            singular = plural[:-3] + "y"
+        elif plural.endswith("ses") or plural.endswith("xes") or plural.endswith("zes"):
             singular = plural[:-2]
         elif plural.endswith("s"):
-            # customers → Customer, products → Product
             singular = plural[:-1]
         else:
             singular = plural

@@ -14,18 +14,34 @@ from enum import Enum
 class ProductCategory(str, Enum):
     """Catégories de produits disponibles à la location.
 
+    Correspond aux 20 catégories du catalogue Marveline.
+
     Utilisé dans :
         - models.Product.category
         - schemas.ProductCreate.category
         - Filtres API GET /products?category=...
     """
 
-    ASSIETTE = "assiette"
-    VERRE = "verre"
-    COUVERT = "couvert"
-    NAPPE = "nappe"
-    DECO = "deco"
-    AUTRE = "autre"
+    ACCESSOIRES_TRANSPORT = "accessoires_transport"
+    ASSIETTES = "assiettes"
+    BANCS = "bancs"
+    CANDY_BAR = "candy_bar"
+    CHAISES = "chaises"
+    COUVERTS = "couverts"
+    DECORATIONS = "decorations"
+    HOUSSES = "housses"
+    MACHINES = "machines"
+    MANGE_DEBOUT = "mange_debout"
+    MOBILIER = "mobilier"
+    NAPPAGES = "nappages"
+    NAPPES = "nappes"
+    PORCELAINE = "porcelaine"
+    SERVIETTES = "serviettes"
+    TABLES = "tables"
+    VAISSELLE = "vaisselle"
+    VAISSELLE_SERVICE = "vaisselle_service"
+    VAISSELLE_ENFANTS = "vaisselle_enfants"
+    VERRES = "verres"
 
 
 class ProductCondition(str, Enum):
@@ -147,6 +163,10 @@ class TokenType(str, Enum):
     REFRESH = "refresh"
 
 
+# Tenant ID spécial pour événements système (login failed sans tenant connu, etc.)
+SYSTEM_TENANT_ID: int = 0
+
+
 __all__ = [
     "ProductCategory",
     "ProductCondition",
@@ -156,4 +176,5 @@ __all__ = [
     "PaymentMethod",
     "UserRole",
     "TokenType",
+    "SYSTEM_TENANT_ID",
 ]

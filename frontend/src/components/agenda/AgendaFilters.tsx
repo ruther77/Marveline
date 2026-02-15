@@ -3,11 +3,11 @@
  */
 import React from 'react';
 import { X } from 'lucide-react';
-import { EventType } from '../../types/event';
+// import { EventType } from '../../types/event';
 import { MovementType } from '../../types/inventory';
 
 interface FiltersProps {
-  eventType?: EventType;
+  eventType?: string;
   status?: string;
   movementType?: MovementType;
   search?: string;
@@ -69,7 +69,7 @@ const AgendaFilters: React.FC<AgendaFiltersProps> = ({ filters, onFiltersChange 
           </label>
           <select
             value={filters.eventType || ''}
-            onChange={(e) => updateFilter('eventType', e.target.value as EventType)}
+            onChange={(e) => updateFilter('eventType', e.target.value as string)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="">Tous</option>

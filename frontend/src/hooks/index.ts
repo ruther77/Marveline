@@ -32,3 +32,5 @@ export type { AsyncStatus, AsyncState, UseAsyncResult, UseAsyncRetryOptions } fr
 
 export { useKeyPress, useKeyboardShortcuts, useEscapeKey, useEnterKey, useArrowNavigation, useListNavigation } from './useKeyboard';
 export type { KeyboardShortcut } from './useKeyboard';
+
+export { useNetworkStatus } from './useNetworkStatus';

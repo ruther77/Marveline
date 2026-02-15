@@ -1,6 +1,6 @@
 """Modèle User - Utilisateurs du système avec authentification."""
 from typing import Optional
-from sqlalchemy import BigInteger, CheckConstraint, String, UniqueConstraint
+from sqlalchemy import BigInteger, CheckConstraint, String, UniqueConstraint, event
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, TimestampMixin, TenantMixin, SoftDeleteMixin
 from app.constants import UserRole
@@ -23,8 +23,8 @@ class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
         - staff: Read-only (consultation uniquement)
 
     Security:
-        - Email unique global (pas par tenant)
-        - Password stocké haché (bcrypt rounds=12)
+        - Email unique par tenant (UniqueConstraint tenant_id + email)
+        - Password stocké haché (bcrypt/argon2id)
         - Isolation multi-tenant via tenant_id
     """
 
@@ -37,9 +37,8 @@ class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     email: Mapped[str] = mapped_column(
         String(255),
         nullable=False,
-        unique=True,  # Unique global (pas par tenant)
         index=True,
-        comment="Email unique (login)"
+        comment="Email unique par tenant (login)"
     )
 
     hashed_password: Mapped[str] = mapped_column(
@@ -65,6 +64,8 @@ class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
 
     # Contraintes
     __table_args__ = (
+        # Email unique PAR tenant (pas globalement) — fix M17
+        UniqueConstraint("tenant_id", "email", name="uq_users_tenant_email"),
         # Rôle valide
         CheckConstraint(
             "role IN ('admin', 'manager', 'staff')",
@@ -94,3 +95,11 @@ class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
 
     def __repr__(self) -> str:
         return f"<User(id={self.id}, email='{self.email}', role='{self.role}')>"
+
+
+@event.listens_for(User.email, "set", retval=True)
+def _normalize_email(target, value, oldvalue, initiator):
+    """Normalise l'email en lowercase + strip avant stockage (fix M22)."""
+    if value is not None:
+        return value.lower().strip()
+    return value

@@ -97,6 +97,7 @@ def list_invoices(
 @router.get("/overdue", response_model=list[InvoiceList])
 def list_overdue_invoices(
     as_of_date: Optional[date] = Query(None, description="Date de référence (défaut: aujourd'hui)"),
+    limit: int = Query(100, ge=1, le=1000, description="Limite max de résultats (fix B4)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> list[InvoiceList]:
@@ -148,7 +149,7 @@ def list_overdue_invoices(
         )
         db.commit()
 
-        return [InvoiceList.model_validate(i) for i in overdue_invoices]
+        return [InvoiceList.model_validate(i) for i in overdue_invoices[:limit]]
 
     except Exception as e:
         db.rollback()

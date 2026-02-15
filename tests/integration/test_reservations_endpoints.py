@@ -35,7 +35,7 @@ def test_product_res(test_db):
         tenant_id=1,
         name="Table ronde 150cm",
         sku="TABLE-RES-001",
-        category=ProductCategory.NAPPE,
+        category=ProductCategory.NAPPES,
         price_per_day=2000,  # 20€/jour
         deposit_amount=5000,  # 50€ caution
         stock_quantity=10,

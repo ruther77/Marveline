@@ -3,7 +3,12 @@ import type { LoginRequest, LoginResponse, RegisterRequest, User, MFAVerifyReque
 
 export const authApi = {
   login: async (data: LoginRequest): Promise<LoginResponse> => {
-    const response = await apiClient.post('/auth/login', data)
+    const formData = new URLSearchParams()
+    formData.append('username', data.email)
+    formData.append('password', data.password)
+    const response = await apiClient.post('/auth/login', formData, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    })
     return response.data
   },
 
@@ -17,11 +22,11 @@ export const authApi = {
   },
 
   logoutAll: async (): Promise<void> => {
-    await apiClient.post('/auth/logout-all')
+    await apiClient.delete('/sessions')
   },
 
   me: async (): Promise<User> => {
-    const response = await apiClient.get('/users/me')
+    const response = await apiClient.get('/auth/me')
     return response.data
   },
 

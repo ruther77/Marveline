@@ -1,104 +1,151 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { eventsApi } from '@/api/events'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { reservationsApi } from '@/api/reservations'
+import { customersApi } from '@/api/customers'
+import { productsApi } from '@/api/products'
 import { Modal, ModalFooter } from '@/components/ui/Modal'
-import type { Event, CreateEventRequest, UpdateEventRequest, EventType, EventStatus } from '@/types/event'
+import type { ReservationList, ReservationCreate, ReservationUpdate } from '@/types/reservation'
+import type { Product } from '@/types/product'
+import { Plus, X } from 'lucide-react'
 
-const eventSchema = z.object({
-  customer_name: z.string().min(1, 'Nom requis'),
-  customer_email: z.string().email('Email invalide').optional().or(z.literal('')),
-  customer_phone: z.string().optional(),
-  customer_address: z.string().optional(),
-  event_type: z.enum(['wedding', 'baptism', 'birthday', 'seminar', 'other']),
-  event_name: z.string().optional(),
-  event_date: z.string().min(1, 'Date requise'),
+const reservationSchema = z.object({
+  customer_id: z.number({ required_error: 'Client requis' }).min(1, 'Client requis'),
+  event_date: z.string().min(1, 'Date evenement requise'),
+  delivery_date: z.string().min(1, 'Date livraison requise'),
+  return_date: z.string().min(1, 'Date retour requise'),
   event_location: z.string().optional(),
-  guest_count: z.number().min(0).optional().nullable(),
-  rental_start_date: z.string().min(1, 'Date de début requise'),
-  rental_end_date: z.string().min(1, 'Date de fin requise'),
   notes: z.string().optional(),
-  internal_notes: z.string().optional(),
-})
+}).refine(
+  (data) => !data.delivery_date || !data.event_date || data.delivery_date <= data.event_date,
+  { message: 'La livraison doit etre avant ou le jour de l\'evenement', path: ['delivery_date'] }
+).refine(
+  (data) => !data.return_date || !data.event_date || data.return_date >= data.event_date,
+  { message: 'Le retour doit etre apres ou le jour de l\'evenement', path: ['return_date'] }
+)
 
-type FormData = z.infer<typeof eventSchema>
+type FormData = z.infer<typeof reservationSchema>
 
-interface EventFormModalProps {
+interface LineItem {
+  product_id: number
+  quantity: number
+}
+
+interface ReservationFormModalProps {
   isOpen: boolean
   onClose: () => void
-  event?: Partial<Event> | null
+  reservation?: Partial<ReservationList> | null
   mode: 'create' | 'edit'
 }
 
-export function EventFormModal({ isOpen, onClose, event, mode }: EventFormModalProps) {
+export function ReservationFormModal({ isOpen, onClose, reservation, mode }: ReservationFormModalProps) {
   const queryClient = useQueryClient()
   const isEdit = mode === 'edit'
+  const [lines, setLines] = useState<LineItem[]>([{ product_id: 0, quantity: 1 }])
+  const [customerSearch, setCustomerSearch] = useState('')
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(eventSchema),
+  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormData>({
+    resolver: zodResolver(reservationSchema),
   })
 
+  const { data: customersData } = useQuery({
+    queryKey: ['customers-select', customerSearch],
+    queryFn: () => customersApi.getCustomers({ page_size: 50, search_query: customerSearch || undefined }),
+    enabled: isOpen,
+  })
+
+  const { data: productsData } = useQuery({
+    queryKey: ['products-select'],
+    queryFn: () => productsApi.getProducts({ page_size: 200, active_only: true }),
+    enabled: isOpen,
+  })
+
+  const customers = customersData?.items || []
+  const products = productsData?.items || []
+
   useEffect(() => {
-    if (isOpen && event) {
+    if (isOpen && reservation && isEdit) {
       reset({
-        customer_name: event.customer_name || '',
-        customer_email: event.customer_email || '',
-        customer_phone: event.customer_phone || '',
-        customer_address: event.customer_address || '',
-        event_type: event.event_type || 'other',
-        event_name: event.event_name || '',
-        event_date: event.event_date?.split('T')[0] || '',
-        event_location: event.event_location || '',
-        guest_count: event.guest_count || null,
-        rental_start_date: event.rental_start_date?.split('T')[0] || '',
-        rental_end_date: event.rental_end_date?.split('T')[0] || '',
-        notes: event.notes || '',
-        internal_notes: event.internal_notes || '',
+        customer_id: reservation.customer_id || 0,
+        event_date: reservation.event_date?.split('T')[0] || '',
+        delivery_date: reservation.delivery_date?.split('T')[0] || '',
+        return_date: reservation.return_date?.split('T')[0] || '',
+        event_location: reservation.event_location || '',
+        notes: reservation.notes || '',
       })
-    } else if (isOpen) {
+      setLines([])
+    } else if (isOpen && !isEdit) {
       reset({
-        customer_name: '',
-        customer_email: '',
-        customer_phone: '',
-        event_type: 'wedding',
+        customer_id: 0,
         event_date: '',
-        rental_start_date: '',
-        rental_end_date: '',
+        delivery_date: '',
+        return_date: '',
+        event_location: '',
+        notes: '',
       })
+      setLines([{ product_id: 0, quantity: 1 }])
     }
-  }, [isOpen, event, reset])
+  }, [isOpen, reservation, isEdit, reset])
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateEventRequest) => eventsApi.createEvent(data),
+    mutationFn: (data: ReservationCreate) => reservationsApi.createReservation(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['events'] })
-      queryClient.invalidateQueries({ queryKey: ['events-stats'] })
+      queryClient.invalidateQueries({ queryKey: ['reservations'] })
       onClose()
     },
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: UpdateEventRequest }) =>
-      eventsApi.updateEvent(id, data),
+    mutationFn: ({ id, data }: { id: number; data: ReservationUpdate }) =>
+      reservationsApi.updateReservation(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['events'] })
+      queryClient.invalidateQueries({ queryKey: ['reservations'] })
       onClose()
     },
   })
 
   const onSubmit = (data: FormData) => {
-    const cleanData = {
-      ...data,
-      items: [], // Empty items initially
-    }
-
-    if (isEdit && event?.id) {
-      updateMutation.mutate({ id: event.id, data: cleanData as UpdateEventRequest })
+    if (isEdit && reservation?.id) {
+      const updateData: ReservationUpdate = {
+        event_date: data.event_date,
+        delivery_date: data.delivery_date,
+        return_date: data.return_date,
+        event_location: data.event_location || undefined,
+      }
+      updateMutation.mutate({ id: reservation.id, data: updateData })
     } else {
-      createMutation.mutate(cleanData as CreateEventRequest)
+      const validLines = lines.filter((l) => l.product_id > 0 && l.quantity > 0)
+      const createData: ReservationCreate = {
+        customer_id: data.customer_id,
+        event_date: data.event_date,
+        delivery_date: data.delivery_date,
+        return_date: data.return_date,
+        event_location: data.event_location || undefined,
+        notes: data.notes || undefined,
+        lines: validLines,
+      }
+      createMutation.mutate(createData)
     }
+  }
+
+  const addLine = () => {
+    setLines([...lines, { product_id: 0, quantity: 1 }])
+  }
+
+  const removeLine = (index: number) => {
+    setLines(lines.filter((_, i) => i !== index))
+  }
+
+  const updateLine = (index: number, field: keyof LineItem, value: number) => {
+    const updated = [...lines]
+    updated[index] = { ...updated[index], [field]: value }
+    setLines(updated)
+  }
+
+  const getProductPrice = (productId: number): Product | undefined => {
+    return products.find((p) => p.id === productId)
   }
 
   const isLoading = createMutation.isPending || updateMutation.isPending
@@ -108,14 +155,14 @@ export function EventFormModal({ isOpen, onClose, event, mode }: EventFormModalP
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEdit ? "Modifier l'événement" : 'Nouvel événement'}
+      title={isEdit ? 'Modifier la reservation' : 'Nouvelle reservation'}
       size="lg"
       footer={
         <ModalFooter
           onCancel={onClose}
           onConfirm={handleSubmit(onSubmit)}
           cancelText="Annuler"
-          confirmText={isEdit ? 'Enregistrer' : 'Créer'}
+          confirmText={isEdit ? 'Enregistrer' : 'Creer'}
           loading={isLoading}
         />
       }
@@ -127,52 +174,162 @@ export function EventFormModal({ isOpen, onClose, event, mode }: EventFormModalP
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
+        {/* Client */}
+        <div>
+          <label className="block text-sm font-medium text-dark-300 mb-1">
+            Client *
+          </label>
+          {!isEdit ? (
+            <>
+              <input
+                type="text"
+                placeholder="Rechercher un client..."
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                className="input w-full mb-2"
+              />
+              <select
+                className="input w-full"
+                onChange={(e) => setValue('customer_id', Number(e.target.value), { shouldValidate: true })}
+              >
+                <option value={0}>-- Selectionner un client --</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.display_name} ({c.email})
+                  </option>
+                ))}
+              </select>
+              {errors.customer_id && (
+                <p className="text-red-500 text-sm mt-1">{errors.customer_id.message}</p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-dark-400">
+              Client #{reservation?.customer_id} (non modifiable)
+            </p>
+          )}
+        </div>
+
+        {/* Dates */}
+        <div className="grid grid-cols-3 gap-4">
+          <div>
             <label className="block text-sm font-medium text-dark-300 mb-1">
-              Nom du client *
+              Date evenement *
             </label>
-            <input {...register('customer_name')} type="text" className="input w-full" />
-            {errors.customer_name && <p className="text-red-500 text-sm mt-1">{errors.customer_name.message}</p>}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Email</label>
-            <input {...register('customer_email')} type="email" className="input w-full" />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Téléphone</label>
-            <input {...register('customer_phone')} type="tel" className="input w-full" />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Type d'événement *</label>
-            <select {...register('event_type')} className="input w-full">
-              <option value="wedding">Mariage</option>
-              <option value="baptism">Baptême</option>
-              <option value="birthday">Anniversaire</option>
-              <option value="seminar">Séminaire</option>
-              <option value="other">Autre</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Date de l'événement *</label>
             <input {...register('event_date')} type="date" className="input w-full" />
-            {errors.event_date && <p className="text-red-500 text-sm mt-1">{errors.event_date.message}</p>}
+            {errors.event_date && (
+              <p className="text-red-500 text-sm mt-1">{errors.event_date.message}</p>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Début location *</label>
-            <input {...register('rental_start_date')} type="date" className="input w-full" />
+            <label className="block text-sm font-medium text-dark-300 mb-1">
+              Livraison *
+            </label>
+            <input {...register('delivery_date')} type="date" className="input w-full" />
+            {errors.delivery_date && (
+              <p className="text-red-500 text-sm mt-1">{errors.delivery_date.message}</p>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-dark-300 mb-1">Fin location *</label>
-            <input {...register('rental_end_date')} type="date" className="input w-full" />
+            <label className="block text-sm font-medium text-dark-300 mb-1">
+              Retour *
+            </label>
+            <input {...register('return_date')} type="date" className="input w-full" />
+            {errors.return_date && (
+              <p className="text-red-500 text-sm mt-1">{errors.return_date.message}</p>
+            )}
           </div>
         </div>
+
+        {/* Lieu */}
+        <div>
+          <label className="block text-sm font-medium text-dark-300 mb-1">
+            Lieu de l'evenement
+          </label>
+          <input {...register('event_location')} type="text" className="input w-full" placeholder="Adresse ou nom du lieu" />
+        </div>
+
+        {/* Notes */}
+        <div>
+          <label className="block text-sm font-medium text-dark-300 mb-1">
+            Notes
+          </label>
+          <textarea {...register('notes')} className="input w-full" rows={2} placeholder="Notes internes..." />
+        </div>
+
+        {/* Lines (creation only) */}
+        {!isEdit && (
+          <div className="border-t border-dark-700 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-dark-300">Produits</h3>
+              <button
+                type="button"
+                onClick={addLine}
+                className="btn-secondary btn-sm flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" />
+                Ajouter
+              </button>
+            </div>
+
+            {lines.length === 0 && (
+              <p className="text-sm text-dark-500 text-center py-4">
+                Aucun produit ajoute
+              </p>
+            )}
+
+            <div className="space-y-2">
+              {lines.map((line, index) => {
+                const product = getProductPrice(line.product_id)
+                return (
+                  <div key={index} className="flex items-center gap-2">
+                    <select
+                      value={line.product_id}
+                      onChange={(e) => updateLine(index, 'product_id', Number(e.target.value))}
+                      className="input flex-1"
+                    >
+                      <option value={0}>-- Produit --</option>
+                      {products.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.price_per_day_euros.toFixed(2)} EUR/j)
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min={1}
+                      value={line.quantity}
+                      onChange={(e) => updateLine(index, 'quantity', Number(e.target.value))}
+                      className="input w-20"
+                    />
+                    {product && (
+                      <span className="text-sm text-dark-400 w-24 text-right">
+                        {(product.price_per_day_euros * line.quantity).toFixed(2)} EUR
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeLine(index)}
+                      className="p-1 hover:bg-dark-700 rounded text-dark-400 hover:text-red-500"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {isEdit && (
+          <div className="border-t border-dark-700 pt-4">
+            <p className="text-sm text-dark-500">
+              Les lignes de produits ne sont pas modifiables apres creation.
+            </p>
+          </div>
+        )}
       </form>
     </Modal>
   )

@@ -99,13 +99,21 @@ def client(test_db):
 
 @pytest.fixture(autouse=True)
 def cleanup_redis_between_tests():
-    """Nettoie rate_limit keys entre chaque test pour éviter le flaky."""
+    """Nettoie rate_limit + token keys entre chaque test pour éviter le flaky."""
     from app.core.redis import redis_client
-    for key in redis_client.client.scan_iter("rate_limit:*"):
-        redis_client.client.delete(key)
+    patterns = [
+        "rate_limit:*", "refresh_wl:*", "access_bl:*", "token_family:*",
+        "bf_email:*", "bf_ip:*", "bf_lock:*", "bf_alert:*",
+        "session:*", "session_idx:*",
+        "mfa_session:*",
+    ]
+    for pattern in patterns:
+        for key in redis_client.client.scan_iter(pattern):
+            redis_client.client.delete(key)
     yield
-    for key in redis_client.client.scan_iter("rate_limit:*"):
-        redis_client.client.delete(key)
+    for pattern in patterns:
+        for key in redis_client.client.scan_iter(pattern):
+            redis_client.client.delete(key)
 
 
 @pytest.fixture

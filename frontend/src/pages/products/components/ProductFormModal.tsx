@@ -8,28 +8,24 @@ import { categoriesApi } from '@/api/categories'
 import { Modal, ModalFooter } from '@/components/ui/Modal'
 import type { Product, ProductCreate, ProductUpdate } from '@/types/product'
 
-// Validation schemas
+// Validation schemas — prix en euros dans le form, conversion centimes au submit
 const createProductSchema = z.object({
-  category_id: z.number().optional().nullable(),
+  category: z.string().optional().default(''),
   sku: z.string().min(1, 'SKU requis'),
   name: z.string().min(1, 'Nom requis'),
-  description: z.string().optional(),
-  short_description: z.string().optional(),
   stock_quantity: z.number().min(0, 'Stock invalide').default(0),
-  base_price: z.number().min(0, 'Prix invalide'),
-  featured: z.boolean().default(false),
+  price_per_day_euros: z.number().min(0, 'Prix invalide'),
+  condition: z.string().optional().default('good'),
   is_active: z.boolean().default(true),
 })
 
 const updateProductSchema = z.object({
-  category_id: z.number().optional().nullable(),
+  category: z.string().optional(),
   sku: z.string().min(1, 'SKU requis').optional(),
   name: z.string().min(1, 'Nom requis').optional(),
-  description: z.string().optional(),
-  short_description: z.string().optional(),
   stock_quantity: z.number().min(0, 'Stock invalide').optional(),
-  base_price: z.number().min(0, 'Prix invalide').optional(),
-  featured: z.boolean().optional(),
+  price_per_day_euros: z.number().min(0, 'Prix invalide').optional(),
+  condition: z.string().optional(),
   is_active: z.boolean().optional(),
 })
 
@@ -60,14 +56,12 @@ export function ProductFormModal({
   } = useForm<CreateFormData | UpdateFormData>({
     resolver: zodResolver(isEdit ? updateProductSchema : createProductSchema),
     defaultValues: {
-      category_id: null,
+      category: '',
       sku: '',
       name: '',
-      description: '',
-      short_description: '',
       stock_quantity: 0,
-      base_price: 0,
-      featured: false,
+      price_per_day_euros: 0,
+      condition: 'good',
       is_active: true,
     },
   })
@@ -83,26 +77,22 @@ export function ProductFormModal({
     if (isOpen) {
       if (product) {
         reset({
-          category_id: product.category_id,
+          category: product.category || '',
           sku: product.sku,
           name: product.name,
-          description: product.description || '',
-          short_description: product.short_description || '',
           stock_quantity: product.stock_quantity,
-          base_price: product.base_price,
-          featured: product.featured,
+          price_per_day_euros: product.price_per_day_euros,
+          condition: product.condition || 'good',
           is_active: product.is_active,
         })
       } else {
         reset({
-          category_id: null,
+          category: '',
           sku: '',
           name: '',
-          description: '',
-          short_description: '',
           stock_quantity: 0,
-          base_price: 0,
-          featured: false,
+          price_per_day_euros: 0,
+          condition: 'good',
           is_active: true,
         })
       }
@@ -126,11 +116,21 @@ export function ProductFormModal({
     },
   })
 
-  const onSubmit = (data: CreateFormData | UpdateFormData) => {
+  const onSubmit = (formData: CreateFormData | UpdateFormData) => {
+    // Convertir euros → centimes pour le backend
+    const { price_per_day_euros, ...rest } = formData
+    const backendData = {
+      ...rest,
+      category: formData.category || undefined,
+      price_per_day_cents: price_per_day_euros !== undefined
+        ? Math.round(price_per_day_euros * 100)
+        : undefined,
+    }
+
     if (isEdit && product) {
-      updateMutation.mutate({ id: product.id, data: data as ProductUpdate })
+      updateMutation.mutate({ id: product.id, data: backendData as ProductUpdate })
     } else {
-      createMutation.mutate(data as ProductCreate)
+      createMutation.mutate(backendData as unknown as ProductCreate)
     }
   }
 
@@ -197,59 +197,33 @@ export function ProductFormModal({
             Catégorie
           </label>
           <select
-            {...register('category_id', {
-              setValueAs: (v) => (v === '' ? null : Number(v)),
-            })}
+            {...register('category')}
             className="input w-full"
           >
             <option value="">Aucune catégorie</option>
             {categories?.map((cat) => (
-              <option key={cat.id} value={cat.id}>
+              <option key={cat.id} value={cat.slug}>
                 {cat.name}
               </option>
             ))}
           </select>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-dark-300 mb-1">
-            Description courte
-          </label>
-          <input
-            {...register('short_description')}
-            type="text"
-            className="input w-full"
-            placeholder="Une ligne de description"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-dark-300 mb-1">
-            Description complète
-          </label>
-          <textarea
-            {...register('description')}
-            className="input w-full"
-            rows={4}
-            placeholder="Description détaillée du produit..."
-          />
-        </div>
-
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-dark-300 mb-1">
-              Prix de base (€) *
+              Prix par jour (€) *
             </label>
             <input
-              {...register('base_price', { valueAsNumber: true })}
+              {...register('price_per_day_euros', { valueAsNumber: true })}
               type="number"
               step="0.01"
               className="input w-full"
               placeholder="0.00"
             />
-            {errors.base_price && (
+            {errors.price_per_day_euros && (
               <p className="text-red-500 text-sm mt-1">
-                {errors.base_price.message}
+                {errors.price_per_day_euros.message}
               </p>
             )}
           </div>
@@ -272,16 +246,22 @@ export function ProductFormModal({
           </div>
         </div>
 
-        <div className="flex items-center gap-6">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              {...register('featured')}
-              type="checkbox"
-              className="w-4 h-4 rounded border-dark-600 bg-dark-700 text-primary-600 focus:ring-primary-600"
-            />
-            <span className="text-sm text-dark-300">Produit en vedette</span>
+        <div>
+          <label className="block text-sm font-medium text-dark-300 mb-1">
+            État
           </label>
+          <select
+            {...register('condition')}
+            className="input w-full"
+          >
+            <option value="new">Neuf</option>
+            <option value="good">Bon état</option>
+            <option value="fair">Correct</option>
+            <option value="poor">Usé</option>
+          </select>
+        </div>
 
+        <div className="flex items-center gap-6">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               {...register('is_active')}

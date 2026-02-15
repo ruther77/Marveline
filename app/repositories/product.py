@@ -164,6 +164,21 @@ class ProductRepository(BaseRepository[Product]):
 
         return product.available_quantity >= quantity
 
+    def _get_for_update(self, product_id: int, tenant_id: int) -> "Product | None":
+        """Récupère un produit avec verrou exclusif (SELECT FOR UPDATE).
+
+        Bypass le cache pour obtenir un row lock PostgreSQL.
+        Empêche les race conditions sur les opérations de stock concurrentes.
+        """
+        query = select(Product).where(
+            and_(
+                Product.id == product_id,
+                Product.tenant_id == tenant_id,
+                Product.is_active == True,  # noqa: E712
+            )
+        ).with_for_update()
+        return self.db.execute(query).scalar_one_or_none()
+
     def reserve_stock(
         self,
         product_id: int,
@@ -182,12 +197,12 @@ class ProductRepository(BaseRepository[Product]):
 
         Warning:
             - Pas de commit automatique (transaction gérée par service)
-            - Vérifier check_availability() avant d'appeler
+            - Utilise SELECT FOR UPDATE pour éviter les race conditions (fix B6)
 
         Security:
             - Filtre tenant_id automatique
         """
-        product = self.get_by_id(product_id, tenant_id, include_inactive=False)
+        product = self._get_for_update(product_id, tenant_id)
         if not product or product.available_quantity < quantity:
             return False
 
@@ -211,24 +226,19 @@ class ProductRepository(BaseRepository[Product]):
         Returns:
             True si libération réussie, False si produit non trouvé
 
-        Use cases:
-            - Annulation de réservation
-            - Retour de produits
-
         Warning:
             - Pas de commit automatique
-            - Vérifie que available_quantity <= stock_quantity
+            - Utilise SELECT FOR UPDATE pour éviter les race conditions (fix B6)
 
         Security:
             - Filtre tenant_id automatique
         """
-        product = self.get_by_id(product_id, tenant_id, include_inactive=False)
+        product = self._get_for_update(product_id, tenant_id)
         if not product:
             return False
 
         new_available = product.available_quantity + quantity
         if new_available > product.stock_quantity:
-            # Ne pas dépasser le stock total
             new_available = product.stock_quantity
 
         product.available_quantity = new_available

@@ -24,7 +24,7 @@ def tenant1_product(test_db):
         tenant_id=1,
         name="Table tenant 1",
         sku="TABLE-T1-SECURITY",
-        category=ProductCategory.NAPPE,
+        category=ProductCategory.NAPPES,
         price_per_day=2000,
         deposit_amount=5000,
         stock_quantity=10,
@@ -339,7 +339,7 @@ def test_cannot_create_resource_for_another_tenant_via_payload(
         "tenant_id": 1,  # Tentative d'usurpation
         "name": "Produit malveillant",
         "sku": "MALICIOUS-SKU",
-        "category": "autre",
+        "category": "mobilier",
         "price_per_day_cents": 1000,
         "deposit_amount_cents": 2000,
         "stock_quantity": 10,

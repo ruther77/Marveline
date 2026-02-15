@@ -16,7 +16,7 @@ def test_product_assiette(test_db):
         tenant_id=1,
         name="Assiette Blanche 27cm",
         sku="ASS-WHITE-27",
-        category=ProductCategory.ASSIETTE,
+        category=ProductCategory.ASSIETTES,
         price_per_day=50,
         stock_quantity=100,
         available_quantity=80,
@@ -35,7 +35,7 @@ def test_product_verre(test_db):
         tenant_id=1,
         name="Verre à Vin 35cl",
         sku="VER-WINE-35",
-        category=ProductCategory.VERRE,
+        category=ProductCategory.VERRES,
         price_per_day=30,
         stock_quantity=200,
         available_quantity=150,
@@ -54,7 +54,7 @@ def test_product_unavailable(test_db):
         tenant_id=1,
         name="Assiette Rupture",
         sku="ASS-OUT-STOCK",
-        category=ProductCategory.ASSIETTE,
+        category=ProductCategory.ASSIETTES,
         price_per_day=50,
         stock_quantity=50,
         available_quantity=0,  # Rupture de stock
@@ -73,7 +73,7 @@ def test_product_inactive(test_db):
         tenant_id=1,
         name="Assiette Obsolète",
         sku="ASS-OBSOLETE",
-        category=ProductCategory.ASSIETTE,
+        category=ProductCategory.ASSIETTES,
         price_per_day=50,
         stock_quantity=20,
         available_quantity=20,
@@ -93,10 +93,10 @@ def test_list_by_category_assiette(test_db, test_product_assiette, test_product_
     """Liste les produits de catégorie 'assiette'."""
     repo = ProductRepository(test_db)
 
-    results, total = repo.list_by_category("assiette", tenant_id=1)
+    results, total = repo.list_by_category("assiettes", tenant_id=1)
 
     assert len(results) >= 1
-    assert all(p.category == "assiette" for p in results)
+    assert all(p.category == "assiettes" for p in results)
     assert test_product_assiette.id in [p.id for p in results]
     assert test_product_verre.id not in [p.id for p in results]
 
@@ -105,10 +105,10 @@ def test_list_by_category_verre(test_db, test_product_assiette, test_product_ver
     """Liste les produits de catégorie 'verre'."""
     repo = ProductRepository(test_db)
 
-    results, total = repo.list_by_category("verre", tenant_id=1)
+    results, total = repo.list_by_category("verres", tenant_id=1)
 
     assert len(results) >= 1
-    assert all(p.category == "verre" for p in results)
+    assert all(p.category == "verres" for p in results)
     assert test_product_verre.id in [p.id for p in results]
     assert test_product_assiette.id not in [p.id for p in results]
 
@@ -163,9 +163,9 @@ def test_list_available_with_category_filter(
     """Liste disponible avec filtre catégorie."""
     repo = ProductRepository(test_db)
 
-    results = repo.list_available(tenant_id=1, category="assiette")
+    results = repo.list_available(tenant_id=1, category="assiettes")
 
-    assert all(p.category == "assiette" for p in results)
+    assert all(p.category == "assiettes" for p in results)
     assert all(p.available_quantity > 0 for p in results)
     assert test_product_assiette.id in [p.id for p in results]
     assert test_product_verre.id not in [p.id for p in results]
@@ -359,7 +359,7 @@ def test_list_by_category_cross_tenant_isolation(test_db, test_product_assiette)
         tenant_id=2,
         name="Assiette Tenant 2",
         sku="ASS-T2",
-        category=ProductCategory.ASSIETTE,
+        category=ProductCategory.ASSIETTES,
         price_per_day=50,
         stock_quantity=50,
         available_quantity=50,
@@ -371,7 +371,7 @@ def test_list_by_category_cross_tenant_isolation(test_db, test_product_assiette)
     repo = ProductRepository(test_db)
 
     # Liste tenant=1 ne doit PAS voir product_tenant2
-    results, total = repo.list_by_category("assiette", tenant_id=1)
+    results, total = repo.list_by_category("assiettes", tenant_id=1)
 
     assert all(p.tenant_id == 1 for p in results)
     assert product_tenant2.id not in [p.id for p in results]

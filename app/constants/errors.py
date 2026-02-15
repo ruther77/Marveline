@@ -24,6 +24,7 @@ class ErrorMessages:
     INVOICE_NOT_FOUND = "Invoice not found"
     CUSTOMER_NOT_FOUND = "Customer not found"
     USER_NOT_FOUND = "User not found"
+    SESSION_NOT_FOUND = "Session not found or access denied"
 
     # ─────────────────────────────────────────────────────────────────────
     # Validation métier (400 BAD REQUEST)
@@ -47,8 +48,26 @@ class ErrorMessages:
     INVALID_REFRESH_TOKEN_TYPE = "Invalid token type (expected refresh token)"
     INVALID_TOKEN_PAYLOAD = "Invalid token payload"
     INVALID_TOKEN_TYPE = "Invalid token type"
+    REFRESH_TOKEN_REVOKED = "Refresh token has been revoked"
+    REFRESH_TOKEN_REPLAY = "Refresh token reuse detected — all sessions revoked"
+    ACCESS_TOKEN_REVOKED = "Access token has been revoked"
     CURRENT_PASSWORD_INCORRECT = "Current password is incorrect"
     INVALID_ROLE = "Invalid role. Must be: admin, manager, or staff"
+
+    # ─────────────────────────────────────────────────────────────────────
+    # MFA (400 / 401)
+    # ─────────────────────────────────────────────────────────────────────
+
+    MFA_ALREADY_ENABLED = "MFA is already enabled for this user"
+    MFA_NOT_ENABLED = "MFA is not enabled for this user"
+    MFA_NO_PENDING_SETUP = "No pending MFA setup found"
+    MFA_INVALID_TOTP_CODE = "Invalid TOTP code"
+    MFA_CODE_ALREADY_USED = "TOTP code already used (anti-replay)"
+    MFA_INVALID_RECOVERY_CODE = "Invalid recovery code"
+    MFA_NO_RECOVERY_CODES = "No recovery codes available"
+    MFA_SESSION_INVALID = "MFA session token is invalid or expired"
+    MFA_MUST_PROVIDE_CODE = "Must provide either totp_code or recovery_code"
+    MFA_BOTH_CODES_PROVIDED = "Provide either totp_code or recovery_code, not both"
 
     # ─────────────────────────────────────────────────────────────────────
     # CSRF Protection (403 FORBIDDEN)
@@ -86,6 +105,28 @@ class ErrorMessages:
     INVOICE_PAID_NO_MODIFY = "Cannot modify paid invoice"
     INVOICE_PAID_NO_CANCEL = "Cannot cancel paid invoice"
     INVOICE_NUMBER_OVERFLOW = "Cannot generate unique invoice number (counter overflow)"
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Categories (400 / 404)
+    # ─────────────────────────────────────────────────────────────────────
+
+    CATEGORY_NOT_FOUND = "Category not found"
+    CATEGORY_HAS_CHILDREN = "Cannot delete category with active children"
+    CATEGORY_SLUG_EXISTS = "Category with this slug already exists"
+    CATEGORY_NAME_EXISTS = "Category with this name already exists"
+    CATEGORY_PARENT_CYCLE = "Category cannot be its own parent"
+    CATEGORY_PARENT_NOT_FOUND = "Parent category not found"
+
+    # ─────────────────────────────────────────────────────────────────────
+    # Bundles (400 / 404)
+    # ─────────────────────────────────────────────────────────────────────
+
+    BUNDLE_NOT_FOUND = "Bundle not found"
+    BUNDLE_SLUG_EXISTS = "Bundle with this slug already exists"
+    BUNDLE_NAME_EXISTS = "Bundle with this name already exists"
+    BUNDLE_ITEM_NOT_FOUND = "Bundle item not found"
+    BUNDLE_ITEM_DUPLICATE = "Product already exists in this bundle"
+    BUNDLE_ITEM_PRODUCT_NOT_FOUND = "Product not found or inactive"
 
 
 class HTTPStatusMessages:

@@ -3,11 +3,11 @@
  */
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import { EventType } from '../../types/event';
+// import { EventType } from '../../types/event';
 import { MovementType } from '../../types/inventory';
 
 interface FiltersState {
-  eventType?: EventType;
+  eventType?: string;
   status?: string;
   movementType?: MovementType;
   search?: string;
@@ -97,7 +97,7 @@ const MobileFilters: React.FC<MobileFiltersProps> = ({ onClose, onApply }) => {
                 ].map(type => (
                   <button
                     key={type.value}
-                    onClick={() => updateFilter('eventType', type.value as EventType)}
+                    onClick={() => updateFilter('eventType', type.value as string)}
                     className={`py-3 px-4 rounded-2xl font-medium text-sm transition-all active:scale-95 ${
                       filters.eventType === type.value || (!filters.eventType && type.value === '')
                         ? 'bg-indigo-600 text-white shadow-lg'
