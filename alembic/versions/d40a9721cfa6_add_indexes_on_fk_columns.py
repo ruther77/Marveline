@@ -21,26 +21,15 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Add indexes on foreign key columns for better JOIN performance.
 
-    Adds indexes on 6 FK columns:
-    - bundle_items.bundle_id
-    - bundle_items.product_id
+    Adds indexes on 4 FK columns:
     - categories.parent_id
     - reservations.customer_id
     - reservation_lines.reservation_id
     - reservation_lines.product_id
-    """
-    # BundleItem FK indexes
-    op.create_index(
-        'ix_bundle_items_bundle_id',
-        'bundle_items',
-        ['bundle_id']
-    )
-    op.create_index(
-        'ix_bundle_items_product_id',
-        'bundle_items',
-        ['product_id']
-    )
 
+    Note: bundle_items.bundle_id et bundle_items.product_id ont déjà index=True
+    dans le model, donc indexes créés automatiquement par migration de table.
+    """
     # Category FK index (self-referential)
     op.create_index(
         'ix_categories_parent_id',
@@ -75,5 +64,4 @@ def downgrade() -> None:
     op.drop_index('ix_reservation_lines_reservation_id', 'reservation_lines')
     op.drop_index('ix_reservations_customer_id', 'reservations')
     op.drop_index('ix_categories_parent_id', 'categories')
-    op.drop_index('ix_bundle_items_product_id', 'bundle_items')
-    op.drop_index('ix_bundle_items_bundle_id', 'bundle_items')
+    # bundle_items indexes gérés par le model (index=True), pas par cette migration
