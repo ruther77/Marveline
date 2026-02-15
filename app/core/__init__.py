@@ -51,6 +51,15 @@ from app.core.password_policy import validate_password
 
 from app.core.crypto import encrypt_totp_secret, decrypt_totp_secret
 
+from app.core.permissions import (
+    Permission,
+    ROLE_HIERARCHY,
+    ROLE_PERMISSIONS,
+    get_effective_permissions,
+    get_effective_permissions_cached,
+    has_permission,
+)
+
 __all__ = [
     # Rate limiter & metrics
     "RateLimiter",
@@ -96,4 +105,11 @@ __all__ = [
     # Crypto
     "encrypt_totp_secret",
     "decrypt_totp_secret",
+    # Permissions RBAC
+    "Permission",
+    "ROLE_HIERARCHY",
+    "ROLE_PERMISSIONS",
+    "get_effective_permissions",
+    "get_effective_permissions_cached",
+    "has_permission",
 ]

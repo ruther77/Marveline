@@ -2,7 +2,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.deps import get_current_user, require_role
+from app.core.deps import get_current_user, require_permission
+from app.core.permissions import Permission
 from app.models.user import User
 from app.services.bundle import BundleService
 from app.repositories.bundle import BundleRepository
@@ -17,7 +18,7 @@ from app.schemas.bundle import (
     BundlePriceResponse,
 )
 from app.schemas.common import PaginationParams, PaginatedResponse
-from app.constants import ErrorMessages, UserRole
+from app.constants import ErrorMessages
 from app.models.bundle import BundleItem as BundleItemModel
 from sqlalchemy.orm import joinedload
 
@@ -78,7 +79,7 @@ def get_bundle(
 def create_bundle(
     data: BundleCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.BUNDLES_WRITE)),
 ) -> BundleResponse:
     """Cree un nouveau bundle (admin uniquement)."""
     service = BundleService(db)
@@ -102,7 +103,7 @@ def update_bundle(
     bundle_id: int,
     data: BundleUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.BUNDLES_WRITE)),
 ) -> BundleResponse:
     """Met a jour un bundle (admin uniquement)."""
     service = BundleService(db)
@@ -125,7 +126,7 @@ def update_bundle(
 def delete_bundle(
     bundle_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.BUNDLES_DELETE)),
 ) -> None:
     """Soft delete un bundle (admin uniquement)."""
     service = BundleService(db)
@@ -151,7 +152,7 @@ def add_bundle_item(
     bundle_id: int,
     data: BundleItemCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.BUNDLES_WRITE)),
 ) -> BundleItemResponse:
     """Ajoute un produit au bundle (admin uniquement)."""
     service = BundleService(db)
@@ -177,7 +178,7 @@ def update_bundle_item(
     item_id: int,
     data: BundleItemUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.BUNDLES_WRITE)),
 ) -> BundleItemResponse:
     """Met a jour un item du bundle (admin uniquement)."""
     service = BundleService(db)
@@ -202,7 +203,7 @@ def remove_bundle_item(
     bundle_id: int,
     item_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.BUNDLES_DELETE)),
 ) -> None:
     """Supprime un item du bundle (admin uniquement)."""
     service = BundleService(db)

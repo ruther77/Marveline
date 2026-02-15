@@ -9,6 +9,7 @@ from app.core.exceptions import TokenExpired, TokenInvalid
 from app.models.user import User
 from app.services.token import token_service
 from app.constants import AuthEndpoints, ErrorMessages, SecurityHeaders, TokenType, UserRole
+from app.core.permissions import Permission, get_effective_permissions_cached
 
 
 # OAuth2 scheme pour extraction du token Bearer
@@ -93,7 +94,11 @@ def get_current_user(
 
 
 def require_role(*allowed_roles: str):
-    """Dependency factory pour vérifier le rôle de l'utilisateur."""
+    """Dependency factory pour vérifier le rôle de l'utilisateur.
+
+    DEPRECATED: Utiliser require_permission() pour des controles granulaires.
+    Conserve pour retrocompatibilite.
+    """
     def role_checker(current_user: User = Depends(get_current_user)) -> User:
         if current_user.role not in allowed_roles:
             raise HTTPException(
@@ -105,7 +110,50 @@ def require_role(*allowed_roles: str):
     return role_checker
 
 
+def require_permission(*permissions: Permission):
+    """Dependency factory : verifie que l'utilisateur a TOUTES les permissions requises.
+
+    Utilise le systeme RBAC hierarchique : les permissions sont resolues
+    via l'heritage de role (staff < manager < admin).
+
+    Args:
+        permissions: une ou plusieurs Permission requises (toutes doivent etre satisfaites).
+
+    Returns:
+        Un dependency FastAPI qui retourne le User authentifie si autorise.
+
+    Raises:
+        HTTPException 403: si au moins une permission manque.
+    """
+    def permission_checker(current_user: User = Depends(get_current_user)) -> User:
+        user_perms = get_effective_permissions_cached(current_user.role)
+        missing = set(permissions) - user_perms
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permissions manquantes: {', '.join(p.value for p in missing)}"
+            )
+        return current_user
+
+    return permission_checker
+
+
 # Type aliases pour annotations
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+# Legacy (role-based) — conserves pour retrocompatibilite
 AdminUser = Annotated[User, Depends(require_role(UserRole.ADMIN))]
 ManagerUser = Annotated[User, Depends(require_role(UserRole.ADMIN, UserRole.MANAGER))]
+
+# Permission-based aliases (a privilegier)
+ProductWriter = Annotated[User, Depends(require_permission(Permission.PRODUCTS_WRITE))]
+ProductDeleter = Annotated[User, Depends(require_permission(Permission.PRODUCTS_DELETE))]
+CategoryWriter = Annotated[User, Depends(require_permission(Permission.CATEGORIES_WRITE))]
+BundleWriter = Annotated[User, Depends(require_permission(Permission.BUNDLES_WRITE))]
+ReservationWriter = Annotated[User, Depends(require_permission(Permission.RESERVATIONS_WRITE))]
+InvoiceWriter = Annotated[User, Depends(require_permission(Permission.INVOICES_WRITE))]
+CustomerWriter = Annotated[User, Depends(require_permission(Permission.CUSTOMERS_WRITE))]
+InventoryWriter = Annotated[User, Depends(require_permission(Permission.INVENTORY_WRITE))]
+UserAdmin = Annotated[User, Depends(require_permission(Permission.USERS_ADMIN))]
+SessionAdmin = Annotated[User, Depends(require_permission(Permission.SESSIONS_ADMIN))]
+AuditReader = Annotated[User, Depends(require_permission(Permission.AUDIT_READ))]

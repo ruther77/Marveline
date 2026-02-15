@@ -3,7 +3,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.deps import get_current_user, require_role
+from app.core.deps import get_current_user, require_permission
+from app.core.permissions import Permission
 from app.models.user import User
 from app.services.category import CategoryService
 from app.repositories.category import CategoryRepository
@@ -14,7 +15,7 @@ from app.schemas.category import (
     CategoryTreeNode,
 )
 from app.schemas.common import PaginationParams, PaginatedResponse
-from app.constants import ErrorMessages, UserRole
+from app.constants import ErrorMessages
 
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
@@ -83,7 +84,7 @@ def get_category(
 def create_category(
     data: CategoryCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.CATEGORIES_WRITE)),
 ) -> CategoryResponse:
     """Cree une nouvelle categorie (admin uniquement)."""
     service = CategoryService(db)
@@ -107,7 +108,7 @@ def update_category(
     category_id: int,
     data: CategoryUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.CATEGORIES_WRITE)),
 ) -> CategoryResponse:
     """Met a jour une categorie (admin uniquement)."""
     service = CategoryService(db)
@@ -130,7 +131,7 @@ def update_category(
 def delete_category(
     category_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.CATEGORIES_DELETE)),
 ) -> None:
     """Soft delete une categorie (admin uniquement)."""
     service = CategoryService(db)

@@ -5,8 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_
 from app.core.database import get_db
-from app.core.deps import require_role
-from app.models.user import User, UserRole
+from app.core.deps import require_permission
+from app.core.permissions import Permission
+from app.models.user import User
 from app.models.audit_log import AuditLog
 from app.schemas.audit import AuditLogResponse, AuditLogList
 
@@ -16,7 +17,7 @@ router = APIRouter(prefix="/audit", tags=["Audit"])
 
 @router.get("", response_model=AuditLogList)
 def list_audit_logs(
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.AUDIT_READ)),
     skip: int = Query(0, ge=0, description="Offset pagination"),
     limit: int = Query(100, ge=1, le=1000, description="Limite pagination (max 1000)"),
     start_date: Optional[datetime] = Query(None, description="Date début (inclusive)"),
@@ -121,7 +122,7 @@ def list_audit_logs(
 @router.get("/user/{user_id}", response_model=AuditLogList)
 def get_user_audit_trail(
     user_id: int,
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.AUDIT_READ)),
     skip: int = Query(0, ge=0, description="Offset pagination"),
     limit: int = Query(100, ge=1, le=1000, description="Limite pagination (max 1000)"),
     start_date: Optional[datetime] = Query(None, description="Date début (inclusive)"),
@@ -219,7 +220,7 @@ def get_user_audit_trail(
 def get_entity_audit_trail(
     entity_type: str,
     entity_id: int,
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_permission(Permission.AUDIT_READ)),
     skip: int = Query(0, ge=0, description="Offset pagination"),
     limit: int = Query(100, ge=1, le=1000, description="Limite pagination (max 1000)"),
     db: Session = Depends(get_db),

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.exceptions import AppException
+from app.core.permissions import get_effective_permissions_cached
 from app.core.redis import redis_client
 from app.services.auth import AuthService, MFARequiredResult
 from app.schemas.auth import TokenResponse, RefreshTokenRequest, LogoutRequest, LogoutResponse, CSRFTokenResponse, UserInfo
@@ -195,7 +196,8 @@ def logout(
 def get_current_user_info(
     current_user: User = Depends(get_current_user),
 ) -> UserInfo:
-    """Retourne les informations de l'utilisateur authentifié."""
+    """Retourne les informations de l'utilisateur authentifié avec ses permissions effectives."""
+    perms = get_effective_permissions_cached(current_user.role)
     return UserInfo(
         id=current_user.id,
         email=current_user.email,
@@ -203,6 +205,7 @@ def get_current_user_info(
         role=current_user.role,
         tenant_id=current_user.tenant_id,
         is_active=current_user.is_active,
+        permissions=sorted(p.value for p in perms),
         created_at=str(current_user.created_at) if current_user.created_at else None,
     )
 

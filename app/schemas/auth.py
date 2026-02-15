@@ -127,6 +127,11 @@ class UserInfo(BaseSchema):
         description="Compte actif"
     )
 
+    permissions: list[str] = Field(
+        default_factory=list,
+        description="Liste des permissions effectives (resource:action)"
+    )
+
     created_at: str | None = Field(
         default=None,
         description="Date de création du compte"

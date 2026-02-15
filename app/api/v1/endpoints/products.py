@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.core.database import get_db
-from app.core.deps import get_current_user, require_role
+from app.core.deps import get_current_user, require_permission
+from app.core.permissions import Permission
 from app.models.user import User
 from app.models.product import Product
 from app.services.product import ProductService
@@ -16,7 +17,7 @@ from app.schemas.product import (
     ProductList,
 )
 from app.schemas.common import PaginationParams, PaginatedResponse
-from app.constants import ErrorMessages, UserRole
+from app.constants import ErrorMessages
 
 
 router = APIRouter(prefix="/products", tags=["Products"])
@@ -158,9 +159,9 @@ def get_product(
 def create_product(
     product_data: ProductCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN))
+    current_user: User = Depends(require_permission(Permission.PRODUCTS_WRITE))
 ) -> ProductResponse:
-    """Crée un nouveau produit (admin only).
+    """Crée un nouveau produit (products:write).
 
     Args:
         product_data: Données du produit à créer
@@ -234,9 +235,9 @@ def update_product(
     product_id: int,
     product_data: ProductUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN))
+    current_user: User = Depends(require_permission(Permission.PRODUCTS_WRITE))
 ) -> ProductResponse:
-    """Met à jour un produit existant (admin only, PATCH partiel).
+    """Met à jour un produit existant (products:write, PATCH partiel).
 
     Args:
         product_id: ID du produit
@@ -294,9 +295,9 @@ def delete_product(
     product_id: int,
     hard_delete: bool = Query(False, description="Si True, suppression physique (défaut: soft delete)"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN))
+    current_user: User = Depends(require_permission(Permission.PRODUCTS_DELETE))
 ) -> None:
-    """Supprime un produit (admin only, soft delete par défaut).
+    """Supprime un produit (products:delete, soft delete par défaut).
 
     Args:
         product_id: ID du produit
