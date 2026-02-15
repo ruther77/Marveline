@@ -2,6 +2,7 @@
 from typing import Optional
 from sqlalchemy import BigInteger, CheckConstraint, String, UniqueConstraint, event
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.ext.hybrid import hybrid_property
 from app.models.base import Base, TimestampMixin, TenantMixin, SoftDeleteMixin
 from app.constants import UserRole
 
@@ -12,7 +13,9 @@ class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     Attributes:
         email: Email unique (utilisé pour login)
         hashed_password: Mot de passe haché (bcrypt)
-        full_name: Nom complet de l'utilisateur
+        first_name: Prénom de l'utilisateur
+        last_name: Nom de famille de l'utilisateur
+        full_name: Nom complet (computed from first_name + last_name)
         role: Rôle RBAC (admin, manager, staff)
         tenant_id: Tenant auquel appartient l'utilisateur
         is_active: Compte actif (False = compte désactivé)
@@ -48,10 +51,16 @@ class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     )
 
     # Informations utilisateur
-    full_name: Mapped[str] = mapped_column(
-        String(200),
+    first_name: Mapped[str] = mapped_column(
+        String(100),
         nullable=False,
-        comment="Nom complet de l'utilisateur"
+        comment="Prénom de l'utilisateur"
+    )
+
+    last_name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        comment="Nom de famille de l'utilisateur"
     )
 
     # RBAC
@@ -92,6 +101,11 @@ class User(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     def can_read(self) -> bool:
         """Vérifie si l'utilisateur a les droits de lecture (tous les rôles)."""
         return True  # Tous les utilisateurs peuvent lire
+
+    @hybrid_property
+    def full_name(self) -> str:
+        """Nom complet de l'utilisateur (first_name + last_name)."""
+        return f"{self.first_name} {self.last_name}"
 
     def __repr__(self) -> str:
         return f"<User(id={self.id}, email='{self.email}', role='{self.role}')>"

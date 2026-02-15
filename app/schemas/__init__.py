@@ -90,6 +90,10 @@ from app.schemas.bundle import (
     BundleItemResponse,
     BundlePriceResponse,
 )
+from app.schemas.user import (
+    UserProfileUpdate,
+    UserProfileResponse,
+)
 
 __all__ = [
     # Base schemas
@@ -171,4 +175,7 @@ __all__ = [
     "BundleItemUpdate",
     "BundleItemResponse",
     "BundlePriceResponse",
+    # User schemas
+    "UserProfileUpdate",
+    "UserProfileResponse",
 ]

@@ -9,6 +9,7 @@ from app.services.token import TokenService, token_service
 from app.services.bruteforce import BruteForceService, brute_force_service
 from app.services.session import SessionService, session_service
 from app.services.mfa import MFAService, mfa_service
+from app.services.user import UserService
 
 __all__ = [
     "AuthService",
@@ -28,4 +29,5 @@ __all__ = [
     "session_service",
     "MFAService",
     "mfa_service",
+    "UserService",
 ]
