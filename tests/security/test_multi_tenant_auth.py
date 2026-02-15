@@ -40,7 +40,7 @@ class TestCrossTenantLogin:
             tenant_id=10,
             email="shared@multitenant.com",
             hashed_password=get_password_hash("P@ssT10_ok1"),
-            full_name="User Tenant 10",
+            first_name="User Tenant", last_name="10",
             role="staff",
             is_active=True,
         )
@@ -48,7 +48,7 @@ class TestCrossTenantLogin:
             tenant_id=20,
             email="shared@multitenant.com",
             hashed_password=get_password_hash("P@ssT20_ok1"),
-            full_name="User Tenant 20",
+            first_name="User Tenant", last_name="20",
             role="staff",
             is_active=True,
         )

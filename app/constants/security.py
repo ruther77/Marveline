@@ -88,6 +88,8 @@ class RedisKeys:
     SESSION_USER_INDEX = "session_idx:"
     RESERVATION_COUNTER = "reservation_counter:"
     INVOICE_COUNTER = "invoice_counter:"
+    API_KEY_CACHE = "api_key:"
+    FEATURE_FLAG_CACHE = "ff:"
 
     # ─────────────────────────────────────────────────────────────────────
     # Helpers pour générer clés complètes

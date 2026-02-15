@@ -18,7 +18,7 @@ def admin_user(test_db):
         tenant_id=1,
         email="admin@carocorp.com",
         hashed_password=get_password_hash("admin123"),
-        full_name="Admin User",
+        first_name="Admin", last_name="User",
         role="admin",
         is_active=True
     )
@@ -35,7 +35,7 @@ def manager_user(test_db):
         tenant_id=1,
         email="manager@carocorp.com",
         hashed_password=get_password_hash("manager123"),
-        full_name="Manager User",
+        first_name="Manager", last_name="User",
         role="manager",
         is_active=True
     )
@@ -52,7 +52,7 @@ def staff_user(test_db):
         tenant_id=1,
         email="staff@carocorp.com",
         hashed_password=get_password_hash("staff123"),
-        full_name="Staff User",
+        first_name="Staff", last_name="User",
         role="staff",
         is_active=True
     )

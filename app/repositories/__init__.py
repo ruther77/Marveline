@@ -7,6 +7,8 @@ from app.repositories.reservation import (
     ReservationLineRepository,
 )
 from app.repositories.invoice import InvoiceRepository
+from app.repositories.api_key import ApiKeyRepository
+from app.repositories.feature_flag import FeatureFlagRepository
 
 __all__ = [
     "BaseRepository",
@@ -15,4 +17,6 @@ __all__ = [
     "ReservationRepository",
     "ReservationLineRepository",
     "InvoiceRepository",
+    "ApiKeyRepository",
+    "FeatureFlagRepository",
 ]

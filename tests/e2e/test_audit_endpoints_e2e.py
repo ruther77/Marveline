@@ -55,7 +55,8 @@ class TestAuditEndpointsE2E:
         )
 
         assert response.status_code == 403
-        assert "Insufficient permissions" in response.json()["detail"]
+        detail = response.json()["detail"]
+        assert "permissions" in detail.lower() or "audit:read" in detail
 
     def test_list_audit_logs_filter_by_action(
         self,

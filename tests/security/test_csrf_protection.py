@@ -178,7 +178,8 @@ class TestCSRFProtection:
         )
 
         assert response.status_code == 401
-        assert "Not authenticated" in response.json()["detail"]
+        detail = response.json()["detail"]
+        assert "authenticated" in detail.lower() or "credentials" in detail.lower()
 
     def test_multiple_csrf_tokens_per_user(
         self,

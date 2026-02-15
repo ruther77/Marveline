@@ -10,6 +10,8 @@ from app.services.bruteforce import BruteForceService, brute_force_service
 from app.services.session import SessionService, session_service
 from app.services.mfa import MFAService, mfa_service
 from app.services.user import UserService
+from app.services.api_key import ApiKeyService
+from app.services.feature_flag import FeatureFlagService
 
 __all__ = [
     "AuthService",
@@ -30,4 +32,6 @@ __all__ = [
     "MFAService",
     "mfa_service",
     "UserService",
+    "ApiKeyService",
+    "FeatureFlagService",
 ]

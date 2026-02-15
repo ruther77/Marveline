@@ -471,7 +471,8 @@ class AuthService:
         self,
         email: str,
         password: str,
-        full_name: str,
+        first_name: str,
+        last_name: str,
         role: str,
         tenant_id: int
     ) -> User:
@@ -480,7 +481,8 @@ class AuthService:
         Args:
             email: Email unique
             password: Mot de passe en clair
-            full_name: Nom complet
+            first_name: Prenom
+            last_name: Nom de famille
             role: Rôle RBAC (admin, manager, staff)
             tenant_id: ID du tenant
 
@@ -489,22 +491,6 @@ class AuthService:
 
         Raises:
             HTTPException 400: Si email existe déjà ou password faible
-
-        Security:
-            - Email normalisé + validation unicité
-            - Password validé pour robustesse
-            - Hash avec bcrypt
-            - Pas de commit automatique
-
-        Example:
-            user = auth_service.create_user(
-                email="new@example.com",
-                password="secure123",
-                full_name="Jean Dupont",
-                role="manager",
-                tenant_id=1
-            )
-            db.commit()
         """
         # Normaliser email
         email = email.lower().strip()
@@ -536,7 +522,8 @@ class AuthService:
         user = User(
             email=email,
             hashed_password=get_password_hash(password),
-            full_name=full_name,
+            first_name=first_name,
+            last_name=last_name,
             role=role,
             tenant_id=tenant_id,
             is_active=True

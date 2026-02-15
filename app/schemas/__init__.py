@@ -94,6 +94,20 @@ from app.schemas.user import (
     UserProfileUpdate,
     UserProfileResponse,
 )
+from app.schemas.api_key import (
+    ApiKeyCreate,
+    ApiKeyUpdate,
+    ApiKeyResponse,
+    ApiKeyCreated,
+    ApiKeyList,
+)
+from app.schemas.feature_flag import (
+    FeatureFlagCreate,
+    FeatureFlagUpdate,
+    FeatureFlagResponse,
+    FeatureFlagEvaluated,
+    FeatureFlagList,
+)
 
 __all__ = [
     # Base schemas
@@ -178,4 +192,16 @@ __all__ = [
     # User schemas
     "UserProfileUpdate",
     "UserProfileResponse",
+    # API Key schemas
+    "ApiKeyCreate",
+    "ApiKeyUpdate",
+    "ApiKeyResponse",
+    "ApiKeyCreated",
+    "ApiKeyList",
+    # Feature Flag schemas
+    "FeatureFlagCreate",
+    "FeatureFlagUpdate",
+    "FeatureFlagResponse",
+    "FeatureFlagEvaluated",
+    "FeatureFlagList",
 ]

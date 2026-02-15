@@ -25,7 +25,7 @@ def test_auth_service_login_success(test_db):
         tenant_id=1,
         email="test@example.com",
         hashed_password=get_password_hash("password123"),
-        full_name="Test User",
+        first_name="Test", last_name="User",
         role="staff",
         is_active=True
     )
@@ -46,7 +46,7 @@ def test_auth_service_login_wrong_password(test_db):
         tenant_id=1,
         email="test@example.com",
         hashed_password=get_password_hash("correct_password"),
-        full_name="Test User",
+        first_name="Test", last_name="User",
         role="staff",
         is_active=True
     )
@@ -68,7 +68,7 @@ def test_auth_service_login_inactive_user(test_db):
         tenant_id=1,
         email="inactive@example.com",
         hashed_password=get_password_hash("password123"),
-        full_name="Inactive User",
+        first_name="Inactive", last_name="User",
         role="staff",
         is_active=False  # Inactif
     )
@@ -100,7 +100,7 @@ def test_auth_service_login_email_case_insensitive(test_db):
         tenant_id=1,
         email="Test@Example.COM",  # Mixed case
         hashed_password=get_password_hash("password123"),
-        full_name="Test User",
+        first_name="Test", last_name="User",
         role="staff",
         is_active=True
     )
@@ -123,7 +123,7 @@ def test_refresh_access_token_valid(test_db):
         tenant_id=1,
         email="refresh@example.com",
         hashed_password=get_password_hash("password123"),
-        full_name="Refresh User",
+        first_name="Refresh", last_name="User",
         role="staff",
         is_active=True
     )
@@ -172,7 +172,7 @@ def test_refresh_access_token_wrong_type(test_db):
         tenant_id=1,
         email="wrong@example.com",
         hashed_password=get_password_hash("password123"),
-        full_name="Wrong Type User",
+        first_name="Wrong Type", last_name="User",
         role="staff",
         is_active=True
     )
@@ -200,7 +200,7 @@ def test_refresh_access_token_inactive_user(test_db):
         tenant_id=1,
         email="inactive_refresh@example.com",
         hashed_password=get_password_hash("password123"),
-        full_name="Inactive Refresh User",
+        first_name="Inactive Refresh", last_name="User",
         role="staff",
         is_active=False  # Inactif
     )
@@ -226,7 +226,7 @@ def test_change_password_success(test_db):
         tenant_id=1,
         email="change@example.com",
         hashed_password=get_password_hash("old_password"),
-        full_name="Change Password User",
+        first_name="Change Password", last_name="User",
         role="staff",
         is_active=True
     )
@@ -255,7 +255,7 @@ def test_change_password_wrong_current(test_db):
         tenant_id=1,
         email="wrong_current@example.com",
         hashed_password=get_password_hash("correct_password"),
-        full_name="Wrong Current User",
+        first_name="Wrong Current", last_name="User",
         role="staff",
         is_active=True
     )
@@ -282,7 +282,7 @@ def test_change_password_weak_new(test_db):
         tenant_id=1,
         email="weak_new@example.com",
         hashed_password=get_password_hash("old_password"),
-        full_name="Weak New User",
+        first_name="Weak New", last_name="User",
         role="staff",
         is_active=True
     )
@@ -324,7 +324,7 @@ def test_create_user_success(test_db):
     new_user = service.create_user(
         email="newuser@example.com",
         password="SecurePass123!",
-        full_name="New User",
+        first_name="New", last_name="User",
         role="manager",
         tenant_id=1
     )
@@ -344,7 +344,7 @@ def test_create_user_duplicate_email(test_db):
         tenant_id=1,
         email="existing@example.com",
         hashed_password=get_password_hash("password123"),
-        full_name="Existing User",
+        first_name="Existing", last_name="User",
         role="staff",
         is_active=True
     )
@@ -357,7 +357,7 @@ def test_create_user_duplicate_email(test_db):
         service.create_user(
             email="existing@example.com",  # Déjà existe
             password="SecurePass123!",
-            full_name="Duplicate User",
+            first_name="Duplicate", last_name="User",
             role="staff",
             tenant_id=1
         )
@@ -374,7 +374,7 @@ def test_create_user_weak_password(test_db):
         service.create_user(
             email="weak@example.com",
             password="123",  # Trop court
-            full_name="Weak Password User",
+            first_name="Weak Password", last_name="User",
             role="staff",
             tenant_id=1
         )
@@ -390,7 +390,7 @@ def test_create_user_invalid_role(test_db):
         service.create_user(
             email="invalid_role@example.com",
             password="SecurePass123!",
-            full_name="Invalid Role User",
+            first_name="Invalid Role", last_name="User",
             role="superuser",  # Rôle invalide
             tenant_id=1
         )

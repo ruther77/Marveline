@@ -22,7 +22,7 @@ class TestEmailTenantIsolation:
             tenant_id=1,
             email="shared@example.com",
             hashed_password=get_password_hash("testpass123"),
-            full_name="User Tenant 1",
+            first_name="User Tenant", last_name="1",
             role="staff",
             is_active=True,
         )
@@ -30,7 +30,7 @@ class TestEmailTenantIsolation:
             tenant_id=2,
             email="shared@example.com",
             hashed_password=get_password_hash("testpass123"),
-            full_name="User Tenant 2",
+            first_name="User Tenant", last_name="2",
             role="staff",
             is_active=True,
         )
@@ -51,7 +51,7 @@ class TestEmailTenantIsolation:
             tenant_id=1,
             email="duplicate@example.com",
             hashed_password=get_password_hash("testpass123"),
-            full_name="User 1",
+            first_name="User", last_name="1",
             role="staff",
             is_active=True,
         )
@@ -62,7 +62,7 @@ class TestEmailTenantIsolation:
             tenant_id=1,
             email="duplicate@example.com",
             hashed_password=get_password_hash("testpass456"),
-            full_name="User 2",
+            first_name="User", last_name="2",
             role="staff",
             is_active=True,
         )

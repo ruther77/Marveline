@@ -67,6 +67,21 @@ class Permission(str, Enum):
     # Audit
     AUDIT_READ = "audit:read"
 
+    # API Keys
+    API_KEYS_READ = "api_keys:read"
+    API_KEYS_WRITE = "api_keys:write"
+    API_KEYS_DELETE = "api_keys:delete"
+
+    # Feature Flags
+    FEATURES_READ = "features:read"
+    FEATURES_WRITE = "features:write"
+    FEATURES_DELETE = "features:delete"
+
+    # VPN (WireGuard)
+    VPN_READ = "vpn:read"
+    VPN_WRITE = "vpn:write"
+    VPN_ADMIN = "vpn:admin"
+
     # Health
     HEALTH_READ = "health:read"
 
@@ -94,6 +109,7 @@ ROLE_PERMISSIONS: dict[str, set[Permission]] = {
         Permission.CUSTOMERS_WRITE,
         Permission.CUSTOMERS_DELETE,
         Permission.INVENTORY_WRITE,
+        Permission.VPN_READ,
     },
     "admin": {
         # Herite de manager + catalogue + administration
@@ -109,6 +125,14 @@ ROLE_PERMISSIONS: dict[str, set[Permission]] = {
         Permission.SESSIONS_READ,
         Permission.SESSIONS_ADMIN,
         Permission.AUDIT_READ,
+        Permission.API_KEYS_READ,
+        Permission.API_KEYS_WRITE,
+        Permission.API_KEYS_DELETE,
+        Permission.FEATURES_READ,
+        Permission.FEATURES_WRITE,
+        Permission.FEATURES_DELETE,
+        Permission.VPN_WRITE,
+        Permission.VPN_ADMIN,
     },
 }
 

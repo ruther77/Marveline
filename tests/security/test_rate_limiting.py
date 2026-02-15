@@ -23,7 +23,7 @@ def test_user_for_rate_limit(test_db):
         tenant_id=1,
         email="ratelimit@carocorp.com",
         hashed_password=get_password_hash("testpass123"),
-        full_name="Rate Limit Test User",
+        first_name="Rate Limit Test", last_name="User",
         role="staff"
     )
     test_db.add(user)

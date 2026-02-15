@@ -355,7 +355,7 @@ def test_cannot_create_resource_for_another_tenant_via_payload(
         tenant_id=2,
         email="admin2@tenant2.com",
         hashed_password=get_password_hash("admin123"),
-        full_name="Admin Tenant 2",
+        first_name="Admin Tenant", last_name="2",
         role="admin",
         is_active=True
     )

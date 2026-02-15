@@ -9,6 +9,8 @@ from app.models.audit_log import AuditLog
 from app.models.mfa import MFADevice
 from app.models.category import Category
 from app.models.bundle import ProductBundle, BundleItem
+from app.models.api_key import ApiKey
+from app.models.feature_flag import FeatureFlag
 
 __all__ = [
     # Base classes
@@ -19,6 +21,9 @@ __all__ = [
     # Auth models
     "User",
     "MFADevice",
+    "ApiKey",
+    # Feature Flags
+    "FeatureFlag",
     # Business models
     "Customer",
     "Product",

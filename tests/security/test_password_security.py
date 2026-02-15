@@ -112,7 +112,7 @@ class TestPasswordNotInClearInDB:
             tenant_id=1,
             email="cleartext-check@test.com",
             hashed_password=get_password_hash("MyP@ss1234"),
-            full_name="Clear Text Check",
+            first_name="Clear Text", last_name="Check",
             role="staff",
             is_active=True,
         )

@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     ENCRYPTION_KEY: str = "dev_encryption_key_32bytes_CHANGE"  # 32 bytes pour AES-256
     MFA_ISSUER_NAME: str = "Marveline"
 
+    # WireGuard Service (proxy inter-service)
+    WG_SERVICE_URL: str = "http://wireguard-service:8002"
+    WG_INTERNAL_API_KEY: str = "dev_wg_internal_key_CHANGER_EN_PROD"
+
     # Logging & compression
     LOG_LEVEL: str = "INFO"
     GZIP_MIN_SIZE: int = 500
@@ -72,6 +76,7 @@ class Settings(BaseSettings):
                 ('JWT_SECRET', 'dev_jwt_secret_CHANGER_EN_PROD_min32chars'),
                 ('CSRF_SECRET', 'dev_csrf_secret_CHANGER_EN_PROD_min32chars'),
                 ('ENCRYPTION_KEY', 'dev_encryption_key_32bytes_CHANGE'),
+                ('WG_INTERNAL_API_KEY', 'dev_wg_internal_key_CHANGER_EN_PROD'),
             ]
 
             violations = []
