@@ -31,6 +31,7 @@ from app.constants.business import (
 from app.constants.errors import ErrorMessages, HTTPStatusMessages
 from app.constants.http import AuthEndpoints, HealthEndpoints, HTTPMethods, PublicEndpoints
 from app.constants.limits import Limits
+from app.constants.metrics import PATH_NORMALIZATION_PATTERNS
 from app.constants.security import Argon2Params, BruteForceThresholds, MFAConfig, PasswordPolicy, RateLimitScope, RedisKeys, SecurityHeaders, SessionConfig
 
 # Exports publics du package
@@ -64,4 +65,6 @@ __all__ = [
     "HealthEndpoints",
     # Configuration
     "Limits",
+    # Metrics
+    "PATH_NORMALIZATION_PATTERNS",
 ]

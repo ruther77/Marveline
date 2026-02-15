@@ -8,7 +8,7 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.constants import AuthEndpoints, HTTPMethods, PublicEndpoints
-from app.core.database import get_db
+from app.core.database import get_db_context
 from app.services.audit import AuditService
 
 logger = logging.getLogger(__name__)
@@ -177,47 +177,42 @@ class AuditMiddleware(BaseHTTPMiddleware):
             >>> _audit_mutation("PUT", "/api/v1/reservations/123", ...)
             >>> # → action=UPDATE, entity_type=Reservation, entity_id=123
         """
-        db = None
         try:
-            # Ouvrir nouvelle session DB (commit séparé pour audit)
-            db = next(get_db())
-            audit_service = AuditService(db)
+            # Ouvrir nouvelle session DB avec context manager (fix B1)
+            with get_db_context() as db:
+                audit_service = AuditService(db)
 
-            # Mapper HTTP method → action
-            action_map = {
-                HTTPMethods.POST: "CREATE",
-                HTTPMethods.PUT: "UPDATE",
-                HTTPMethods.PATCH: "UPDATE",
-                HTTPMethods.DELETE: "DELETE"
-            }
-            action = action_map[method]
+                # Mapper HTTP method → action
+                action_map = {
+                    HTTPMethods.POST: "CREATE",
+                    HTTPMethods.PUT: "UPDATE",
+                    HTTPMethods.PATCH: "UPDATE",
+                    HTTPMethods.DELETE: "DELETE"
+                }
+                action = action_map[method]
 
-            # Parser entity_type et entity_id depuis path
-            entity_type, entity_id = self._parse_entity_from_path(path)
+                # Parser entity_type et entity_id depuis path
+                entity_type, entity_id = self._parse_entity_from_path(path)
 
-            # Enregistrer audit log
-            audit_service.log_action(
-                action=action,
-                tenant_id=tenant_id,
-                user_id=user_id,
-                entity_type=entity_type,
-                entity_id=entity_id,
-                description=f"{method} {path}",
-                ip_address=ip_address,
-                user_agent=user_agent,
-                request_id=request_id
-            )
+                # Enregistrer audit log
+                audit_service.log_action(
+                    action=action,
+                    tenant_id=tenant_id,
+                    user_id=user_id,
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                    description=f"{method} {path}",
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    request_id=request_id
+                )
 
-            # Commit séparé (pas de rollback si audit échoue)
-            db.commit()
+                # Commit séparé (pas de rollback si audit échoue)
+                db.commit()
 
         except Exception:
             # Fail-safe : ne pas crasher requete si audit echoue (fix M1)
             logger.exception("Erreur audit mutation %s %s", method, path)
-        finally:
-            # Fix B1: toujours fermer la session DB (eviter connection leak)
-            if db:
-                db.close()
 
     def _audit_sensitive_read(
         self,
@@ -240,39 +235,34 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
         Example:
             >>> # GET /api/v1/customers/456
-            >>> _audit_sensitive_read("/api/v1/customers/456", ...)
+            >>> _audit_sensitive_read("/api/v1/customers/456", ...")
             >>> # → action=READ_SENSITIVE, entity_type=Customer, entity_id=456
         """
-        db = None
         try:
-            # Ouvrir nouvelle session DB
-            db = next(get_db())
-            audit_service = AuditService(db)
+            # Ouvrir nouvelle session DB avec context manager (fix B1)
+            with get_db_context() as db:
+                audit_service = AuditService(db)
 
-            # Parser entity_type et entity_id
-            entity_type, entity_id = self._parse_entity_from_path(path)
+                # Parser entity_type et entity_id
+                entity_type, entity_id = self._parse_entity_from_path(path)
 
-            # Enregistrer lecture sensible
-            audit_service.log_read_sensitive(
-                entity_type=entity_type,
-                entity_id=entity_id,
-                tenant_id=tenant_id,
-                user_id=user_id,
-                ip_address=ip_address,
-                user_agent=user_agent,
-                request_id=request_id
-            )
+                # Enregistrer lecture sensible
+                audit_service.log_read_sensitive(
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                    tenant_id=tenant_id,
+                    user_id=user_id,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    request_id=request_id
+                )
 
-            # Commit séparé
-            db.commit()
+                # Commit séparé
+                db.commit()
 
         except Exception:
             # Fail-safe (fix M1)
             logger.exception("Erreur audit lecture sensible %s", path)
-        finally:
-            # Fix B1: toujours fermer la session DB (eviter connection leak)
-            if db:
-                db.close()
 
     def _parse_entity_from_path(self, path: str) -> tuple[str | None, int | None]:
         """Extrait entity_type et entity_id depuis path API.

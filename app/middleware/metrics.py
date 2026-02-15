@@ -30,7 +30,7 @@ from app.core.metrics import (
     rate_limit_hits_total,
 )
 from app.core.rate_limit_utils import determine_rate_limit_scope
-from app.constants import AuthEndpoints, HTTPMethods, RateLimitScope
+from app.constants import AuthEndpoints, HTTPMethods, PATH_NORMALIZATION_PATTERNS, RateLimitScope
 
 
 class MetricsMiddleware(BaseHTTPMiddleware):
@@ -51,15 +51,6 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         - 429 rate limit → incrémenter rate_limit_hits_total
         - Pas d'exemption (même /health et /metrics sont comptés)
     """
-
-    # Patterns pour normaliser paths avec IDs
-    PATH_PATTERNS = [
-        (re.compile(r'/api/v1/products/\d+'), '/api/v1/products/{id}'),
-        (re.compile(r'/api/v1/customers/\d+'), '/api/v1/customers/{id}'),
-        (re.compile(r'/api/v1/reservations/\d+'), '/api/v1/reservations/{id}'),
-        (re.compile(r'/api/v1/invoices/\d+'), '/api/v1/invoices/{id}'),
-        (re.compile(r'/api/v1/audit/\d+'), '/api/v1/audit/{id}'),
-    ]
 
     def _normalize_path(self, path: str) -> str:
         r"""Normalise path en remplaçant IDs par {id}.
@@ -83,7 +74,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             - UUID/slugs préservés (pas de pattern match)
             - Paths inconnus retournés tels quels
         """
-        for pattern, replacement in self.PATH_PATTERNS:
+        for pattern, replacement in PATH_NORMALIZATION_PATTERNS:
             if pattern.match(path):
                 return pattern.sub(replacement, path)
 
