@@ -55,11 +55,8 @@ def list_movements(
         reservation_id=reservation_id,
     )
 
-    items = []
-    for m in movements:
-        item = MovementListItem.model_validate(m)
-        item.items_count = len(m.items) if m.items else 0
-        items.append(item)
+    # items_count est déjà calculé en SQL par le repository (évite N+1)
+    items = [MovementListItem.model_validate(m) for m in movements]
 
     return PaginatedResponse(
         items=items,
@@ -78,12 +75,8 @@ def list_late_movements(
     service = MovementService(db)
     movements, _ = service.get_late_movements(current_user.tenant_id)
 
-    items = []
-    for m in movements:
-        item = MovementListItem.model_validate(m)
-        item.items_count = len(m.items) if m.items else 0
-        items.append(item)
-    return items
+    # items_count est déjà calculé en SQL par le repository (évite N+1)
+    return [MovementListItem.model_validate(m) for m in movements]
 
 
 @router.get("/pending-inspections", response_model=list[MovementListItem])
@@ -95,12 +88,8 @@ def list_pending_inspections(
     service = MovementService(db)
     movements, _ = service.get_pending_inspections(current_user.tenant_id)
 
-    items = []
-    for m in movements:
-        item = MovementListItem.model_validate(m)
-        item.items_count = len(m.items) if m.items else 0
-        items.append(item)
-    return items
+    # items_count est déjà calculé en SQL par le repository (évite N+1)
+    return [MovementListItem.model_validate(m) for m in movements]
 
 
 @router.get("/statistics", response_model=MovementStatistics)
@@ -294,8 +283,9 @@ def add_item(
         )
 
 
-@router.patch("/items/{item_id}", response_model=MovementItemResponse)
+@router.patch("/{movement_id}/items/{item_id}", response_model=MovementItemResponse)
 def update_item(
+    movement_id: int,
     item_id: int,
     data: MovementItemUpdate,
     db: Session = Depends(get_db),
@@ -312,6 +302,12 @@ def update_item(
             condition=data.condition.value if data.condition else None,
             condition_notes=data.condition_notes,
         )
+        # Validation cohérence: vérifier que l'item appartient bien au movement
+        if item.movement_id != movement_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Item not found in this movement",
+            )
         db.commit()
         db.refresh(item)
         return MovementItemResponse.model_validate(item)
@@ -325,8 +321,9 @@ def update_item(
         )
 
 
-@router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{movement_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_item(
+    movement_id: int,
     item_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission(Permission.INVENTORY_WRITE)),
@@ -335,6 +332,20 @@ def remove_item(
     service = MovementService(db)
 
     try:
+        # Récupérer l'item pour validation
+        item_repo = service.item_repo
+        item = item_repo.get_by_id(item_id, current_user.tenant_id)
+        if not item:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Movement item not found",
+            )
+        # Validation cohérence: vérifier que l'item appartient bien au movement
+        if item.movement_id != movement_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Item not found in this movement",
+            )
         service.remove_item(item_id, current_user.tenant_id)
         db.commit()
     except HTTPException:

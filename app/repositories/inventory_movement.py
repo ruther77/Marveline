@@ -1,4 +1,6 @@
 """Repositories pour InventoryMovement et MovementItem."""
+from __future__ import annotations
+
 from datetime import date
 from typing import Any, Optional
 
@@ -15,6 +17,95 @@ class MovementRepository(BaseRepository[InventoryMovement]):
 
     def __init__(self, db: Session):
         super().__init__(db, InventoryMovement)
+
+    def list(
+        self,
+        tenant_id: int,
+        skip: int = 0,
+        limit: int = 100,
+        filters: Optional[dict[str, Any]] = None,
+        include_inactive: bool = False,
+        order_by: Optional[str] = None
+    ) -> tuple[list[InventoryMovement], int]:
+        """Liste les mouvements avec items_count calculé en SQL (évite N+1).
+
+        Override de BaseRepository.list() pour ajouter items_count via subquery.
+
+        Args:
+            tenant_id: ID du tenant (OBLIGATOIRE)
+            skip: Nombre d'éléments à sauter (offset)
+            limit: Nombre maximum d'éléments à retourner (max 1000)
+            filters: Dictionnaire de filtres additionnels
+            include_inactive: Inclure les entités soft-deleted
+            order_by: Nom de la colonne pour tri (défaut: "id")
+
+        Returns:
+            Tuple (items, total) avec items_count déjà calculé pour chaque mouvement
+        """
+        # Subquery pour compter les items de chaque mouvement
+        items_count_subq = (
+            select(func.count(MovementItem.id))
+            .where(MovementItem.movement_id == InventoryMovement.id)
+            .correlate(InventoryMovement)
+            .scalar_subquery()
+            .label("items_count")
+        )
+
+        # Limite max sécurité
+        limit = min(limit, 1000)
+
+        # Compter le total d'abord (via méthode parent)
+        total = self.count(tenant_id=tenant_id, filters=filters, include_inactive=include_inactive)
+
+        # Construire query avec items_count
+        query = select(InventoryMovement, items_count_subq)
+        query = self._apply_tenant_filter(query, tenant_id)
+
+        if not include_inactive:
+            query = self._apply_active_filter(query)
+
+        # Filtres additionnels
+        if filters:
+            for key, value in filters.items():
+                if "__" in key:
+                    field_name, operator = key.rsplit("__", 1)
+                    if not hasattr(InventoryMovement, field_name):
+                        continue
+                    field = getattr(InventoryMovement, field_name)
+
+                    if operator == "gt":
+                        query = query.filter(field > value)
+                    elif operator == "gte":
+                        query = query.filter(field >= value)
+                    elif operator == "lt":
+                        query = query.filter(field < value)
+                    elif operator == "lte":
+                        query = query.filter(field <= value)
+                    elif operator == "ne":
+                        query = query.filter(field != value)
+                    else:
+                        continue
+                elif hasattr(InventoryMovement, key):
+                    query = query.filter(getattr(InventoryMovement, key) == value)
+
+        # Tri
+        if order_by and hasattr(InventoryMovement, order_by):
+            query = query.order_by(getattr(InventoryMovement, order_by))
+        else:
+            query = query.order_by(InventoryMovement.id)
+
+        # Pagination
+        query = query.offset(skip).limit(limit)
+
+        # Exécuter et attacher items_count à chaque mouvement
+        result = self.db.execute(query).all()
+        movements = []
+        for movement, items_count in result:
+            # Attacher items_count comme attribut temporaire (non persisté)
+            movement.items_count = items_count
+            movements.append(movement)
+
+        return (movements, total)
 
     def list_by_status(
         self,
