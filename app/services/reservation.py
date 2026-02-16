@@ -306,7 +306,11 @@ class ReservationService:
         # Notifications et auto-génération
         self._notify_reservation_confirmed(reservation)
         self._auto_generate_invoice(reservation, tenant_id)
-        self._auto_generate_departure_movement(reservation, tenant_id)
+
+        # Déléguer au workflow orchestrateur (évite circular dependency)
+        from app.services.reservation_workflow import ReservationWorkflowService
+        workflow = ReservationWorkflowService(self.db)
+        workflow.auto_generate_departure_movement(reservation, tenant_id)
 
         return reservation
 
@@ -353,63 +357,6 @@ class ReservationService:
                 )
             else:
                 raise
-
-    def _auto_generate_departure_movement(
-        self,
-        reservation: Reservation,
-        tenant_id: int,
-    ) -> None:
-        """Auto-crée un mouvement DEPARTURE lors de la confirmation.
-
-        Idempotent : si un mouvement DEPARTURE existe déjà pour cette réservation,
-        l'opération est ignorée silencieusement (log warning).
-
-        Args:
-            reservation: Réservation confirmée (avec lines chargées)
-            tenant_id: ID du tenant
-        """
-        from app.services.inventory_movement import MovementService
-
-        movement_service = MovementService(self.db)
-
-        # Idempotence : vérifier qu'aucun DEPARTURE n'existe déjà
-        existing, count = movement_service.list_movements(
-            tenant_id=tenant_id,
-            reservation_id=reservation.id,
-            movement_type=MovementType.DEPARTURE.value,
-        )
-        if count > 0:
-            logger.warning(
-                "Departure movement already exists for reservation %s",
-                reservation.reference,
-            )
-            return
-
-        # Construire les items depuis les lignes de réservation
-        items = [
-            {"product_id": line.product_id, "quantity_expected": line.quantity}
-            for line in reservation.lines
-        ]
-
-        scheduled_dt = datetime.combine(
-            reservation.delivery_date,
-            datetime.min.time(),
-            tzinfo=timezone.utc,
-        )
-
-        movement_service.create_movement(
-            tenant_id=tenant_id,
-            movement_type=MovementType.DEPARTURE.value,
-            scheduled_date=scheduled_dt,
-            items=items,
-            reservation_id=reservation.id,
-            delivery_address=reservation.event_location,
-        )
-        logger.info(
-            "Auto-generated departure movement for reservation %s (tenant=%d)",
-            reservation.reference,
-            tenant_id,
-        )
 
     def _notify_reservation_confirmed(self, reservation: Reservation) -> None:
         """Best-effort : notification confirmation au client (async via Celery)."""

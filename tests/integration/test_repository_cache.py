@@ -9,7 +9,7 @@ Valide :
 import pytest
 from app.models.product import Product
 from app.repositories.product import ProductRepository
-from app.services.cache import cache_service
+from app.core.cache import cache_service
 
 
 @pytest.fixture(autouse=True)

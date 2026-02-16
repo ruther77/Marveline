@@ -4,7 +4,7 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.util import identity_key
 from app.models.base import Base, TenantMixin, SoftDeleteMixin
-from app.services.cache import cache_service, cache_invalidate
+from app.core.cache import cache_service, cache_invalidate
 from app.core.metrics import cache_hits_total, cache_misses_total, cache_hit_rate
 
 

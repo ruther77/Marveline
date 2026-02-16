@@ -11,6 +11,8 @@ from app.repositories.api_key import ApiKeyRepository
 from app.repositories.feature_flag import FeatureFlagRepository
 from app.repositories.user import UserRepository
 from app.repositories.inventory_movement import MovementRepository, MovementItemRepository
+from app.repositories.bundle import BundleRepository, BundleItemRepository
+from app.repositories.category import CategoryRepository
 
 __all__ = [
     "BaseRepository",
@@ -24,4 +26,7 @@ __all__ = [
     "UserRepository",
     "MovementRepository",
     "MovementItemRepository",
+    "BundleRepository",
+    "BundleItemRepository",
+    "CategoryRepository",
 ]

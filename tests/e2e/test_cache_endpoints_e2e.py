@@ -9,7 +9,7 @@ Valide :
 import pytest
 from app.models.product import Product
 from app.models.customer import Customer
-from app.services.cache import cache_service
+from app.core.cache import cache_service
 from app.core.metrics import cache_hits_total, cache_misses_total
 
 

@@ -4,7 +4,7 @@ from app.services.product import ProductService
 from app.services.reservation import ReservationService
 from app.services.invoice import InvoiceService
 from app.services.audit import AuditService
-from app.services.cache import CacheService, cached, cache_invalidate, cache_service
+from app.core.cache import CacheService, cached, cache_invalidate, cache_service
 from app.services.token import TokenService, token_service
 from app.services.bruteforce import BruteForceService, brute_force_service
 from app.services.session import SessionService, session_service
@@ -14,6 +14,7 @@ from app.services.api_key import ApiKeyService
 from app.services.feature_flag import FeatureFlagService
 from app.services.notification import NotificationService, notification_service
 from app.services.inventory_movement import MovementService
+from app.services.reservation_workflow import ReservationWorkflowService
 
 __all__ = [
     "AuthService",
@@ -39,4 +40,5 @@ __all__ = [
     "NotificationService",
     "notification_service",
     "MovementService",
+    "ReservationWorkflowService",
 ]

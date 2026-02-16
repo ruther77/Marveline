@@ -12,7 +12,7 @@ import pytest
 import time
 from unittest.mock import patch
 
-from app.services.cache import CacheService, cached, cache_invalidate
+from app.core.cache import CacheService, cached, cache_invalidate
 
 
 @pytest.fixture(autouse=True)

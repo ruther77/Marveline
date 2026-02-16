@@ -264,51 +264,25 @@ class MovementService:
             actual_date=datetime.now(timezone.utc),
         )
 
-        # Callback : mettre à jour la réservation liée si applicable
-        self._update_reservation_on_complete(movement)
+        # Callback : mettre à jour la réservation liée via workflow (évite circular dependency)
+        from app.services.reservation_workflow import ReservationWorkflowService
+        workflow = ReservationWorkflowService(self.db)
+        workflow.update_reservation_on_movement_complete(movement)
+
+        # Notifications best-effort après mise à jour
+        if movement.reservation_id:
+            from app.services.reservation import ReservationService
+            reservation_service = ReservationService(self.db)
+            reservation = reservation_service.repo.get_by_id(
+                movement.reservation_id, movement.tenant_id
+            )
+            if reservation:
+                if movement.movement_type == MovementType.DEPARTURE.value:
+                    self._notify_delivery_completed(reservation, movement)
+                elif movement.movement_type == MovementType.RETURN.value:
+                    self._notify_return_completed(reservation, movement)
 
         return movement
-
-    def _update_reservation_on_complete(self, movement: InventoryMovement) -> None:
-        """Met à jour le statut réservation quand un mouvement lié est complété."""
-        if not movement.reservation_id:
-            return
-
-        from app.services.reservation import ReservationService
-
-        reservation_service = ReservationService(self.db)
-        reservation = reservation_service.repo.get_by_id(
-            movement.reservation_id, movement.tenant_id
-        )
-        if not reservation:
-            logger.warning(
-                "Reservation %d not found for movement %d",
-                movement.reservation_id,
-                movement.id,
-            )
-            return
-
-        if movement.movement_type == MovementType.DEPARTURE.value:
-            if reservation.status == ReservationStatus.CONFIRMED:
-                reservation.status = ReservationStatus.DELIVERED
-                reservation_service.repo.update(reservation)
-                logger.info(
-                    "Reservation %s -> delivered (departure movement %d completed)",
-                    reservation.reference,
-                    movement.id,
-                )
-                self._notify_delivery_completed(reservation, movement)
-
-        elif movement.movement_type == MovementType.RETURN.value:
-            if reservation.status == ReservationStatus.DELIVERED:
-                reservation.status = ReservationStatus.RETURNED
-                reservation_service.repo.update(reservation)
-                logger.info(
-                    "Reservation %s -> returned (return movement %d completed)",
-                    reservation.reference,
-                    movement.id,
-                )
-                self._notify_return_completed(reservation, movement)
 
     # ── Notification Hooks (best-effort) ────────────────────────────
 
