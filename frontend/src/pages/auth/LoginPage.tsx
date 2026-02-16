@@ -150,10 +150,7 @@ export default function LoginPage() {
       />
 
       <p className="text-center text-dark-400 text-sm">
-        Pas encore de compte ?{' '}
-        <Link to="/register" className="link">
-          Créer un compte
-        </Link>
+        Contactez votre administrateur pour obtenir un compte.
       </p>
     </div>
   )

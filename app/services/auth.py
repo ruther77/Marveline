@@ -1,4 +1,6 @@
 """Service d'authentification pour login, refresh tokens, gestion users."""
+import hashlib
+import secrets
 from dataclasses import dataclass
 from typing import Optional, Union
 import uuid
@@ -26,7 +28,8 @@ from app.services.bruteforce import brute_force_service, BruteForceStatus
 from app.services.token import token_service
 from app.services.session import session_service
 from app.services.mfa import mfa_service
-from app.constants import ErrorMessages, SecurityHeaders, SYSTEM_TENANT_ID, TokenType, UserRole
+from app.services.notification import notification_service
+from app.constants import ErrorMessages, Limits, SecurityHeaders, SYSTEM_TENANT_ID, TokenType, UserRole
 
 
 @dataclass
@@ -467,6 +470,177 @@ class AuthService:
 
         return True
 
+    def forgot_password(
+        self,
+        email: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        request_id: Optional[str] = None,
+    ) -> bool:
+        """Demande de réinitialisation de mot de passe (forgot password).
+
+        Toujours retourne True (anti-énumération).
+        Envoie un email avec un token de reset si l'utilisateur existe.
+
+        Args:
+            email: Email du compte
+            ip_address: IP du client (pour audit)
+            user_agent: User-Agent (pour audit)
+            request_id: UUID corrélation
+
+        Returns:
+            True (toujours, pour anti-énumération)
+
+        Security:
+            - Anti-énumération: même réponse que l'email existe ou non
+            - Rate limiting: max 3 demandes / 15 min par email
+            - Token hashé SHA-256 stocké dans Redis (single-use)
+            - Email contient un lien avec le token brut
+        """
+        from app.core.redis import redis_client
+
+        email = email.lower().strip()
+        if not request_id:
+            request_id = str(uuid.uuid4())
+
+        # Rate limiting par email
+        rate_count = redis_client.increment_password_reset_rate(email)
+        if rate_count > Limits.PASSWORD_RESET_MAX_PER_EMAIL:
+            # Silencieux — anti-énumération (pas d'erreur visible)
+            return True
+
+        # Chercher l'utilisateur
+        user = self.db.query(User).filter(User.email == email, User.is_active == True).first()
+        if not user:
+            # Anti-énumération : ne pas révéler que l'email n'existe pas
+            return True
+
+        # Générer token sécurisé
+        raw_token = secrets.token_urlsafe(48)
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+        # Stocker le hash dans Redis (single-use, TTL 30 min)
+        redis_client.store_password_reset_token(
+            token_hash=token_hash,
+            user_id=user.id,
+            tenant_id=user.tenant_id,
+            email=email,
+        )
+
+        # Construire l'URL de reset
+        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
+
+        # Envoyer l'email
+        notification_service.send_password_reset_email(email, reset_url)
+
+        # Audit log
+        audit_service = AuditService(self.db)
+        audit_service.log_action(
+            action="PASSWORD_RESET_REQUESTED",
+            tenant_id=user.tenant_id,
+            user_id=user.id,
+            entity_type="User",
+            entity_id=user.id,
+            description="Password reset email sent",
+            ip_address=ip_address,
+            user_agent=user_agent,
+            request_id=request_id,
+        )
+        self.db.commit()
+
+        return True
+
+    def reset_password(
+        self,
+        token: str,
+        new_password: str,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        request_id: Optional[str] = None,
+    ) -> bool:
+        """Réinitialise le mot de passe avec un token de reset.
+
+        Args:
+            token: Token brut reçu par email
+            new_password: Nouveau mot de passe
+            ip_address: IP du client (pour audit)
+            user_agent: User-Agent (pour audit)
+            request_id: UUID corrélation
+
+        Returns:
+            True si reset réussi
+
+        Raises:
+            HTTPException 400: Si token invalide/expiré ou password faible
+
+        Security:
+            - Token consommé atomiquement (single-use via GETDEL)
+            - Password validé (robustesse)
+            - Toutes les sessions révoquées après reset
+            - Audit log
+        """
+        from app.core.redis import redis_client
+
+        if not request_id:
+            request_id = str(uuid.uuid4())
+
+        # Hash du token pour lookup Redis
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+        # Consommer le token (single-use)
+        token_data = redis_client.consume_password_reset_token(token_hash)
+        if not token_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorMessages.PASSWORD_RESET_TOKEN_INVALID,
+            )
+
+        user_id = token_data["user_id"]
+        tenant_id = token_data["tenant_id"]
+
+        # Valider robustesse nouveau password
+        is_valid, error_msg = validate_password_strength(new_password)
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_msg,
+            )
+
+        # Charger user et mettre à jour
+        user = self.db.query(User).filter(
+            User.id == user_id,
+            User.tenant_id == tenant_id,
+        ).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ErrorMessages.PASSWORD_RESET_TOKEN_INVALID,
+            )
+
+        user.hashed_password = get_password_hash(new_password)
+        self.db.flush()
+
+        # Révoquer toutes les sessions (force re-login)
+        session_service.revoke_all_sessions(user_id)
+        redis_client.revoke_all_csrf_tokens(user_id)
+
+        # Audit log
+        audit_service = AuditService(self.db)
+        audit_service.log_action(
+            action="PASSWORD_RESET_COMPLETED",
+            tenant_id=tenant_id,
+            user_id=user_id,
+            entity_type="User",
+            entity_id=user_id,
+            description="Password reset completed via email token",
+            ip_address=ip_address,
+            user_agent=user_agent,
+            request_id=request_id,
+        )
+        self.db.commit()
+
+        return True
+
     def create_user(
         self,
         email: str,
@@ -495,8 +669,11 @@ class AuthService:
         # Normaliser email
         email = email.lower().strip()
 
-        # Vérifier unicité email
-        existing_user = self.db.query(User).filter(User.email == email).first()
+        # Vérifier unicité email par tenant (multi-tenant isolation)
+        existing_user = self.db.query(User).filter(
+            User.tenant_id == tenant_id,
+            User.email == email,
+        ).first()
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

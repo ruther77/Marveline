@@ -19,7 +19,12 @@ Usage :
 # Import de tous les Enums et classes depuis les sous-modules
 from app.constants.business import (
     CustomerType,
+    DeliveryMethod,
+    InspectionStatus,
     InvoiceStatus,
+    ItemCondition,
+    MovementStatus,
+    MovementType,
     PaymentMethod,
     ProductCategory,
     ProductCondition,
@@ -45,6 +50,11 @@ __all__ = [
     "PaymentMethod",
     "UserRole",
     "TokenType",
+    "MovementType",
+    "MovementStatus",
+    "DeliveryMethod",
+    "InspectionStatus",
+    "ItemCondition",
     "SYSTEM_TENANT_ID",
     # Messages & Erreurs
     "ErrorMessages",

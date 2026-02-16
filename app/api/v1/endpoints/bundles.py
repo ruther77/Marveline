@@ -1,4 +1,5 @@
 """Endpoints CRUD pour les bundles (packs de produits)."""
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -22,6 +23,8 @@ from app.constants import ErrorMessages
 from app.models.bundle import BundleItem as BundleItemModel
 from sqlalchemy.orm import joinedload
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/bundles", tags=["Bundles"])
 
@@ -91,6 +94,7 @@ def create_bundle(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in create_bundle")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -115,6 +119,7 @@ def update_bundle(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in update_bundle")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -136,6 +141,7 @@ def delete_bundle(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in delete_bundle")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -165,6 +171,7 @@ def add_bundle_item(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in add_bundle_item")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -191,6 +198,7 @@ def update_bundle_item(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in update_bundle_item")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -213,6 +221,7 @@ def remove_bundle_item(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in remove_bundle_item")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

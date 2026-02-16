@@ -1,4 +1,5 @@
 """Endpoints CRUD pour les categories de produits."""
+import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -17,6 +18,8 @@ from app.schemas.category import (
 from app.schemas.common import PaginationParams, PaginatedResponse
 from app.constants import ErrorMessages
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
 
@@ -96,6 +99,7 @@ def create_category(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in create_category")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -120,6 +124,7 @@ def update_category(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in update_category")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -141,6 +146,7 @@ def delete_category(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in delete_category")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

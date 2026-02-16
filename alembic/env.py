@@ -9,7 +9,8 @@ from app.models.base import Base
 # CRITIQUE: Importer tous les modèles pour autogenerate (fix B5)
 from app.models import (  # noqa: F401
     Customer, Product, Reservation, ReservationLine, Invoice,
-    User, AuditLog, MFADevice,
+    User, AuditLog, MFADevice, Category, ProductBundle, BundleItem,
+    ApiKey, FeatureFlag, InventoryMovement, MovementItem,
 )
 
 # Configuration Alembic

@@ -52,7 +52,7 @@ class TestListSessions:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert data["count"] == 1
+        assert data["total"] == 1
         assert len(data["sessions"]) == 1
 
         session = data["sessions"][0]
@@ -70,7 +70,7 @@ class TestListSessions:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert data["count"] == 0
+        assert data["total"] == 0
         assert data["sessions"] == []
 
     def test_list_sessions_multiple_logins(self, client: TestClient, test_user):
@@ -87,7 +87,7 @@ class TestListSessions:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert data["count"] == 3
+        assert data["total"] == 3
 
     def test_list_sessions_requires_auth(self, client: TestClient):
         """GET /sessions sans token → 401."""
@@ -147,7 +147,7 @@ class TestRevokeSession:
             "/api/v1/sessions",
             headers=_auth_headers(access_token),
         )
-        assert list_resp2.json()["count"] == 0
+        assert list_resp2.json()["total"] == 0
 
     def test_revoke_session_not_found(self, client: TestClient, test_user, auth_token):
         """Revoquer une session inexistante → 404."""
@@ -215,7 +215,7 @@ class TestRevokeSession:
             "/api/v1/sessions",
             headers=_auth_headers(tokens[-1]),
         )
-        assert list_resp2.json()["count"] == 2
+        assert list_resp2.json()["total"] == 2
 
 
 # ============================================================
@@ -237,7 +237,7 @@ class TestRevokeAllSessions:
             "/api/v1/sessions",
             headers=_auth_headers(access_token),
         )
-        assert list_resp.json()["count"] == 4
+        assert list_resp.json()["total"] == 4
 
         # Revoquer toutes (DELETE → CSRF requis)
         resp = client.delete(
@@ -255,7 +255,7 @@ class TestRevokeAllSessions:
             "/api/v1/sessions",
             headers=_auth_headers(access_token),
         )
-        assert list_resp2.json()["count"] == 0
+        assert list_resp2.json()["total"] == 0
 
     def test_revoke_all_sessions_none_exist(self, client: TestClient, test_user, auth_token):
         """Revoquer toutes les sessions quand aucune n'existe → count=0."""
@@ -294,7 +294,7 @@ class TestRevokeAllSessions:
             "/api/v1/sessions",
             headers=_auth_headers(access_token_user2),
         )
-        assert list_resp.json()["count"] == 1
+        assert list_resp.json()["total"] == 1
 
 
 # ============================================================
@@ -332,4 +332,4 @@ class TestMaxSessionsEnforcement:
 
         data = resp.json()
         # max+1 logins but max sessions due to eviction
-        assert data["count"] <= max_sessions
+        assert data["total"] <= max_sessions

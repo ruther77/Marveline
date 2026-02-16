@@ -6,6 +6,104 @@ from app.constants import Limits, UserRole
 from app.core.validators import validate_text_safe
 
 
+# ── Admin CRUD schemas ────────────────────────────────────────────────
+
+
+class UserCreate(BaseSchema):
+    """Schema pour création d'utilisateur par un admin.
+
+    Security:
+        - Email normalisé en lowercase
+        - Password doit respecter la password policy
+        - Role limité aux valeurs valides (staff, manager, admin)
+        - Validation XSS/SQL injection sur noms
+    """
+
+    email: EmailStr = Field(..., description="Email de l'utilisateur")
+    password: str = Field(
+        ...,
+        min_length=Limits.PASSWORD_MIN_LENGTH,
+        max_length=100,
+        description="Mot de passe initial",
+    )
+    first_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Prénom",
+    )
+    last_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Nom de famille",
+    )
+    role: UserRole = Field(
+        default=UserRole.STAFF,
+        description="Rôle RBAC (staff, manager, admin)",
+    )
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def validate_names(cls, value: str) -> str:
+        """Valide les noms contre XSS/SQL injection."""
+        return validate_text_safe(value)
+
+
+class UserUpdate(BaseSchema):
+    """Schema pour mise à jour d'utilisateur par un admin (PATCH partiel).
+
+    Security:
+        - Tous les champs optionnels
+        - Role modification soumise à vérification (pas d'auto-promotion)
+        - Validation XSS/SQL injection sur noms
+    """
+
+    email: Optional[EmailStr] = Field(
+        default=None,
+        description="Nouvel email (unique par tenant)",
+    )
+    first_name: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+        description="Nouveau prénom",
+    )
+    last_name: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+        description="Nouveau nom de famille",
+    )
+    role: Optional[UserRole] = Field(
+        default=None,
+        description="Nouveau rôle RBAC",
+    )
+    is_active: Optional[bool] = Field(
+        default=None,
+        description="Activer/désactiver le compte",
+    )
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def validate_names(cls, value: Optional[str]) -> Optional[str]:
+        """Valide les noms contre XSS/SQL injection."""
+        if value is None:
+            return value
+        return validate_text_safe(value)
+
+
+class UserListResponse(BaseSchema):
+    """Schema pour liste paginée d'utilisateurs."""
+
+    items: list["UserProfileResponse"] = Field(
+        ..., description="Liste des utilisateurs"
+    )
+    total: int = Field(..., ge=0, description="Nombre total d'utilisateurs")
+    skip: int = Field(..., ge=0, description="Offset de pagination")
+    limit: int = Field(..., gt=0, description="Limite de pagination")
+
+
 class UserProfileUpdate(BaseSchema):
     """Schema pour mise à jour du profil utilisateur.
 

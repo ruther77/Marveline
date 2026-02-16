@@ -146,18 +146,16 @@ def test_complete_rental_workflow(client: TestClient, test_db, workflow_customer
     assert chaise_product.available_quantity == initial_chaise_stock - 80
 
     # ═══════════════════════════════════════════════════════════════════════
-    # ÉTAPE 3: Générer facture depuis réservation
+    # ÉTAPE 3: Vérifier facture auto-générée par confirmation
     # ═══════════════════════════════════════════════════════════════════════
-    invoice_data = {
-        "reservation_id": reservation_id,
-        "issue_date": str(date.today()),
-        "due_date": str(date.today() + timedelta(days=14))  # Paiement sous 14j
-    }
+    invoices_resp = client.get(
+        f"/api/v1/invoices?reservation_id={reservation_id}",
+        headers=auth_headers_real
+    )
+    assert invoices_resp.status_code == 200
+    assert invoices_resp.json()["total"] == 1
 
-    invoice_response = client.post("/api/v1/invoices", json=invoice_data, headers=auth_headers_real)
-    assert invoice_response.status_code == 201
-
-    invoice = invoice_response.json()
+    invoice = invoices_resp.json()["items"][0]
     invoice_id = invoice["id"]
     assert invoice["status"] == "draft"
     assert invoice["invoice_number"].startswith("INV-")
@@ -306,17 +304,16 @@ def test_invoice_cancellation_workflow(client: TestClient, workflow_customer, wo
     create_response = client.post("/api/v1/reservations", json=reservation_data, headers=auth_headers_real)
     reservation_id = create_response.json()["id"]
 
-    # Confirmer
+    # Confirmer (auto-génère une facture)
     client.post(f"/api/v1/reservations/{reservation_id}/confirm", headers=auth_headers_real)
 
-    # Créer facture
-    invoice_data = {
-        "reservation_id": reservation_id,
-        "issue_date": str(date.today()),
-        "due_date": str(date.today() + timedelta(days=14))
-    }
-    invoice_response = client.post("/api/v1/invoices", json=invoice_data, headers=auth_headers_real)
-    invoice_id = invoice_response.json()["id"]
+    # Récupérer la facture auto-générée
+    invoices_resp = client.get(
+        f"/api/v1/invoices?reservation_id={reservation_id}",
+        headers=auth_headers_real
+    )
+    assert invoices_resp.json()["total"] == 1
+    invoice_id = invoices_resp.json()["items"][0]["id"]
 
     # Annuler facture draft (sans paiement) → OK
     cancel_response = client.post(f"/api/v1/invoices/{invoice_id}/cancel", headers=auth_headers_real)

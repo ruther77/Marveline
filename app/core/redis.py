@@ -533,6 +533,108 @@ class RedisClient:
         except (redis.ConnectionError, redis.TimeoutError, ValueError):
             return False
 
+    # ========== Password Reset Tokens ==========
+
+    def store_password_reset_token(
+        self, token_hash: str, user_id: int, tenant_id: int, email: str,
+        ttl_seconds: int = Limits.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES * 60,
+    ) -> bool:
+        """Stocke un token de réinitialisation de mot de passe (hashé) dans Redis.
+
+        Args:
+            token_hash: Hash SHA-256 du token envoyé par email
+            user_id: ID de l'utilisateur
+            tenant_id: ID du tenant
+            email: Email de l'utilisateur
+            ttl_seconds: Durée de validité (défaut: 30 minutes)
+
+        Returns:
+            True si stockage réussi
+
+        Key pattern:
+            pwd_reset:{token_hash} = JSON {user_id, tenant_id, email}
+        """
+        try:
+            key = f"{RedisKeys.PASSWORD_RESET_TOKEN}{token_hash}"
+            data = json.dumps({"user_id": user_id, "tenant_id": tenant_id, "email": email})
+            return self.client.setex(key, ttl_seconds, data)
+        except (redis.ConnectionError, redis.TimeoutError):
+            return False
+
+    def get_password_reset_token(self, token_hash: str) -> Optional[dict]:
+        """Récupère les données associées à un token de reset (sans le consommer).
+
+        Returns:
+            Dict {user_id, tenant_id, email} ou None si absent/expiré
+        """
+        try:
+            key = f"{RedisKeys.PASSWORD_RESET_TOKEN}{token_hash}"
+            data = self.client.get(key)
+            return json.loads(data) if data else None
+        except (redis.ConnectionError, redis.TimeoutError, ValueError):
+            return None
+
+    def consume_password_reset_token(self, token_hash: str) -> Optional[dict]:
+        """Consomme un token de reset (lecture + suppression atomique, single-use).
+
+        Returns:
+            Dict {user_id, tenant_id, email} ou None si absent/expiré
+        """
+        try:
+            key = f"{RedisKeys.PASSWORD_RESET_TOKEN}{token_hash}"
+            data = self.client.getdel(key)
+            return json.loads(data) if data else None
+        except (redis.ConnectionError, redis.TimeoutError, ValueError):
+            return None
+
+    def delete_password_reset_token(self, token_hash: str) -> bool:
+        """Supprime un token de reset (révocation manuelle).
+
+        Returns:
+            True si supprimé
+        """
+        try:
+            key = f"{RedisKeys.PASSWORD_RESET_TOKEN}{token_hash}"
+            return self.client.delete(key) > 0
+        except (redis.ConnectionError, redis.TimeoutError):
+            return False
+
+    def increment_password_reset_rate(
+        self, email: str,
+        ttl_seconds: int = Limits.PASSWORD_RESET_WINDOW_MINUTES * 60,
+    ) -> int:
+        """Incrémente le compteur de demandes de reset par email.
+
+        Args:
+            email: Email normalisé (lowercase)
+            ttl_seconds: Fenêtre de rate limiting (défaut: 15 minutes)
+
+        Returns:
+            Nombre de demandes dans la fenêtre après incrément
+        """
+        try:
+            key = f"{RedisKeys.PASSWORD_RESET_RATE}{email.lower()}"
+            pipe = self.client.pipeline()
+            pipe.incr(key)
+            pipe.expire(key, ttl_seconds)
+            results = pipe.execute()
+            return results[0]
+        except (redis.ConnectionError, redis.TimeoutError):
+            return 0
+
+    def get_password_reset_rate(self, email: str) -> int:
+        """Retourne le nombre de demandes de reset dans la fenêtre courante.
+
+        Returns:
+            Nombre de demandes (0 si clé absente)
+        """
+        try:
+            key = f"{RedisKeys.PASSWORD_RESET_RATE}{email.lower()}"
+            count = self.client.get(key)
+            return int(count) if count else 0
+        except (redis.ConnectionError, redis.TimeoutError, ValueError):
+            return 0
+
     # ========== Health Check ==========
 
     def health_check(self) -> dict:

@@ -65,7 +65,7 @@ export function UserDeleteModal({ isOpen, onClose, user }: UserDeleteModalProps)
         )}
 
         <p className="text-dark-500 text-xs mt-4">
-          Cette action est irreversible.
+          Le compte sera désactivé (soft delete).
         </p>
       </div>
     </Modal>

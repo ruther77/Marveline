@@ -371,7 +371,7 @@ class ApiKeyService:
             cache_key = f"{RedisKeys.API_KEY_CACHE}{key_hash[:16]}"
             redis_client.client.setex(cache_key, 60, json.dumps({"_invalid": True}))
         except Exception:
-            pass
+            logger.debug("Failed to set negative cache for API key")
 
     def _invalidate_cache(self, key_hash: str) -> None:
         """Invalide le cache pour une API key."""

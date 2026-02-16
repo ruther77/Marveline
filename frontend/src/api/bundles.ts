@@ -24,7 +24,7 @@ export const bundlesApi = {
       limit: pageSize,
     }
     if (params?.featured !== undefined) backendParams.featured = params.featured
-    if (params?.active_only !== undefined) backendParams.is_active = params.active_only
+    if (params?.active_only !== undefined) backendParams.active_only = params.active_only
 
     const { data } = await apiClient.get('/bundles', { params: backendParams })
     const items = Array.isArray(data.items) ? data.items : []
@@ -67,15 +67,16 @@ export const bundlesApi = {
   },
 
   updateItem: async (
+    bundleId: number,
     itemId: number,
     item: { quantity: number }
   ): Promise<BundleItem> => {
-    const { data } = await apiClient.patch(`/bundles/items/${itemId}`, item)
+    const { data } = await apiClient.patch(`/bundles/${bundleId}/items/${itemId}`, item)
     return data.data || data
   },
 
-  removeItem: async (itemId: number): Promise<void> => {
-    await apiClient.delete(`/bundles/items/${itemId}`)
+  removeItem: async (bundleId: number, itemId: number): Promise<void> => {
+    await apiClient.delete(`/bundles/${bundleId}/items/${itemId}`)
   },
 
   calculatePrice: async (bundleId: number): Promise<{

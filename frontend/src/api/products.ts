@@ -4,10 +4,6 @@ import type {
   ProductWithRelations,
   ProductCreate,
   ProductUpdate,
-  ProductVariation,
-  ProductVariationCreate,
-  ProductImage,
-  ProductImageCreate,
   PaginatedProducts,
 } from '../types/product'
 
@@ -42,25 +38,6 @@ export const productsApi = {
     }
   },
 
-  getFeatured: async (): Promise<Product[]> => {
-    const { data } = await apiClient.get('/products/featured')
-    const items = Array.isArray(data.items) ? data.items : (Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []))
-    return items
-  },
-
-  // Statistics
-  getStatistics: async (activeOnly = true): Promise<{
-    in_stock: number
-    low_stock: number
-    out_of_stock: number
-    total: number
-  }> => {
-    const { data } = await apiClient.get('/products/statistics', {
-      params: { active_only: activeOnly },
-    })
-    return data.data || data || { in_stock: 0, low_stock: 0, out_of_stock: 0, total: 0 }
-  },
-
   // CRUD
   getProduct: async (id: number): Promise<ProductWithRelations> => {
     const { data } = await apiClient.get(`/products/${id}`)
@@ -84,73 +61,4 @@ export const productsApi = {
     await apiClient.delete(`/products/${id}`)
   },
 
-  // Stock
-  updateStock: async (id: number, quantity: number): Promise<Product> => {
-    const { data } = await apiClient.patch(`/products/${id}/stock`, {
-      stock_quantity: quantity,
-    })
-    return data.data || data
-  },
-
-  // Variations
-  getVariations: async (productId: number): Promise<ProductVariation[]> => {
-    const { data } = await apiClient.get(`/products/${productId}/variations`)
-    const items = Array.isArray(data.items) ? data.items : (Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []))
-    return items
-  },
-
-  addVariation: async (
-    productId: number,
-    variation: ProductVariationCreate
-  ): Promise<ProductVariation> => {
-    const { data } = await apiClient.post(
-      `/products/${productId}/variations`,
-      variation
-    )
-    return data.data || data
-  },
-
-  updateVariation: async (
-    variationId: number,
-    variation: Partial<ProductVariationCreate>
-  ): Promise<ProductVariation> => {
-    const { data } = await apiClient.patch(
-      `/products/variations/${variationId}`,
-      variation
-    )
-    return data.data || data
-  },
-
-  deleteVariation: async (variationId: number): Promise<void> => {
-    await apiClient.delete(`/products/variations/${variationId}`)
-  },
-
-  // Images
-  getImages: async (productId: number): Promise<ProductImage[]> => {
-    const { data } = await apiClient.get(`/products/${productId}/images`)
-    const items = Array.isArray(data.items) ? data.items : (Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []))
-    return items
-  },
-
-  addImage: async (
-    productId: number,
-    image: ProductImageCreate
-  ): Promise<ProductImage> => {
-    const { data } = await apiClient.post(
-      `/products/${productId}/images`,
-      image
-    )
-    return data.data || data
-  },
-
-  setPrimaryImage: async (imageId: number): Promise<ProductImage> => {
-    const { data } = await apiClient.patch(
-      `/products/images/${imageId}/set-primary`
-    )
-    return data.data || data
-  },
-
-  deleteImage: async (imageId: number): Promise<void> => {
-    await apiClient.delete(`/products/images/${imageId}`)
-  },
 }

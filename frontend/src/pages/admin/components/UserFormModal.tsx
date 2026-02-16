@@ -14,7 +14,7 @@ const createUserSchema = z.object({
   first_name: z.string().min(1, 'Prenom requis'),
   last_name: z.string().min(1, 'Nom requis'),
   is_active: z.boolean().default(true),
-  is_superuser: z.boolean().default(false),
+  role: z.string().default('staff'),
 });
 
 const updateUserSchema = z.object({
@@ -23,7 +23,7 @@ const updateUserSchema = z.object({
   first_name: z.string().min(1, 'Prenom requis').optional(),
   last_name: z.string().min(1, 'Nom requis').optional(),
   is_active: z.boolean().optional(),
-  is_superuser: z.boolean().optional(),
+  role: z.string().optional(),
 });
 
 type CreateFormData = z.infer<typeof createUserSchema>;
@@ -52,7 +52,7 @@ export function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
       first_name: '',
       last_name: '',
       is_active: true,
-      is_superuser: false,
+      role: 'staff',
     },
   });
 
@@ -66,7 +66,7 @@ export function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
           first_name: user.first_name || '',
           last_name: user.last_name || '',
           is_active: user.is_active,
-          is_superuser: user.is_superuser || false,
+          role: user.role || 'staff',
         });
       } else {
         reset({
@@ -75,7 +75,7 @@ export function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
           first_name: '',
           last_name: '',
           is_active: true,
-          is_superuser: false,
+          role: 'staff',
         });
       }
     }
@@ -212,14 +212,19 @@ export function UserFormModal({ isOpen, onClose, user }: UserFormModalProps) {
             <span className="text-sm text-dark-300">Compte actif</span>
           </label>
 
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              {...register('is_superuser')}
-              type="checkbox"
-              className="w-4 h-4 rounded border-dark-500 bg-dark-700 text-primary-600 focus:ring-primary-500"
-            />
-            <span className="text-sm text-dark-300">Administrateur</span>
-          </label>
+          <div>
+            <label className="block text-sm font-medium text-dark-300 mb-1">
+              Rôle
+            </label>
+            <select
+              {...register('role')}
+              className="input w-full"
+            >
+              <option value="staff">Staff</option>
+              <option value="manager">Manager</option>
+              <option value="admin">Administrateur</option>
+            </select>
+          </div>
         </div>
       </form>
     </Modal>

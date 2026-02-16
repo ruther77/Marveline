@@ -1,5 +1,6 @@
 """Service métier pour les réservations."""
-from datetime import datetime
+import logging
+from datetime import datetime, date, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
@@ -9,7 +10,10 @@ from app.repositories.customer import CustomerRepository
 from app.repositories.product import ProductRepository
 from app.services.product import ProductService
 from app.schemas.reservation import ReservationCreate, ReservationUpdate
-from app.constants import ErrorMessages, Limits, ReservationStatus
+from app.schemas.invoice import InvoiceCreate
+from app.constants import ErrorMessages, Limits, MovementType, ReservationStatus
+
+logger = logging.getLogger(__name__)
 
 
 class ReservationService:
@@ -296,10 +300,116 @@ class ReservationService:
             )
 
         # Changer statut
-        reservation.status=ReservationStatus.CONFIRMED
+        reservation.status = ReservationStatus.CONFIRMED
         self.repo.update(reservation)
 
+        # Auto-générer facture pour la réservation confirmée
+        self._auto_generate_invoice(reservation, tenant_id)
+
+        # Auto-générer mouvement DEPARTURE pour la réservation confirmée
+        self._auto_generate_departure_movement(reservation, tenant_id)
+
         return reservation
+
+    def _auto_generate_invoice(
+        self,
+        reservation: Reservation,
+        tenant_id: int
+    ) -> None:
+        """Génère automatiquement une facture lors de la confirmation.
+
+        Idempotent : si une facture existe déjà pour cette réservation,
+        l'opération est ignorée silencieusement (log warning).
+
+        Args:
+            reservation: Réservation confirmée
+            tenant_id: ID du tenant
+        """
+        from app.services.invoice import InvoiceService
+
+        invoice_service = InvoiceService(self.db)
+        invoice_data = InvoiceCreate(
+            reservation_id=reservation.id,
+            issue_date=date.today(),
+            due_date=reservation.event_date,
+        )
+
+        try:
+            invoice = invoice_service.generate_from_reservation(invoice_data, tenant_id)
+            logger.info(
+                "Auto-generated invoice %s for reservation %s (tenant=%d)",
+                invoice.invoice_number,
+                reservation.reference,
+                tenant_id,
+            )
+        except HTTPException as e:
+            if e.status_code == 400:
+                # Invoice already exists — idempotent, skip
+                logger.warning(
+                    "Invoice already exists for reservation %s (tenant=%d): %s",
+                    reservation.reference,
+                    tenant_id,
+                    e.detail,
+                )
+            else:
+                raise
+
+    def _auto_generate_departure_movement(
+        self,
+        reservation: Reservation,
+        tenant_id: int,
+    ) -> None:
+        """Auto-crée un mouvement DEPARTURE lors de la confirmation.
+
+        Idempotent : si un mouvement DEPARTURE existe déjà pour cette réservation,
+        l'opération est ignorée silencieusement (log warning).
+
+        Args:
+            reservation: Réservation confirmée (avec lines chargées)
+            tenant_id: ID du tenant
+        """
+        from app.services.inventory_movement import MovementService
+
+        movement_service = MovementService(self.db)
+
+        # Idempotence : vérifier qu'aucun DEPARTURE n'existe déjà
+        existing, count = movement_service.list_movements(
+            tenant_id=tenant_id,
+            reservation_id=reservation.id,
+            movement_type=MovementType.DEPARTURE.value,
+        )
+        if count > 0:
+            logger.warning(
+                "Departure movement already exists for reservation %s",
+                reservation.reference,
+            )
+            return
+
+        # Construire les items depuis les lignes de réservation
+        items = [
+            {"product_id": line.product_id, "quantity_expected": line.quantity}
+            for line in reservation.lines
+        ]
+
+        scheduled_dt = datetime.combine(
+            reservation.delivery_date,
+            datetime.min.time(),
+            tzinfo=timezone.utc,
+        )
+
+        movement_service.create_movement(
+            tenant_id=tenant_id,
+            movement_type=MovementType.DEPARTURE.value,
+            scheduled_date=scheduled_dt,
+            items=items,
+            reservation_id=reservation.id,
+            delivery_address=reservation.event_location,
+        )
+        logger.info(
+            "Auto-generated departure movement for reservation %s (tenant=%d)",
+            reservation.reference,
+            tenant_id,
+        )
 
     def cancel_reservation(
         self,

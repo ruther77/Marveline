@@ -89,7 +89,7 @@ class WireGuardClient:
             try:
                 detail = response.json().get("detail", response.text)
             except Exception:
-                pass
+                logger.debug("Failed to parse WG error response as JSON")
             raise WireGuardClientError(
                 message=str(detail),
                 status_code=response.status_code,
@@ -120,7 +120,7 @@ class WireGuardClient:
             try:
                 detail = response.json().get("detail", response.text)
             except Exception:
-                pass
+                logger.debug("Failed to parse WG error response as JSON")
             raise WireGuardClientError(str(detail), response.status_code)
 
         return response

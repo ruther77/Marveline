@@ -7,7 +7,6 @@ import DashboardLayout from '@/components/layout/DashboardLayout'
 
 // Auth pages
 import LoginPage from '@/pages/auth/LoginPage'
-import RegisterPage from '@/pages/auth/RegisterPage'
 import ForgotPasswordPage from '@/pages/auth/ForgotPasswordPage'
 import ResetPasswordPage from '@/pages/auth/ResetPasswordPage'
 import MFAVerifyPage from '@/pages/auth/MFAVerifyPage'
@@ -89,7 +88,7 @@ export default function App() {
       {/* Public routes - Auth */}
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
-        <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+        <Route path="/register" element={<Navigate to="/login" replace />} />
         <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
         <Route path="/reset-password" element={<PublicRoute><ResetPasswordPage /></PublicRoute>} />
         <Route path="/mfa/verify" element={<MFAVerifyPage />} />

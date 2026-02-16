@@ -101,6 +101,32 @@ class MFADisableResponse(BaseSchema):
     )
 
 
+class MFARegenerateCodesRequest(BaseSchema):
+    """Requête pour régénérer les codes de récupération MFA."""
+
+    totp_code: str = Field(
+        ...,
+        min_length=6,
+        max_length=6,
+        pattern=r"^\d{6}$",
+        description="Code TOTP à 6 chiffres pour prouver l'identité"
+    )
+
+
+class MFARegenerateCodesResponse(BaseSchema):
+    """Réponse avec les nouveaux codes de récupération."""
+
+    recovery_codes: list[str] = Field(
+        ...,
+        description="Nouveaux codes de récupération (usage unique)"
+    )
+
+    message: str = Field(
+        default="Recovery codes regenerated successfully",
+        description="Message de confirmation"
+    )
+
+
 class MFALoginResponse(BaseSchema):
     """Réponse login quand MFA est requis (step 1 → step 2).
 

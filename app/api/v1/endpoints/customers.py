@@ -1,4 +1,5 @@
 """Endpoints CRUD pour les clients (particuliers et entreprises)."""
+import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -16,6 +17,8 @@ from app.schemas.customer import (
 from app.schemas.common import PaginationParams, PaginatedResponse
 from app.constants import ErrorMessages
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/customers", tags=["Customers"])
 
@@ -239,6 +242,7 @@ def create_customer(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in create_customer")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while creating customer: {str(e)}"
@@ -319,6 +323,7 @@ def update_customer(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in update_customer")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while updating customer: {str(e)}"
@@ -377,6 +382,7 @@ def delete_customer(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in delete_customer")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while deleting customer: {str(e)}"

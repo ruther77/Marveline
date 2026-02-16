@@ -106,6 +106,7 @@ def cleanup_redis_between_tests():
         "bf_email:*", "bf_ip:*", "bf_lock:*", "bf_alert:*",
         "session:*", "session_idx:*",
         "mfa_session:*",
+        "pwd_reset:*", "pwd_reset_rate:*",
     ]
     for pattern in patterns:
         for key in redis_client.client.scan_iter(pattern):

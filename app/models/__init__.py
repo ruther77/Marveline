@@ -11,6 +11,7 @@ from app.models.category import Category
 from app.models.bundle import ProductBundle, BundleItem
 from app.models.api_key import ApiKey
 from app.models.feature_flag import FeatureFlag
+from app.models.inventory_movement import InventoryMovement, MovementItem
 
 __all__ = [
     # Base classes
@@ -33,6 +34,8 @@ __all__ = [
     "Reservation",
     "ReservationLine",
     "Invoice",
+    "InventoryMovement",
+    "MovementItem",
     # Audit & Security
     "AuditLog",
 ]

@@ -49,7 +49,8 @@ class SessionListResponse(BaseSchema):
     Example:
         {
             "sessions": [...],
-            "count": 3
+            "total": 3,
+            "active_count": 3
         }
     """
 
@@ -58,10 +59,16 @@ class SessionListResponse(BaseSchema):
         description="Liste des sessions actives"
     )
 
-    count: int = Field(
+    total: int = Field(
         ...,
         ge=0,
-        description="Nombre total de sessions actives"
+        description="Nombre total de sessions"
+    )
+
+    active_count: int = Field(
+        ...,
+        ge=0,
+        description="Nombre de sessions actives"
     )
 
 

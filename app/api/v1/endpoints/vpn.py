@@ -46,7 +46,7 @@ def _handle_wg_error(exc: WireGuardClientError) -> HTTPException:
 
 @router.get("/peers", response_model=VpnPeerListResponse)
 def list_vpn_peers(
-    current_user: VpnReader = None,
+    current_user: VpnReader,
     client: WireGuardClient = Depends(_get_wg_client),
 ):
     """Liste les peers VPN du tenant."""
@@ -59,7 +59,7 @@ def list_vpn_peers(
 @router.get("/peers/{peer_id}", response_model=VpnPeerResponse)
 def get_vpn_peer(
     peer_id: str,
-    current_user: VpnReader = None,
+    current_user: VpnReader,
     client: WireGuardClient = Depends(_get_wg_client),
 ):
     """Recupere un peer VPN par son ID."""
@@ -72,7 +72,7 @@ def get_vpn_peer(
 @router.post("/peers", response_model=VpnPeerResponse, status_code=201)
 def create_vpn_peer(
     body: VpnPeerCreate,
-    current_user: VpnWriter = None,
+    current_user: VpnWriter,
     client: WireGuardClient = Depends(_get_wg_client),
 ):
     """Cree un nouveau peer VPN."""
@@ -86,7 +86,7 @@ def create_vpn_peer(
 def update_vpn_peer(
     peer_id: str,
     body: VpnPeerUpdate,
-    current_user: VpnWriter = None,
+    current_user: VpnWriter,
     client: WireGuardClient = Depends(_get_wg_client),
 ):
     """Met a jour un peer VPN."""
@@ -99,7 +99,7 @@ def update_vpn_peer(
 @router.delete("/peers/{peer_id}", status_code=204)
 def delete_vpn_peer(
     peer_id: str,
-    current_user: VpnAdmin = None,
+    current_user: VpnAdmin,
     client: WireGuardClient = Depends(_get_wg_client),
 ):
     """Supprime (soft delete) un peer VPN."""
@@ -112,7 +112,7 @@ def delete_vpn_peer(
 @router.post("/peers/{peer_id}/rotate", response_model=VpnPeerResponse)
 def rotate_vpn_peer_keys(
     peer_id: str,
-    current_user: VpnAdmin = None,
+    current_user: VpnAdmin,
     client: WireGuardClient = Depends(_get_wg_client),
 ):
     """Rotation des cles d'un peer VPN."""
@@ -125,7 +125,7 @@ def rotate_vpn_peer_keys(
 @router.post("/peers/{peer_id}/enable", response_model=VpnPeerResponse)
 def enable_vpn_peer(
     peer_id: str,
-    current_user: VpnWriter = None,
+    current_user: VpnWriter,
     client: WireGuardClient = Depends(_get_wg_client),
 ):
     """Active un peer VPN."""
@@ -138,7 +138,7 @@ def enable_vpn_peer(
 @router.post("/peers/{peer_id}/disable", response_model=VpnPeerResponse)
 def disable_vpn_peer(
     peer_id: str,
-    current_user: VpnWriter = None,
+    current_user: VpnWriter,
     client: WireGuardClient = Depends(_get_wg_client),
 ):
     """Desactive un peer VPN."""
@@ -154,7 +154,7 @@ def disable_vpn_peer(
 @router.get("/peers/{peer_id}/config", response_model=VpnConfigResponse)
 def get_vpn_peer_config(
     peer_id: str,
-    current_user: VpnReader = None,
+    current_user: VpnReader,
     client: WireGuardClient = Depends(_get_wg_client),
 ):
     """Recupere la configuration WireGuard d'un peer."""
@@ -170,7 +170,7 @@ def get_vpn_peer_config(
 )
 def get_vpn_peer_qrcode(
     peer_id: str,
-    current_user: VpnReader = None,
+    current_user: VpnReader,
     client: WireGuardClient = Depends(_get_wg_client),
 ):
     """Recupere le QR code WireGuard d'un peer (image PNG)."""
@@ -186,7 +186,7 @@ def get_vpn_peer_qrcode(
 
 @router.get("/status", response_model=VpnServerStatusResponse)
 def get_vpn_status(
-    current_user: VpnReader = None,
+    current_user: VpnReader,
     client: WireGuardClient = Depends(_get_wg_client),
 ):
     """Statut du serveur WireGuard."""
@@ -201,7 +201,7 @@ def get_vpn_status(
 
 @router.get("/ip-pools", response_model=VpnIpPoolListResponse)
 def list_vpn_ip_pools(
-    current_user: VpnReader = None,
+    current_user: VpnReader,
     client: WireGuardClient = Depends(_get_wg_client),
 ):
     """Liste les pools IP du tenant."""
@@ -214,7 +214,7 @@ def list_vpn_ip_pools(
 @router.post("/ip-pools", response_model=VpnIpPoolResponse, status_code=201)
 def create_vpn_ip_pool(
     body: VpnIpPoolCreate,
-    current_user: VpnAdmin = None,
+    current_user: VpnAdmin,
     client: WireGuardClient = Depends(_get_wg_client),
 ):
     """Cree un nouveau pool IP."""

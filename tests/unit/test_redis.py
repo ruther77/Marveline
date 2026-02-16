@@ -1,7 +1,7 @@
 """Tests unitaires pour app/core/redis.py — RedisClient.
 
-Couvre 7 domaines : CSRF, refresh whitelist, access blacklist,
-token families, brute force, sessions, health.
+Couvre 8 domaines : CSRF, refresh whitelist, access blacklist,
+token families, brute force, sessions, password reset, health.
 Utilise Redis réel (Docker).
 """
 import json
@@ -297,3 +297,80 @@ class TestSessions:
         assert rc.get_session("ttl_sess") is not None
         time.sleep(1.5)
         assert rc.get_session("ttl_sess") is None
+
+
+# ── Password Reset Tokens ──────────────────────────────────────────────
+
+class TestPasswordReset:
+    def test_store_and_get_token(self, rc: RedisClient):
+        assert rc.store_password_reset_token(
+            token_hash="hash_abc", user_id=1, tenant_id=1, email="a@b.com",
+            ttl_seconds=120,
+        ) is True
+        data = rc.get_password_reset_token("hash_abc")
+        assert data is not None
+        assert data["user_id"] == 1
+        assert data["tenant_id"] == 1
+        assert data["email"] == "a@b.com"
+
+    def test_get_nonexistent_token(self, rc: RedisClient):
+        assert rc.get_password_reset_token("hash_nope") is None
+
+    def test_consume_token_single_use(self, rc: RedisClient):
+        rc.store_password_reset_token(
+            token_hash="hash_once", user_id=2, tenant_id=1, email="x@y.com",
+            ttl_seconds=120,
+        )
+        data = rc.consume_password_reset_token("hash_once")
+        assert data is not None
+        assert data["user_id"] == 2
+        # Second consume must return None (single-use)
+        assert rc.consume_password_reset_token("hash_once") is None
+
+    def test_consume_nonexistent_token(self, rc: RedisClient):
+        assert rc.consume_password_reset_token("hash_ghost") is None
+
+    def test_delete_token(self, rc: RedisClient):
+        rc.store_password_reset_token(
+            token_hash="hash_del", user_id=3, tenant_id=1, email="d@e.com",
+            ttl_seconds=120,
+        )
+        assert rc.delete_password_reset_token("hash_del") is True
+        assert rc.get_password_reset_token("hash_del") is None
+
+    def test_delete_nonexistent_token(self, rc: RedisClient):
+        assert rc.delete_password_reset_token("hash_missing") is False
+
+    def test_token_ttl_expires(self, rc: RedisClient):
+        rc.store_password_reset_token(
+            token_hash="hash_ttl", user_id=4, tenant_id=1, email="t@t.com",
+            ttl_seconds=1,
+        )
+        assert rc.get_password_reset_token("hash_ttl") is not None
+        time.sleep(1.5)
+        assert rc.get_password_reset_token("hash_ttl") is None
+
+    def test_increment_rate_counter(self, rc: RedisClient):
+        count1 = rc.increment_password_reset_rate("rate@test.com", ttl_seconds=60)
+        assert count1 == 1
+        count2 = rc.increment_password_reset_rate("rate@test.com", ttl_seconds=60)
+        assert count2 == 2
+
+    def test_get_rate_counter(self, rc: RedisClient):
+        rc.increment_password_reset_rate("cnt@test.com", ttl_seconds=60)
+        rc.increment_password_reset_rate("cnt@test.com", ttl_seconds=60)
+        rc.increment_password_reset_rate("cnt@test.com", ttl_seconds=60)
+        assert rc.get_password_reset_rate("cnt@test.com") == 3
+
+    def test_get_rate_counter_zero(self, rc: RedisClient):
+        assert rc.get_password_reset_rate("noone@test.com") == 0
+
+    def test_rate_counter_case_insensitive(self, rc: RedisClient):
+        rc.increment_password_reset_rate("MiXeD@Case.COM", ttl_seconds=60)
+        assert rc.get_password_reset_rate("mixed@case.com") == 1
+
+    def test_rate_counter_ttl_expires(self, rc: RedisClient):
+        rc.increment_password_reset_rate("expire@rate.com", ttl_seconds=1)
+        assert rc.get_password_reset_rate("expire@rate.com") == 1
+        time.sleep(1.5)
+        assert rc.get_password_reset_rate("expire@rate.com") == 0

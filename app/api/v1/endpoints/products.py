@@ -1,4 +1,5 @@
 """Endpoints CRUD pour les produits (matériel de location)."""
+import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -19,6 +20,8 @@ from app.schemas.product import (
 from app.schemas.common import PaginationParams, PaginatedResponse
 from app.constants import ErrorMessages
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -224,6 +227,7 @@ def create_product(
             detail=f"Database integrity error: {str(e)}"
         )
     except Exception as e:
+        logger.exception("Unexpected error in create_product")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while creating product: {str(e)}"
@@ -284,6 +288,7 @@ def update_product(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in update_product")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while updating product: {str(e)}"
@@ -334,6 +339,7 @@ def delete_product(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in delete_product")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while deleting product: {str(e)}"

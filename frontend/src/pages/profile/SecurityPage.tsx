@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -46,12 +46,21 @@ const passwordRequirements = [
 
 export default function SecurityPage() {
   const { user } = useAuthStore()
+  const [mfaEnabled, setMfaEnabled] = useState(false)
   const [showPasswords, setShowPasswords] = useState({
     current: false,
     new: false,
   })
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    authApi.mfaStatus().then((status) => {
+      setMfaEnabled(status.enabled)
+    }).catch(() => {
+      setMfaEnabled(false)
+    })
+  }, [])
 
   const {
     register,
@@ -92,7 +101,7 @@ export default function SecurityPage() {
       <div
         className={cn(
           'card',
-          user?.has_mfa ? 'border-green-500/20' : 'border-yellow-500/20'
+          mfaEnabled ? 'border-green-500/20' : 'border-yellow-500/20'
         )}
       >
         <div className="flex items-start justify-between">
@@ -100,20 +109,20 @@ export default function SecurityPage() {
             <div
               className={cn(
                 'w-12 h-12 rounded-lg flex items-center justify-center',
-                user?.has_mfa ? 'bg-green-500/10' : 'bg-yellow-500/10'
+                mfaEnabled ? 'bg-green-500/10' : 'bg-yellow-500/10'
               )}
             >
               <Shield
                 className={cn(
                   'w-6 h-6',
-                  user?.has_mfa ? 'text-green-500' : 'text-yellow-500'
+                  mfaEnabled ? 'text-green-500' : 'text-yellow-500'
                 )}
               />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold">Authentification à deux facteurs</h3>
-                {user?.has_mfa && (
+                {mfaEnabled && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-500">
                     <Check className="w-3 h-3" />
                     Activé
@@ -121,7 +130,7 @@ export default function SecurityPage() {
                 )}
               </div>
               <p className="text-sm text-dark-400 mt-1">
-                {user?.has_mfa
+                {mfaEnabled
                   ? 'Votre compte est protégé par 2FA'
                   : "Ajoutez une couche de sécurité supplémentaire"}
               </p>
@@ -131,10 +140,10 @@ export default function SecurityPage() {
             to="/profile/mfa"
             className={cn(
               'btn',
-              user?.has_mfa ? 'btn-secondary' : 'btn-primary'
+              mfaEnabled ? 'btn-secondary' : 'btn-primary'
             )}
           >
-            {user?.has_mfa ? 'Gérer' : 'Activer'}
+            {mfaEnabled ? 'Gérer' : 'Activer'}
           </Link>
         </div>
       </div>

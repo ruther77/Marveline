@@ -121,6 +121,12 @@ class Reservation(Base, TimestampMixin, TenantMixin):
         uselist=False
     )
 
+    movements: Mapped[list["InventoryMovement"]] = relationship(
+        "InventoryMovement",
+        back_populates="reservation",
+        foreign_keys="InventoryMovement.reservation_id",
+    )
+
     # Contraintes
     __table_args__ = (
         # Dates cohérentes

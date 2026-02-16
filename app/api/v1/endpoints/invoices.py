@@ -1,4 +1,5 @@
 """Endpoints CRUD pour les factures avec workflows de paiement."""
+import logging
 from typing import Optional
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -19,6 +20,8 @@ from app.schemas.invoice import (
 from app.schemas.common import PaginationParams, PaginatedResponse
 from app.constants import ErrorMessages, InvoiceStatus, ReservationStatus
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/invoices", tags=["Invoices"])
 
@@ -152,6 +155,7 @@ def list_overdue_invoices(
         return [InvoiceList.model_validate(i) for i in overdue_invoices[:limit]]
 
     except Exception as e:
+        logger.exception("Unexpected error in list_overdue_invoices")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -274,6 +278,7 @@ def create_invoice(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in create_invoice")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while creating invoice: {str(e)}"
@@ -332,6 +337,7 @@ def update_invoice(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in update_invoice")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while updating invoice: {str(e)}"
@@ -395,6 +401,7 @@ def add_payment(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in add_payment")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while adding payment: {str(e)}"
@@ -455,6 +462,7 @@ def cancel_invoice(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in cancel_invoice")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while cancelling invoice: {str(e)}"

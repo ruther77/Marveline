@@ -353,6 +353,53 @@ class MFAService:
         except (json.JSONDecodeError, TypeError):
             return 0
 
+    def regenerate_recovery_codes(
+        self,
+        db: Session,
+        user_id: int,
+        tenant_id: int,
+    ) -> list[str]:
+        """Regenerate recovery codes for a user with MFA enabled.
+
+        Replaces all existing codes with fresh ones.
+
+        Args:
+            db: SQLAlchemy session
+            user_id: User ID
+            tenant_id: Tenant ID
+
+        Returns:
+            List of new plaintext recovery codes
+
+        Raises:
+            ValueError: If MFA is not enabled
+        """
+        device = self._get_enabled_device(db, user_id, tenant_id)
+        if not device:
+            raise ValueError("MFA is not enabled for this user")
+
+        # Generate new recovery codes
+        recovery_codes = [
+            secrets.token_hex(MFAConfig.RECOVERY_CODE_LENGTH // 2)
+            for _ in range(MFAConfig.RECOVERY_CODE_COUNT)
+        ]
+
+        # Hash with bcrypt
+        recovery_hashes = []
+        for code in recovery_codes:
+            hashed = bcrypt.hashpw(code.encode("utf-8"), bcrypt.gensalt(rounds=10))
+            recovery_hashes.append(hashed.decode("utf-8"))
+
+        device.recovery_codes_hash = json.dumps(recovery_hashes)
+        db.flush()
+
+        logger.info(
+            "Recovery codes regenerated: user=%s tenant=%s count=%d",
+            user_id, tenant_id, len(recovery_codes),
+        )
+
+        return recovery_codes
+
     # ========== MFA Session Tokens (Redis) ==========
 
     def create_mfa_session(

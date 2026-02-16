@@ -26,7 +26,7 @@ export const adminApi = {
   },
 
   updateUser: async (id: number, data: UserUpdate): Promise<User> => {
-    const response = await apiClient.put(`/users/${id}`, data)
+    const response = await apiClient.patch(`/users/${id}`, data)
     return response.data
   },
 

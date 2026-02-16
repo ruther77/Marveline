@@ -69,6 +69,12 @@ Thumbs.db
 # Node
 node_modules/
 
+# Generated OpenAPI JSON (intermediate, regenerate with: make sync-api-types)
+frontend/openapi.json
+docs/openapi.json
+# NOTE: docs/API_CONTRACT.md and frontend/src/api/generated/schema.ts ARE committed
+# They serve as reference. Regenerate with: make sync-api-types
+
 # Local tooling (machine-specific)
 .claude/
 .context/

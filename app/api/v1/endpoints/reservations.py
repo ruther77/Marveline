@@ -1,4 +1,5 @@
 """Endpoints CRUD pour les réservations avec workflows métier."""
+import logging
 from typing import Optional
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -18,6 +19,8 @@ from app.schemas.reservation import (
 from app.schemas.common import PaginationParams, PaginatedResponse
 from app.constants import ErrorMessages, ReservationStatus
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/reservations", tags=["Reservations"])
 
@@ -253,6 +256,7 @@ def create_reservation(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in create_reservation")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while creating reservation: {str(e)}"
@@ -315,6 +319,7 @@ def update_reservation(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in update_reservation")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while updating reservation: {str(e)}"
@@ -382,6 +387,7 @@ def confirm_reservation(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in confirm_reservation")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while confirming reservation: {str(e)}"
@@ -448,6 +454,7 @@ def cancel_reservation(
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Unexpected error in cancel_reservation")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while cancelling reservation: {str(e)}"

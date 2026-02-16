@@ -90,6 +90,8 @@ class RedisKeys:
     INVOICE_COUNTER = "invoice_counter:"
     API_KEY_CACHE = "api_key:"
     FEATURE_FLAG_CACHE = "ff:"
+    PASSWORD_RESET_TOKEN = "pwd_reset:"
+    PASSWORD_RESET_RATE = "pwd_reset_rate:"
 
     # ─────────────────────────────────────────────────────────────────────
     # Helpers pour générer clés complètes

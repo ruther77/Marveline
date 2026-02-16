@@ -70,6 +70,14 @@ class ErrorMessages:
     MFA_BOTH_CODES_PROVIDED = "Provide either totp_code or recovery_code, not both"
 
     # ─────────────────────────────────────────────────────────────────────
+    # Password Reset (400 / 401)
+    # ─────────────────────────────────────────────────────────────────────
+
+    PASSWORD_RESET_TOKEN_INVALID = "Invalid or expired password reset token"
+    PASSWORD_RESET_TOKEN_EXPIRED = "Password reset token has expired"
+    PASSWORD_RESET_RATE_LIMITED = "Too many password reset requests. Please try again later."
+
+    # ─────────────────────────────────────────────────────────────────────
     # CSRF Protection (403 FORBIDDEN)
     # ─────────────────────────────────────────────────────────────────────
 

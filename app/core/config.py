@@ -59,6 +59,14 @@ class Settings(BaseSettings):
     WG_SERVICE_URL: str = "http://wireguard-service:8002"
     WG_INTERNAL_API_KEY: str = "dev_wg_internal_key_CHANGER_EN_PROD"
 
+    # Frontend (for email links)
+    FRONTEND_URL: str = "http://localhost:3002"
+
+    # Email (MailHog in dev, real SMTP in prod)
+    SMTP_HOST: str = "localhost"
+    SMTP_PORT: int = 1025
+    SMTP_FROM: str = "noreply@marveline.com"
+
     # Logging & compression
     LOG_LEVEL: str = "INFO"
     GZIP_MIN_SIZE: int = 500

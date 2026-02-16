@@ -1,20 +1,17 @@
-// User types
+// User types — aligned with backend UserInfo (GET /auth/me)
 export interface User {
   id: number
   email: string
-  first_name: string | null
-  last_name: string | null
-  full_name?: string
-  is_active: boolean
-  is_verified: boolean
-  is_superuser?: boolean
-  mfa_enabled?: boolean
-  has_mfa?: boolean
+  full_name: string
+  role: string
   tenant_id: number
-  tenant_name?: string
-  created_at: string
+  is_active: boolean
+  permissions: string[]
+  created_at: string | null
+  // Extended fields from GET /users/me (UserProfileResponse)
+  first_name?: string
+  last_name?: string
   updated_at?: string
-  last_login_at?: string
 }
 
 export interface UserCreate {
@@ -22,16 +19,16 @@ export interface UserCreate {
   password: string
   first_name: string
   last_name: string
+  role?: string
   is_active?: boolean
-  is_superuser?: boolean
 }
 
 export interface UserUpdate {
   email?: string
   first_name?: string
   last_name?: string
+  role?: string
   is_active?: boolean
-  is_superuser?: boolean
 }
 
 // Auth types
@@ -50,13 +47,6 @@ export interface LoginResponse {
   mfa_session_token?: string
 }
 
-export interface RegisterRequest {
-  email: string
-  password: string
-  first_name: string
-  last_name: string
-}
-
 export interface MFAVerifyRequest {
   code: string
   mfa_session_token: string
@@ -65,7 +55,7 @@ export interface MFAVerifyRequest {
 export interface MFASetupResponse {
   secret: string
   provisioning_uri: string
-  qr_code_base64?: string
+  recovery_codes: string[]
 }
 
 // Session types

@@ -36,7 +36,7 @@ export default function ProfilePage() {
   const onSubmit = async (data: ProfileForm) => {
     setError(null)
     try {
-      await apiClient.put('/users/me', data)
+      await apiClient.patch('/users/me', data)
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
     } catch (err: unknown) {
@@ -68,16 +68,14 @@ export default function ProfilePage() {
             </h2>
             <p className="text-dark-400">{user?.email}</p>
             <div className="flex items-center gap-2 mt-2">
-              {user?.is_superuser && (
+              {user?.role === 'admin' && (
                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-500/10 text-purple-500">
                   Administrateur
                 </span>
               )}
-              {user?.mfa_enabled && (
-                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-500">
-                  2FA activé
-                </span>
-              )}
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-dark-700 text-dark-300 capitalize">
+                {user?.role}
+              </span>
             </div>
           </div>
         </div>
@@ -179,10 +177,8 @@ export default function ProfilePage() {
             <span className="font-mono">{user?.tenant_id}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-dark-400">Compte vérifié</span>
-            <span className={user?.is_verified ? 'text-green-500' : 'text-yellow-500'}>
-              {user?.is_verified ? 'Oui' : 'Non'}
-            </span>
+            <span className="text-dark-400">Rôle</span>
+            <span className="capitalize">{user?.role}</span>
           </div>
         </div>
       </div>

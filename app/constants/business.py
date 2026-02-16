@@ -163,6 +163,84 @@ class TokenType(str, Enum):
     REFRESH = "refresh"
 
 
+# ── Inventory Movements ─────────────────────────────────────────────
+
+
+class MovementType(str, Enum):
+    """Type de mouvement de stock.
+
+    Utilisé dans :
+        - models.InventoryMovement.movement_type
+        - schemas.CreateMovementRequest.movement_type
+        - Filtres API GET /inventory-movements?movement_type=...
+    """
+
+    DEPARTURE = "departure"
+    RETURN = "return"
+
+
+class MovementStatus(str, Enum):
+    """Statut du cycle de vie d'un mouvement de stock.
+
+    Workflow :
+        SCHEDULED → IN_TRANSIT → COMPLETED
+                               ↘ LATE
+        Tout statut → CANCELLED
+
+    Utilisé dans :
+        - models.InventoryMovement.status
+        - services.MovementService (transitions de statut)
+        - Filtres API GET /inventory-movements?status=...
+    """
+
+    SCHEDULED = "scheduled"
+    IN_TRANSIT = "in_transit"
+    COMPLETED = "completed"
+    LATE = "late"
+    CANCELLED = "cancelled"
+
+
+class DeliveryMethod(str, Enum):
+    """Méthode de livraison pour un mouvement.
+
+    Utilisé dans :
+        - models.InventoryMovement.delivery_method
+        - schemas.CreateMovementRequest.delivery_method
+    """
+
+    DELIVERY = "delivery"
+    PICKUP = "pickup"
+    SHIPPING = "shipping"
+
+
+class InspectionStatus(str, Enum):
+    """Statut d'inspection au retour du matériel.
+
+    Utilisé dans :
+        - models.InventoryMovement.inspection_status
+        - schemas.UpdateMovementRequest.inspection_status
+    """
+
+    PENDING = "pending"
+    OK = "ok"
+    DAMAGED = "damaged"
+    MISSING = "missing"
+
+
+class ItemCondition(str, Enum):
+    """État d'un article dans un mouvement.
+
+    Utilisé dans :
+        - models.MovementItem.condition
+        - schemas.CreateMovementRequest.items[].condition
+    """
+
+    PERFECT = "perfect"
+    GOOD = "good"
+    DAMAGED = "damaged"
+    MISSING = "missing"
+
+
 # Tenant ID spécial pour événements système (login failed sans tenant connu, etc.)
 SYSTEM_TENANT_ID: int = 0
 
@@ -176,5 +254,10 @@ __all__ = [
     "PaymentMethod",
     "UserRole",
     "TokenType",
+    "MovementType",
+    "MovementStatus",
+    "DeliveryMethod",
+    "InspectionStatus",
+    "ItemCondition",
     "SYSTEM_TENANT_ID",
 ]

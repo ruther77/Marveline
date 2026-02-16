@@ -9,6 +9,8 @@ from app.repositories.reservation import (
 from app.repositories.invoice import InvoiceRepository
 from app.repositories.api_key import ApiKeyRepository
 from app.repositories.feature_flag import FeatureFlagRepository
+from app.repositories.user import UserRepository
+from app.repositories.inventory_movement import MovementRepository, MovementItemRepository
 
 __all__ = [
     "BaseRepository",
@@ -19,4 +21,7 @@ __all__ = [
     "InvoiceRepository",
     "ApiKeyRepository",
     "FeatureFlagRepository",
+    "UserRepository",
+    "MovementRepository",
+    "MovementItemRepository",
 ]

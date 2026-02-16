@@ -12,6 +12,8 @@ from app.models.user import User
 from app.schemas.auth import TokenResponse
 from app.schemas.mfa import (
     MFADisableResponse,
+    MFARegenerateCodesRequest,
+    MFARegenerateCodesResponse,
     MFASetupResponse,
     MFAStatusResponse,
     MFAVerifyRequest,
@@ -269,3 +271,81 @@ def disable_mfa(
         )
 
     return MFADisableResponse(disabled=True, message="MFA disabled successfully")
+
+
+@router.post(
+    "/backup-codes/regenerate",
+    response_model=MFARegenerateCodesResponse,
+    status_code=status.HTTP_200_OK,
+)
+def regenerate_backup_codes(
+    body: MFARegenerateCodesRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MFARegenerateCodesResponse:
+    """Régénère les codes de récupération MFA.
+
+    Exige un code TOTP valide pour prouver l'identité avant régénération.
+    Les anciens codes sont remplacés et ne fonctionnent plus.
+
+    Returns:
+        MFARegenerateCodesResponse avec les nouveaux codes
+    """
+    # Vérifier le code TOTP d'abord (preuve d'identité)
+    try:
+        mfa_service.verify_totp(
+            db=db,
+            user_id=current_user.id,
+            tenant_id=current_user.tenant_id,
+            totp_code=body.totp_code,
+        )
+    except ValueError as e:
+        error_msg = str(e)
+        if "already used" in error_msg:
+            detail = ErrorMessages.MFA_CODE_ALREADY_USED
+        elif "Invalid TOTP" in error_msg:
+            detail = ErrorMessages.MFA_INVALID_TOTP_CODE
+        elif "not enabled" in error_msg:
+            detail = ErrorMessages.MFA_NOT_ENABLED
+        else:
+            detail = error_msg
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail,
+        )
+
+    # Régénérer les codes
+    try:
+        new_codes = mfa_service.regenerate_recovery_codes(
+            db=db,
+            user_id=current_user.id,
+            tenant_id=current_user.tenant_id,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    # Audit log
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("User-Agent")
+    request_id = getattr(request.state, "request_id", None)
+
+    audit_service = AuditService(db)
+    audit_service.log_action(
+        action="RECOVERY_CODES_REGENERATED",
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        entity_type="MFADevice",
+        entity_id=current_user.id,
+        description="MFA recovery codes regenerated",
+        ip_address=ip_address,
+        user_agent=user_agent,
+        request_id=request_id,
+    )
+
+    db.commit()
+
+    return MFARegenerateCodesResponse(recovery_codes=new_codes)

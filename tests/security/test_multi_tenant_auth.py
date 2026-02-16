@@ -134,7 +134,7 @@ class TestCrossTenantSession:
         # SessionResponse ne contient pas user_id (pas exposé).
         # On vérifie que les session_ids retournées ne sont PAS celles de tenant1.
         # Si tenant2 n'a qu'une session (son login), on vérifie que le count est >= 1.
-        assert sessions_resp.json()["count"] >= 1, "Tenant2 should have at least 1 session"
+        assert sessions_resp.json()["total"] >= 1, "Tenant2 should have at least 1 session"
 
     def test_tenant2_cannot_revoke_tenant1_session(self, client, test_user, test_user_tenant2):
         """User tenant2 ne peut pas révoquer une session de tenant1."""

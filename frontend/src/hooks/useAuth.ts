@@ -95,20 +95,23 @@ export function useAuth() {
   const hasRole = useCallback(
     (role: string) => {
       if (!user) return false;
-      // Adapter selon votre structure de rôles
-      if (role === 'admin' || role === 'superuser') {
-        return user.is_superuser;
-      }
+      if (role === 'admin') return user.role === 'admin';
+      if (role === 'manager') return user.role === 'admin' || user.role === 'manager';
       return true;
     },
     [user]
   );
 
-  // Vérifier si l'utilisateur est admin
-  const isAdmin = user?.is_superuser ?? false;
+  // Vérifier si l'utilisateur a une permission
+  const hasPermission = useCallback(
+    (permission: string) => {
+      if (!user?.permissions) return false;
+      return user.permissions.includes(permission) || user.permissions.includes('*');
+    },
+    [user]
+  );
 
-  // Vérifier si MFA est activé
-  const isMfaEnabled = user?.mfa_enabled ?? false;
+  const isAdmin = user?.role === 'admin';
 
   return {
     // State
@@ -116,7 +119,6 @@ export function useAuth() {
     isAuthenticated,
     isLoading,
     isAdmin,
-    isMfaEnabled,
     mfaSessionToken,
 
     // Actions
@@ -126,5 +128,6 @@ export function useAuth() {
     logoutAllSessions,
     initialize,
     hasRole,
+    hasPermission,
   };
 }

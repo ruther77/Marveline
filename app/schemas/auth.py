@@ -164,6 +164,65 @@ class ChangePasswordRequest(BaseSchema):
     )
 
 
+class ForgotPasswordRequest(BaseSchema):
+    """Schema pour demande de réinitialisation de mot de passe.
+
+    Example:
+        POST /auth/forgot-password
+        {
+            "email": "user@example.com"
+        }
+    """
+
+    email: EmailStr = Field(
+        ...,
+        description="Email associé au compte"
+    )
+
+
+class ForgotPasswordResponse(BaseSchema):
+    """Réponse pour forgot-password (toujours 200 — anti-énumération)."""
+
+    message: str = Field(
+        default="If this email is registered, a password reset link has been sent.",
+        description="Message de confirmation (identique que l'email existe ou non)"
+    )
+
+
+class ResetPasswordRequest(BaseSchema):
+    """Schema pour réinitialisation effective du mot de passe.
+
+    Example:
+        POST /auth/reset-password
+        {
+            "token": "abc123...",
+            "new_password": "newSecurePass456"
+        }
+    """
+
+    token: str = Field(
+        ...,
+        min_length=20,
+        description="Token de réinitialisation reçu par email"
+    )
+
+    new_password: str = Field(
+        ...,
+        min_length=Limits.PASSWORD_MIN_LENGTH,
+        max_length=100,
+        description="Nouveau mot de passe"
+    )
+
+
+class ResetPasswordResponse(BaseSchema):
+    """Réponse après réinitialisation réussie du mot de passe."""
+
+    message: str = Field(
+        default="Password has been reset successfully.",
+        description="Message de confirmation"
+    )
+
+
 class LogoutRequest(BaseSchema):
     """Schema pour requête de logout.
 

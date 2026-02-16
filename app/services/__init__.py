@@ -12,6 +12,8 @@ from app.services.mfa import MFAService, mfa_service
 from app.services.user import UserService
 from app.services.api_key import ApiKeyService
 from app.services.feature_flag import FeatureFlagService
+from app.services.notification import NotificationService, notification_service
+from app.services.inventory_movement import MovementService
 
 __all__ = [
     "AuthService",
@@ -34,4 +36,7 @@ __all__ = [
     "UserService",
     "ApiKeyService",
     "FeatureFlagService",
+    "NotificationService",
+    "notification_service",
+    "MovementService",
 ]

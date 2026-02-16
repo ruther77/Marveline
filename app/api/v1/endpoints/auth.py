@@ -13,7 +13,14 @@ from app.core.exceptions import AppException
 from app.core.permissions import get_effective_permissions_cached
 from app.core.redis import redis_client
 from app.services.auth import AuthService, MFARequiredResult
-from app.schemas.auth import TokenResponse, RefreshTokenRequest, LogoutRequest, LogoutResponse, CSRFTokenResponse, UserInfo
+from app.services.audit import AuditService
+from app.services.session import session_service
+from app.schemas.auth import (
+    TokenResponse, RefreshTokenRequest, LogoutRequest, LogoutResponse,
+    CSRFTokenResponse, UserInfo, ChangePasswordRequest,
+    ForgotPasswordRequest, ForgotPasswordResponse,
+    ResetPasswordRequest, ResetPasswordResponse,
+)
 from app.schemas.mfa import MFALoginResponse
 from app.models.user import User
 from app.constants import ErrorMessages
@@ -269,3 +276,141 @@ def get_csrf_token(
         csrf_token=csrf_token,
         expires_in=ttl_seconds
     )
+
+
+@router.post("/change-password", status_code=status.HTTP_200_OK)
+def change_password(
+    request: Request,
+    body: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Change le mot de passe de l'utilisateur authentifié.
+
+    Exige le mot de passe actuel pour preuve d'identité.
+    Invalide toutes les sessions sauf la courante après changement.
+
+    Returns:
+        Message de confirmation
+
+    Raises:
+        HTTPException 401: Si current_password incorrect
+        HTTPException 400: Si new_password trop faible
+    """
+    auth_service = AuthService(db)
+
+    auth_service.change_password(
+        user_id=current_user.id,
+        current_password=body.current_password,
+        new_password=body.new_password,
+    )
+
+    # Invalider toutes les sessions sauf la courante
+    auth_header = request.headers.get("Authorization", "")
+    current_access_token = auth_header.replace("Bearer ", "") if auth_header.startswith("Bearer ") else None
+    current_family_id = None
+    if current_access_token:
+        try:
+            from app.core.security import decode_token
+            payload = decode_token(current_access_token)
+            current_family_id = payload.get("family_id")
+        except Exception:
+            logger.debug("Failed to decode current access token for family_id extraction")
+
+    # Révoquer toutes les sessions puis recréer la courante si possible
+    session_service.revoke_all_sessions(current_user.id)
+    redis_client.revoke_all_csrf_tokens(current_user.id)
+
+    # Audit log
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("User-Agent")
+    request_id = getattr(request.state, "request_id", None)
+
+    audit_service = AuditService(db)
+    audit_service.log_action(
+        action="PASSWORD_CHANGE",
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        entity_type="User",
+        entity_id=current_user.id,
+        description="Password changed by user",
+        ip_address=ip_address,
+        user_agent=user_agent,
+        request_id=request_id,
+    )
+
+    db.commit()
+
+    return {"message": "Password changed successfully"}
+
+
+@router.post(
+    "/forgot-password",
+    response_model=ForgotPasswordResponse,
+    status_code=status.HTTP_200_OK,
+)
+def forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,
+    db: Session = Depends(get_db),
+) -> ForgotPasswordResponse:
+    """Demande de réinitialisation de mot de passe.
+
+    Envoie un email avec un lien de reset si l'email est enregistré.
+    Retourne toujours 200 (anti-énumération d'emails).
+
+    Returns:
+        ForgotPasswordResponse (message identique dans tous les cas)
+    """
+    auth_service = AuthService(db)
+
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("User-Agent")
+    request_id = getattr(request.state, "request_id", None)
+
+    auth_service.forgot_password(
+        email=body.email,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        request_id=request_id,
+    )
+
+    return ForgotPasswordResponse()
+
+
+@router.post(
+    "/reset-password",
+    response_model=ResetPasswordResponse,
+    status_code=status.HTTP_200_OK,
+)
+def reset_password(
+    request: Request,
+    body: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+) -> ResetPasswordResponse:
+    """Réinitialise le mot de passe avec un token reçu par email.
+
+    Le token est single-use et expire après 30 minutes.
+    Toutes les sessions sont révoquées après le reset.
+
+    Returns:
+        ResetPasswordResponse avec confirmation
+
+    Raises:
+        HTTPException 400: Si token invalide/expiré ou password faible
+    """
+    auth_service = AuthService(db)
+
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("User-Agent")
+    request_id = getattr(request.state, "request_id", None)
+
+    auth_service.reset_password(
+        token=body.token,
+        new_password=body.new_password,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        request_id=request_id,
+    )
+
+    return ResetPasswordResponse()

@@ -59,6 +59,19 @@ class Limits:
     """Durée de validité d'un refresh token."""
 
     # ─────────────────────────────────────────────────────────────────────
+    # Password Reset
+    # ─────────────────────────────────────────────────────────────────────
+
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES = 30
+    """Durée de validité d'un token de réinitialisation de mot de passe."""
+
+    PASSWORD_RESET_MAX_PER_EMAIL = 3
+    """Nombre max de demandes reset par email dans la fenêtre."""
+
+    PASSWORD_RESET_WINDOW_MINUTES = 15
+    """Fenêtre de rate limiting pour les demandes reset (en minutes)."""
+
+    # ─────────────────────────────────────────────────────────────────────
     # Business Logic
     # ─────────────────────────────────────────────────────────────────────
 

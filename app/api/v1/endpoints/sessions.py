@@ -47,7 +47,8 @@ def list_sessions(
 
     return SessionListResponse(
         sessions=session_responses,
-        count=len(session_responses),
+        total=len(session_responses),
+        active_count=len(session_responses),
     )
 
 

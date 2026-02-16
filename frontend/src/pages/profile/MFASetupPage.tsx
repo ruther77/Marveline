@@ -280,12 +280,12 @@ export default function MFASetupPage() {
                 <span
                   className={cn(
                     'font-medium',
-                    mfaStatus.backup_codes_remaining <= 2
+                    mfaStatus.recovery_codes_remaining <= 2
                       ? 'text-yellow-500'
                       : 'text-white'
                   )}
                 >
-                  {mfaStatus.backup_codes_remaining}
+                  {mfaStatus.recovery_codes_remaining}
                 </span>
               </p>
             )}

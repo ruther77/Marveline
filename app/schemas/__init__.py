@@ -108,6 +108,16 @@ from app.schemas.feature_flag import (
     FeatureFlagEvaluated,
     FeatureFlagList,
 )
+from app.schemas.inventory_movement import (
+    MovementItemCreate,
+    MovementItemUpdate,
+    MovementItemResponse,
+    MovementCreate,
+    MovementUpdate,
+    MovementResponse,
+    MovementListItem,
+    MovementStatistics,
+)
 
 __all__ = [
     # Base schemas
@@ -204,4 +214,13 @@ __all__ = [
     "FeatureFlagResponse",
     "FeatureFlagEvaluated",
     "FeatureFlagList",
+    # Inventory Movement schemas
+    "MovementItemCreate",
+    "MovementItemUpdate",
+    "MovementItemResponse",
+    "MovementCreate",
+    "MovementUpdate",
+    "MovementResponse",
+    "MovementListItem",
+    "MovementStatistics",
 ]

@@ -20,12 +20,14 @@ import { authApi } from '@/api/auth'
 const mockUser: User = {
   id: 1,
   email: 'test@marveline.com',
+  full_name: 'Jean Dupont',
+  role: 'staff',
+  tenant_id: 1,
+  is_active: true,
+  permissions: [],
+  created_at: '2026-01-01T00:00:00Z',
   first_name: 'Jean',
   last_name: 'Dupont',
-  is_active: true,
-  is_verified: true,
-  tenant_id: 1,
-  created_at: '2026-01-01T00:00:00Z',
 }
 
 function resetStore() {
