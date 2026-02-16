@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { categoriesApi } from '@/api/categories'
 import { useMultiModal } from '@/hooks/useModal'
+import { useResponsive } from '@/hooks/useMediaQuery'
 import { CategoryFormModal, CategoryDeleteModal } from './components'
+import { NoData } from '@/components/ui/EmptyState'
 import type { Category } from '@/types/product'
 import {
   FolderTree,
@@ -25,6 +27,7 @@ interface CategoryNodeProps {
   onDelete: (category: Category) => void
   openMenuId: number | null
   setOpenMenuId: (id: number | null) => void
+  isMobile: boolean
 }
 
 function CategoryNode({
@@ -35,6 +38,7 @@ function CategoryNode({
   onDelete,
   openMenuId,
   setOpenMenuId,
+  isMobile,
 }: CategoryNodeProps) {
   const [isExpanded, setIsExpanded] = useState(true)
   const children = allCategories.filter((c) => c.parent_id === category.id)
@@ -45,14 +49,14 @@ function CategoryNode({
       <div
         className={cn(
           'flex items-center justify-between py-3 px-4 hover:bg-dark-800/50 rounded-lg',
-          level > 0 && 'ml-8'
+          level > 0 && (isMobile ? 'ml-4' : 'ml-8')
         )}
       >
-        <div className="flex items-center gap-3 flex-1">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
           {hasChildren ? (
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="p-1 hover:bg-dark-700 rounded"
+              className="p-1 hover:bg-dark-700 rounded shrink-0"
             >
               {isExpanded ? (
                 <ChevronDown className="w-4 h-4" />
@@ -61,29 +65,34 @@ function CategoryNode({
               )}
             </button>
           ) : (
-            <div className="w-6" />
+            <div className="w-6 shrink-0" />
           )}
 
-          <FolderTree className="w-5 h-5 text-primary-500" />
+          <FolderTree className="w-5 h-5 text-primary-500 shrink-0" />
 
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{category.name}</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium truncate">{category.name}</span>
+              {hasChildren && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-primary-500/10 text-primary-400 shrink-0">
+                  {children.length}
+                </span>
+              )}
               {!category.is_active && (
-                <span className="px-2 py-0.5 bg-dark-700 text-dark-400 text-xs rounded">
+                <span className="px-2 py-0.5 bg-dark-700 text-dark-400 text-xs rounded shrink-0">
                   Inactif
                 </span>
               )}
             </div>
             {category.description && (
-              <p className="text-sm text-dark-400 mt-0.5">
+              <p className="text-sm text-dark-400 mt-0.5 truncate">
                 {category.description}
               </p>
             )}
           </div>
         </div>
 
-        <div className="relative">
+        <div className="relative shrink-0 ml-2">
           <button
             onClick={() =>
               setOpenMenuId(openMenuId === category.id ? null : category.id)
@@ -120,8 +129,13 @@ function CategoryNode({
         </div>
       </div>
 
-      {hasChildren && isExpanded && (
-        <div>
+      {hasChildren && (
+        <div
+          className={cn(
+            'accordion-enter',
+            isExpanded && 'accordion-open'
+          )}
+        >
           {children.map((child) => (
             <CategoryNode
               key={child.id}
@@ -132,6 +146,7 @@ function CategoryNode({
               onDelete={onDelete}
               openMenuId={openMenuId}
               setOpenMenuId={setOpenMenuId}
+              isMobile={isMobile}
             />
           ))}
         </div>
@@ -143,9 +158,10 @@ function CategoryNode({
 export default function CategoriesPage() {
   const [openMenuId, setOpenMenuId] = useState<number | null>(null)
   const modal = useMultiModal<Category>()
+  const { isMobile } = useResponsive()
 
   const { data: categories, isLoading } = useQuery({
-    queryKey: ['categories', false], // Get all including inactive
+    queryKey: ['categories', false],
     queryFn: () => categoriesApi.getCategories(false),
   })
 
@@ -154,7 +170,6 @@ export default function CategoriesPage() {
     modal.open(type, category)
   }
 
-  // Get root categories (no parent)
   const rootCategories = categories?.filter((c) => !c.parent_id) || []
 
   return (
@@ -162,9 +177,9 @@ export default function CategoriesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Catégories</h1>
+          <h1 className="text-2xl font-bold">Categories</h1>
           <p className="text-dark-400 mt-1">
-            Organisez vos produits par catégories
+            Organisez vos produits par categories
           </p>
         </div>
         <button
@@ -172,7 +187,7 @@ export default function CategoriesPage() {
           className="btn-primary flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
-          Nouvelle catégorie
+          <span className="hidden sm:inline">Nouvelle categorie</span>
         </button>
       </div>
 
@@ -181,9 +196,10 @@ export default function CategoriesPage() {
         {isLoading ? (
           <div className="text-center py-8 text-dark-400">Chargement...</div>
         ) : rootCategories.length === 0 ? (
-          <div className="text-center py-8 text-dark-400">
-            Aucune catégorie trouvée
-          </div>
+          <NoData
+            onAction={() => handleOpenModal('create')}
+            actionLabel="Nouvelle categorie"
+          />
         ) : (
           <div className="space-y-1">
             {rootCategories.map((category) => (
@@ -196,6 +212,7 @@ export default function CategoriesPage() {
                 onDelete={(cat) => handleOpenModal('delete', cat)}
                 openMenuId={openMenuId}
                 setOpenMenuId={setOpenMenuId}
+                isMobile={isMobile}
               />
             ))}
           </div>

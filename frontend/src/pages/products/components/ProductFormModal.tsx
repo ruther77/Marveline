@@ -5,7 +5,8 @@ import { z } from 'zod'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { productsApi } from '@/api/products'
 import { categoriesApi } from '@/api/categories'
-import { Modal, ModalFooter } from '@/components/ui/Modal'
+import { BottomSheet } from '@/components/ui/BottomSheet'
+import { ModalFooter } from '@/components/ui/Modal'
 import type { Product, ProductCreate, ProductUpdate } from '@/types/product'
 
 // Validation schemas — prix en euros dans le form, conversion centimes au submit
@@ -138,7 +139,7 @@ export function ProductFormModal({
   const error = createMutation.error || updateMutation.error
 
   return (
-    <Modal
+    <BottomSheet
       isOpen={isOpen}
       onClose={onClose}
       title={isEdit ? 'Modifier le produit' : 'Nouveau produit'}
@@ -272,6 +273,6 @@ export function ProductFormModal({
           </label>
         </div>
       </form>
-    </Modal>
+    </BottomSheet>
   )
 }

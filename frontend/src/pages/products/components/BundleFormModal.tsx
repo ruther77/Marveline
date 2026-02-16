@@ -4,7 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { bundlesApi } from '@/api/bundles'
-import { Modal, ModalFooter } from '@/components/ui/Modal'
+import { BottomSheet } from '@/components/ui/BottomSheet'
+import { ModalFooter } from '@/components/ui/Modal'
 import type { Bundle, BundleCreate, BundleUpdate } from '@/types/product'
 
 const createBundleSchema = z.object({
@@ -73,8 +74,8 @@ export function BundleFormModal({
         reset({
           name: bundle.name,
           description: bundle.description || '',
-          bundle_price: bundle.bundle_price,
-          cleaning_fee: bundle.cleaning_fee,
+          bundle_price: bundle.bundle_price / 100, // Centimes → euros
+          cleaning_fee: bundle.cleaning_fee / 100, // Centimes → euros
           featured: bundle.featured,
           is_active: bundle.is_active,
         })
@@ -109,15 +110,19 @@ export function BundleFormModal({
   })
 
   const onSubmit = (data: CreateFormData | UpdateFormData) => {
-    const cleanData = {
-      ...data,
+    // Convertir euros → centimes et utiliser les noms de champs corrects pour le backend
+    const { bundle_price, cleaning_fee, ...rest } = data
+    const backendData = {
+      ...rest,
       description: data.description || undefined,
+      bundle_price_cents: bundle_price !== undefined ? Math.round(bundle_price * 100) : undefined,
+      cleaning_fee_cents: cleaning_fee !== undefined ? Math.round(cleaning_fee * 100) : undefined,
     }
 
     if (isEdit && bundle) {
-      updateMutation.mutate({ id: bundle.id, data: cleanData as BundleUpdate })
+      updateMutation.mutate({ id: bundle.id, data: backendData as BundleUpdate })
     } else {
-      createMutation.mutate(cleanData as BundleCreate)
+      createMutation.mutate(backendData as BundleCreate)
     }
   }
 
@@ -125,7 +130,7 @@ export function BundleFormModal({
   const error = createMutation.error || updateMutation.error
 
   return (
-    <Modal
+    <BottomSheet
       isOpen={isOpen}
       onClose={onClose}
       title={isEdit ? 'Modifier la formule' : 'Nouvelle formule'}
@@ -246,6 +251,6 @@ export function BundleFormModal({
           </div>
         )}
       </form>
-    </Modal>
+    </BottomSheet>
   )
 }

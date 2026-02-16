@@ -4,7 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { categoriesApi } from '@/api/categories'
-import { Modal, ModalFooter } from '@/components/ui/Modal'
+import { BottomSheet } from '@/components/ui/BottomSheet'
+import { ModalFooter } from '@/components/ui/Modal'
 import type { Category, CategoryCreate, CategoryUpdate } from '@/types/product'
 
 const createCategorySchema = z.object({
@@ -136,7 +137,7 @@ export function CategoryFormModal({
   const error = createMutation.error || updateMutation.error
 
   return (
-    <Modal
+    <BottomSheet
       isOpen={isOpen}
       onClose={onClose}
       title={isEdit ? 'Modifier la catégorie' : 'Nouvelle catégorie'}
@@ -247,6 +248,6 @@ export function CategoryFormModal({
           </label>
         </div>
       </form>
-    </Modal>
+    </BottomSheet>
   )
 }

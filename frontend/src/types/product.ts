@@ -71,8 +71,10 @@ export interface Bundle {
   slug: string
   description: string | null
   short_description: string | null
-  bundle_price: number
-  cleaning_fee: number
+  bundle_price: number // En centimes (DB storage)
+  bundle_price_euros: number // Computed field backend
+  cleaning_fee: number // En centimes (DB storage)
+  cleaning_fee_euros: number // Computed field backend
   featured: boolean
   display_order: number
   is_active: boolean
@@ -144,12 +146,12 @@ export interface BundleCreate {
   slug?: string
   description?: string
   short_description?: string
-  bundle_price: number
-  cleaning_fee?: number
+  bundle_price_cents: number // Prix en centimes
+  cleaning_fee_cents?: number // Frais en centimes
   featured?: boolean
   display_order?: number
   is_active?: boolean
-  items: BundleItemCreate[]
+  items?: BundleItemCreate[] // Optionnel car peut être ajouté après création
 }
 
 export interface BundleUpdate {
@@ -157,8 +159,8 @@ export interface BundleUpdate {
   slug?: string
   description?: string
   short_description?: string
-  bundle_price?: number
-  cleaning_fee?: number
+  bundle_price_cents?: number // Prix en centimes
+  cleaning_fee_cents?: number // Frais en centimes
   featured?: boolean
   display_order?: number
   is_active?: boolean
@@ -167,6 +169,20 @@ export interface BundleUpdate {
 export interface BundleItemCreate {
   product_id: number
   quantity: number
+}
+
+export interface BundlePriceCalc {
+  bundle_price_cents: number
+  individual_price_cents: number
+  savings_cents: number
+  savings_percent: number
+  items: Array<{
+    product_id: number
+    product_name: string
+    quantity: number
+    unit_price_cents: number
+    line_total_cents: number
+  }>
 }
 
 export interface ProductVariationCreate {
@@ -192,6 +208,38 @@ export function getStockStatus(product: { available_quantity: number; stock_quan
   if (product.available_quantity === 0) return 'out_of_stock'
   if (product.available_quantity <= Math.max(product.stock_quantity * 0.2, 3)) return 'low_stock'
   return 'in_stock'
+}
+
+export function getStockStatusColor(product: { available_quantity: number; stock_quantity: number }): string {
+  const status = getStockStatus(product)
+  switch (status) {
+    case 'in_stock': return 'text-green-500'
+    case 'low_stock': return 'text-yellow-500'
+    case 'out_of_stock': return 'text-red-500'
+  }
+}
+
+export function getStockStatusLabel(product: { available_quantity: number; stock_quantity: number }): string {
+  const status = getStockStatus(product)
+  switch (status) {
+    case 'in_stock': return 'En stock'
+    case 'low_stock': return 'Stock faible'
+    case 'out_of_stock': return 'Rupture'
+  }
+}
+
+export function getStockBarColor(product: { available_quantity: number; stock_quantity: number }): string {
+  const status = getStockStatus(product)
+  switch (status) {
+    case 'in_stock': return 'bg-green-500'
+    case 'low_stock': return 'bg-yellow-500'
+    case 'out_of_stock': return 'bg-red-500'
+  }
+}
+
+export function getStockPercent(product: { available_quantity: number; stock_quantity: number }): number {
+  if (product.stock_quantity === 0) return 0
+  return Math.round((product.available_quantity / product.stock_quantity) * 100)
 }
 
 // Pagination response
