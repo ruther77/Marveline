@@ -1,51 +1,60 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
-import { bundlesApi } from '@/api/bundles'
+import { customersApi } from '@/api/customers'
 import { useMultiModal } from '@/hooks/useModal'
-import { BundleFormModal, BundleDeleteModal } from './components'
-import type { Bundle } from '@/types/product'
+import { CustomerFormModal, CustomerDeleteModal } from './components'
+import type { CustomerList, CustomerType } from '@/types/customer'
 import {
-  Package,
+  Users,
   Plus,
   Edit,
   Trash2,
   MoreVertical,
   ChevronLeft,
   ChevronRight,
-  Star,
-  Tag,
-  Eye,
+  Search,
+  Building2,
+  User,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 
 type ModalType = 'create' | 'edit' | 'delete'
 
-export default function BundlesPage() {
+const TYPE_LABELS: Record<CustomerType, string> = {
+  individual: 'Particulier',
+  company: 'Entreprise',
+}
+
+export default function CustomersPage() {
   const [page, setPage] = useState(1)
-  const [featuredFilter, setFeaturedFilter] = useState<boolean | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [typeFilter, setTypeFilter] = useState<CustomerType | ''>('')
   const [openMenuId, setOpenMenuId] = useState<number | null>(null)
 
-  const navigate = useNavigate()
-  const modal = useMultiModal<Bundle>()
+  const modal = useMultiModal<CustomerList>()
 
   const { data, isLoading } = useQuery({
-    queryKey: ['bundles', page, featuredFilter],
+    queryKey: ['customers', page, searchQuery, typeFilter],
     queryFn: () =>
-      bundlesApi.getBundles({
+      customersApi.getCustomers({
         page,
         page_size: 20,
-        featured: featuredFilter || undefined,
-        active_only: true,
+        search_query: searchQuery || undefined,
+        customer_type: typeFilter || undefined,
       }),
   })
 
-  const bundles = data?.items || []
+  const customers = data?.items || []
   const totalPages = data?.total_pages || 1
 
-  const handleOpenModal = (type: ModalType, bundle?: Bundle) => {
+  const handleOpenModal = (type: ModalType, customer?: CustomerList) => {
     setOpenMenuId(null)
-    modal.open(type, bundle)
+    modal.open(type, customer)
+  }
+
+  const handleSearch = (value: string) => {
+    setSearchQuery(value)
+    setPage(1)
   }
 
   return (
@@ -53,9 +62,9 @@ export default function BundlesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Formules & Packs</h1>
+          <h1 className="text-2xl font-bold">Clients</h1>
           <p className="text-dark-400 mt-1">
-            Gérez les formules et packs de produits
+            Gerez votre base de clients
           </p>
         </div>
         <button
@@ -63,27 +72,36 @@ export default function BundlesPage() {
           className="btn-primary flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
-          Nouvelle formule
+          Nouveau client
         </button>
       </div>
 
       {/* Filters */}
       <div className="card">
-        <select
-          value={
-            featuredFilter === null ? '' : featuredFilter ? 'true' : 'false'
-          }
-          onChange={(e) =>
-            setFeaturedFilter(
-              e.target.value === '' ? null : e.target.value === 'true'
-            )
-          }
-          className="input"
-        >
-          <option value="">Toutes les formules</option>
-          <option value="true">En vedette uniquement</option>
-          <option value="false">Non vedette</option>
-        </select>
+        <div className="flex gap-4 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              placeholder="Rechercher par nom, email..."
+              className="input w-full pl-10"
+            />
+          </div>
+          <select
+            value={typeFilter}
+            onChange={(e) => {
+              setTypeFilter(e.target.value as CustomerType | '')
+              setPage(1)
+            }}
+            className="input"
+          >
+            <option value="">Tous les types</option>
+            <option value="individual">Particuliers</option>
+            <option value="company">Entreprises</option>
+          </select>
+        </div>
       </div>
 
       {/* Table */}
@@ -93,16 +111,19 @@ export default function BundlesPage() {
             <thead>
               <tr className="border-b border-dark-700">
                 <th className="text-left py-3 px-4 text-sm font-medium text-dark-400">
-                  Formule
+                  Client
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-dark-400">
-                  Prix formule
+                  Type
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-dark-400">
-                  Nettoyage
+                  Email
                 </th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-dark-400">
-                  Statut
+                  Telephone
+                </th>
+                <th className="text-left py-3 px-4 text-sm font-medium text-dark-400">
+                  Ville
                 </th>
                 <th className="text-right py-3 px-4 text-sm font-medium text-dark-400">
                   Actions
@@ -112,64 +133,61 @@ export default function BundlesPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-8 text-dark-400">
+                  <td colSpan={6} className="text-center py-8 text-dark-400">
                     Chargement...
                   </td>
                 </tr>
-              ) : bundles.length === 0 ? (
+              ) : customers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-8 text-dark-400">
-                    Aucune formule trouvée
+                  <td colSpan={6} className="text-center py-8 text-dark-400">
+                    <Users className="w-8 h-8 mx-auto mb-2 text-dark-600" />
+                    Aucun client trouve
                   </td>
                 </tr>
               ) : (
-                bundles.map((bundle) => (
+                customers.map((customer) => (
                   <tr
-                    key={bundle.id}
+                    key={customer.id}
                     className="border-b border-dark-700 hover:bg-dark-800/50"
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
-                        {bundle.featured && (
-                          <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                        )}
-                        <div>
-                          <div className="font-medium">{bundle.name}</div>
-                          {bundle.description && (
-                            <div className="text-sm text-dark-400 line-clamp-1">
-                              {bundle.description}
-                            </div>
+                        <div className={cn(
+                          'w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium',
+                          customer.customer_type === 'company'
+                            ? 'bg-blue-500/10 text-blue-400'
+                            : 'bg-primary-500/10 text-primary-400'
+                        )}>
+                          {customer.customer_type === 'company' ? (
+                            <Building2 className="w-4 h-4" />
+                          ) : (
+                            <User className="w-4 h-4" />
                           )}
                         </div>
+                        <span className="font-medium">{customer.display_name}</span>
                       </div>
                     </td>
                     <td className="py-3 px-4">
-                      <span className="font-medium">
-                        {Number(bundle.bundle_price).toFixed(2)} €
+                      <span className={cn(
+                        'inline-flex items-center px-2 py-1 rounded text-xs',
+                        customer.customer_type === 'company'
+                          ? 'bg-blue-500/10 text-blue-400'
+                          : 'bg-dark-700 text-dark-300'
+                      )}>
+                        {TYPE_LABELS[customer.customer_type]}
                       </span>
                     </td>
                     <td className="py-3 px-4">
-                      {bundle.cleaning_fee > 0 ? (
-                        <div className="flex items-center gap-2">
-                          <Tag className="w-4 h-4 text-blue-500" />
-                          <span className="text-blue-500 font-medium">
-                            +{Number(bundle.cleaning_fee).toFixed(2)} € nettoyage
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-dark-500">-</span>
-                      )}
+                      <span className="text-sm text-dark-300">{customer.email}</span>
                     </td>
                     <td className="py-3 px-4">
-                      <span
-                        className={cn(
-                          'inline-flex items-center px-2 py-1 rounded text-xs',
-                          bundle.is_active
-                            ? 'bg-green-500/10 text-green-500'
-                            : 'bg-dark-700 text-dark-400'
-                        )}
-                      >
-                        {bundle.is_active ? 'Actif' : 'Inactif'}
+                      <span className="text-sm text-dark-400">
+                        {customer.phone || '-'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="text-sm text-dark-400">
+                        {customer.city || '-'}
                       </span>
                     </td>
                     <td className="py-3 px-4">
@@ -178,7 +196,7 @@ export default function BundlesPage() {
                           <button
                             onClick={() =>
                               setOpenMenuId(
-                                openMenuId === bundle.id ? null : bundle.id
+                                openMenuId === customer.id ? null : customer.id
                               )
                             }
                             className="p-1 hover:bg-dark-700 rounded"
@@ -186,7 +204,7 @@ export default function BundlesPage() {
                             <MoreVertical className="w-4 h-4" />
                           </button>
 
-                          {openMenuId === bundle.id && (
+                          {openMenuId === customer.id && (
                             <>
                               <div
                                 className="fixed inset-0 z-10"
@@ -194,26 +212,14 @@ export default function BundlesPage() {
                               />
                               <div className="absolute right-0 mt-2 w-48 bg-dark-800 border border-dark-700 rounded-lg shadow-lg z-20">
                                 <button
-                                  onClick={() => {
-                                    setOpenMenuId(null)
-                                    navigate(`/products/bundles/${bundle.id}`)
-                                  }}
+                                  onClick={() => handleOpenModal('edit', customer)}
                                   className="w-full px-4 py-2 text-left hover:bg-dark-700 flex items-center gap-2 first:rounded-t-lg"
-                                >
-                                  <Eye className="w-4 h-4" />
-                                  Voir details
-                                </button>
-                                <button
-                                  onClick={() => handleOpenModal('edit', bundle)}
-                                  className="w-full px-4 py-2 text-left hover:bg-dark-700 flex items-center gap-2"
                                 >
                                   <Edit className="w-4 h-4" />
                                   Modifier
                                 </button>
                                 <button
-                                  onClick={() =>
-                                    handleOpenModal('delete', bundle)
-                                  }
+                                  onClick={() => handleOpenModal('delete', customer)}
                                   className="w-full px-4 py-2 text-left hover:bg-dark-700 flex items-center gap-2 text-red-500 last:rounded-b-lg"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -259,17 +265,17 @@ export default function BundlesPage() {
       </div>
 
       {/* Modals */}
-      <BundleFormModal
+      <CustomerFormModal
         isOpen={modal.isOpen('create') || modal.isOpen('edit')}
         onClose={modal.close}
-        bundle={modal.data}
+        customer={modal.data}
         mode={modal.isOpen('edit') ? 'edit' : 'create'}
       />
 
-      <BundleDeleteModal
+      <CustomerDeleteModal
         isOpen={modal.isOpen('delete')}
         onClose={modal.close}
-        bundle={modal.data}
+        customer={modal.data}
       />
     </div>
   )

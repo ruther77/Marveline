@@ -27,6 +27,9 @@ import {
   Calendar,
   Package,
   TrendingUp,
+  Flag,
+  Key,
+  Globe,
 } from 'lucide-react'
 
 // --- Types ---
@@ -62,6 +65,7 @@ const navigation: NavGroup[] = [
     name: 'Ventes', icon: ShoppingCart,
     children: [
       { name: 'Réservations', href: '/events', icon: Calendar },
+      { name: 'Clients', href: '/customers', icon: Users },
     ],
   },
   {
@@ -76,9 +80,12 @@ const navigation: NavGroup[] = [
     children: [
       { name: 'Utilisateurs', href: '/admin/users', icon: Users },
       { name: 'Sessions', href: '/admin/sessions', icon: Monitor },
+      { name: 'Feature Flags', href: '/admin/features', icon: Flag },
+      { name: 'API Keys', href: '/admin/api-keys', icon: Key },
+      { name: 'VPN', href: '/admin/vpn', icon: Globe },
     ],
   },
-  { name: 'Finances', href: '/finances', icon: Wallet },
+  { name: 'Factures', href: '/invoices', icon: Wallet },
   {
     name: 'Rapports', icon: BarChart3,
     children: [

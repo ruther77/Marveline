@@ -1,6 +1,6 @@
 """Routeur principal API v1."""
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, products, customers, reservations, invoices, audit, health, sessions, mfa, categories, bundles, users, api_keys, features, vpn, inventory_movements
+from app.api.v1.endpoints import auth, products, customers, reservations, invoices, audit, health, sessions, mfa, categories, bundles, users, api_keys, features, vpn, inventory_movements, dashboard
 from app.constants import PublicEndpoints
 
 # Routeur principal v1
@@ -22,6 +22,7 @@ api_router.include_router(api_keys.router)  # API Keys M2M
 api_router.include_router(features.router)  # Feature Flags
 api_router.include_router(vpn.router)  # VPN WireGuard proxy
 api_router.include_router(inventory_movements.router)  # Mouvements de stock
+api_router.include_router(dashboard.router)  # Dashboard KPIs
 api_router.include_router(audit.router)  # Admin uniquement
 
 

@@ -1,11 +1,17 @@
 import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { inventoryApi } from '@/api/inventory'
 import { Modal, ModalFooter } from '@/components/ui/Modal'
+import { Plus, Trash2 } from 'lucide-react'
 import type { InventoryMovement, CreateMovementRequest, UpdateMovementRequest } from '@/types/inventory'
+
+const itemSchema = z.object({
+  product_id: z.coerce.number().min(1, 'Produit requis'),
+  quantity_expected: z.coerce.number().min(1, 'Quantite >= 1'),
+})
 
 const movementSchema = z.object({
   movement_type: z.enum(['departure', 'return']),
@@ -13,9 +19,14 @@ const movementSchema = z.object({
   delivery_method: z.enum(['delivery', 'pickup', 'shipping']).optional(),
   delivery_address: z.string().optional(),
   delivery_notes: z.string().optional(),
+  items: z.array(itemSchema).min(1, 'Au moins un article requis'),
 })
 
-type FormData = z.infer<typeof movementSchema>
+const editSchema = movementSchema.omit({ items: true })
+
+type CreateFormData = z.infer<typeof movementSchema>
+type EditFormData = z.infer<typeof editSchema>
+type FormData = CreateFormData
 
 interface MovementFormModalProps {
   isOpen: boolean
@@ -28,8 +39,16 @@ export function MovementFormModal({ isOpen, onClose, movement, mode }: MovementF
   const queryClient = useQueryClient()
   const isEdit = mode === 'edit'
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(movementSchema),
+  const { register, handleSubmit, reset, control, formState: { errors } } = useForm<FormData>({
+    resolver: zodResolver(isEdit ? editSchema as unknown as z.ZodType<FormData> : movementSchema),
+    defaultValues: {
+      items: [{ product_id: 0, quantity_expected: 1 }],
+    },
+  })
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'items',
   })
 
   useEffect(() => {
@@ -40,12 +59,14 @@ export function MovementFormModal({ isOpen, onClose, movement, mode }: MovementF
         delivery_method: movement.delivery_method,
         delivery_address: movement.delivery_address || '',
         delivery_notes: movement.delivery_notes || '',
+        items: [{ product_id: 0, quantity_expected: 1 }],
       })
     } else if (isOpen) {
       reset({
         movement_type: 'departure',
         scheduled_date: '',
         delivery_method: 'delivery',
+        items: [{ product_id: 0, quantity_expected: 1 }],
       })
     }
   }, [isOpen, movement, reset])
@@ -68,15 +89,21 @@ export function MovementFormModal({ isOpen, onClose, movement, mode }: MovementF
   })
 
   const onSubmit = (data: FormData) => {
-    const cleanData = {
-      ...data,
-      items: [],
-    }
-
     if (isEdit && movement?.id) {
-      updateMutation.mutate({ id: movement.id, data: cleanData as UpdateMovementRequest })
+      const { items: _items, ...editData } = data
+      updateMutation.mutate({ id: movement.id, data: editData as UpdateMovementRequest })
     } else {
-      createMutation.mutate(cleanData as CreateMovementRequest)
+      createMutation.mutate({
+        movement_type: data.movement_type,
+        scheduled_date: data.scheduled_date,
+        delivery_method: data.delivery_method,
+        delivery_address: data.delivery_address,
+        delivery_notes: data.delivery_notes,
+        items: data.items.map((item) => ({
+          product_id: item.product_id,
+          quantity_expected: item.quantity_expected,
+        })),
+      })
     }
   }
 
@@ -88,13 +115,13 @@ export function MovementFormModal({ isOpen, onClose, movement, mode }: MovementF
       isOpen={isOpen}
       onClose={onClose}
       title={isEdit ? 'Modifier le mouvement' : 'Nouveau mouvement'}
-      size="md"
+      size="lg"
       footer={
         <ModalFooter
           onCancel={onClose}
           onConfirm={handleSubmit(onSubmit)}
           cancelText="Annuler"
-          confirmText={isEdit ? 'Enregistrer' : 'Créer'}
+          confirmText={isEdit ? 'Enregistrer' : 'Creer'}
           loading={isLoading}
         />
       }
@@ -109,13 +136,13 @@ export function MovementFormModal({ isOpen, onClose, movement, mode }: MovementF
         <div>
           <label className="block text-sm font-medium text-dark-300 mb-1">Type *</label>
           <select {...register('movement_type')} className="input w-full">
-            <option value="departure">Départ</option>
+            <option value="departure">Depart</option>
             <option value="return">Retour</option>
           </select>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-dark-300 mb-1">Date prévue *</label>
+          <label className="block text-sm font-medium text-dark-300 mb-1">Date prevue *</label>
           <input {...register('scheduled_date')} type="date" className="input w-full" />
           {errors.scheduled_date && (
             <p className="text-red-500 text-sm mt-1">{errors.scheduled_date.message}</p>
@@ -123,12 +150,12 @@ export function MovementFormModal({ isOpen, onClose, movement, mode }: MovementF
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-dark-300 mb-1">Méthode de livraison</label>
+          <label className="block text-sm font-medium text-dark-300 mb-1">Methode de livraison</label>
           <select {...register('delivery_method')} className="input w-full">
-            <option value="">Non spécifié</option>
+            <option value="">Non specifie</option>
             <option value="delivery">Livraison</option>
-            <option value="pickup">Enlèvement</option>
-            <option value="shipping">Expédition</option>
+            <option value="pickup">Enlevement</option>
+            <option value="shipping">Expedition</option>
           </select>
         </div>
 
@@ -139,8 +166,72 @@ export function MovementFormModal({ isOpen, onClose, movement, mode }: MovementF
 
         <div>
           <label className="block text-sm font-medium text-dark-300 mb-1">Notes</label>
-          <textarea {...register('delivery_notes')} className="input w-full" rows={3} />
+          <textarea {...register('delivery_notes')} className="input w-full" rows={2} />
         </div>
+
+        {/* Items section — only shown on create */}
+        {!isEdit && (
+          <div className="border-t border-dark-700 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-medium text-dark-300">Articles *</label>
+              <button
+                type="button"
+                onClick={() => append({ product_id: 0, quantity_expected: 1 })}
+                className="btn-secondary btn-sm flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" />
+                Ajouter
+              </button>
+            </div>
+
+            {errors.items && typeof errors.items.message === 'string' && (
+              <p className="text-red-500 text-sm mb-2">{errors.items.message}</p>
+            )}
+
+            <div className="space-y-2">
+              {fields.map((field, index) => (
+                <div key={field.id} className="flex gap-2 items-start">
+                  <div className="flex-1">
+                    <input
+                      {...register(`items.${index}.product_id`)}
+                      type="number"
+                      placeholder="ID produit"
+                      className="input w-full"
+                    />
+                    {errors.items?.[index]?.product_id && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.items[index]?.product_id?.message}
+                      </p>
+                    )}
+                  </div>
+                  <div className="w-24">
+                    <input
+                      {...register(`items.${index}.quantity_expected`)}
+                      type="number"
+                      min={1}
+                      placeholder="Qte"
+                      className="input w-full"
+                    />
+                    {errors.items?.[index]?.quantity_expected && (
+                      <p className="text-red-500 text-xs mt-1">
+                        {errors.items[index]?.quantity_expected?.message}
+                      </p>
+                    )}
+                  </div>
+                  {fields.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => remove(index)}
+                      className="p-2 text-dark-400 hover:text-red-400"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </form>
     </Modal>
   )

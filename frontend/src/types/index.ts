@@ -67,16 +67,19 @@ export interface Session {
   last_activity: string
 }
 
-// Audit types
+// Audit types — aligned with backend AuditLogResponse
 export interface AuditLog {
   id: number
-  user_id: number
+  user_id: number | null
+  tenant_id: number
   action: string
-  resource: string
-  resource_id: string
-  details: Record<string, unknown>
-  ip_address: string
-  user_agent: string
+  entity_type: string | null
+  entity_id: number | null
+  changes: Record<string, unknown> | null
+  description: string | null
+  ip_address: string | null
+  user_agent: string | null
+  request_id: string | null
   created_at: string
 }
 

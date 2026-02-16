@@ -27,15 +27,19 @@ export const inventoryApi = {
     page_size: number
     total_pages: number
   }> => {
-    const { data } = await apiClient.get('/inventory-movements', { params })
-    // Backend CaroCorp_new retourne { items, total }
-    const items = Array.isArray(data.items) ? data.items : (Array.isArray(data.data) ? data.data : [])
-    const total = data.total ?? data.pagination?.total_items ?? 0
+    const page = params?.page || 1
     const pageSize = params?.page_size || 20
+    const skip = (page - 1) * pageSize
+    const { page: _p, page_size: _ps, ...rest } = params || {}
+    const { data } = await apiClient.get('/inventory-movements', {
+      params: { skip, limit: pageSize, ...rest },
+    })
+    const items = Array.isArray(data.items) ? data.items : (Array.isArray(data.data) ? data.data : [])
+    const total = data.total ?? 0
     return {
       items,
       total,
-      page: params?.page || 1,
+      page,
       page_size: pageSize,
       total_pages: Math.ceil(total / pageSize) || 0,
     }

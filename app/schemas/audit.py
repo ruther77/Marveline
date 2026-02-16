@@ -1,7 +1,8 @@
 """Schemas Pydantic pour Audit Log endpoints."""
+import math
 from datetime import datetime
 from typing import Optional, Any
-from pydantic import Field, ConfigDict
+from pydantic import Field, ConfigDict, computed_field
 from app.schemas.base import BaseSchema
 from app.constants import Limits
 
@@ -163,6 +164,14 @@ class AuditLogList(BaseSchema):
         default=Limits.DEFAULT_PAGE_SIZE,
         description="Limite pagination"
     )
+
+    @computed_field
+    @property
+    def total_pages(self) -> int:
+        """Nombre total de pages calculé depuis total et limit."""
+        if self.limit <= 0:
+            return 1
+        return math.ceil(self.total / self.limit)
 
 
 class AuditLogFilters(BaseSchema):

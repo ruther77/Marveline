@@ -16,18 +16,28 @@ import OAuthCallbackPage from '@/pages/auth/OAuthCallbackPage'
 import UsersPage from '@/pages/admin/UsersPage'
 import SessionsPage from '@/pages/admin/SessionsPage'
 import AuditLogsPage from '@/pages/admin/AuditLogsPage'
+import FeatureFlagsPage from '@/pages/admin/FeatureFlagsPage'
+import ApiKeysPage from '@/pages/admin/ApiKeysPage'
+import VpnPage from '@/pages/admin/VpnPage'
 
 // Product pages
 import ProductsPage from '@/pages/products/ProductsPage'
 import CategoriesPage from '@/pages/products/CategoriesPage'
 import BundlesPage from '@/pages/products/BundlesPage'
+import BundleDetailPage from '@/pages/products/BundleDetailPage'
 
 // Reservation pages
 import ReservationsPage from '@/pages/events/EventsPage'
 
+// Customer pages
+import CustomersPage from '@/pages/customers/CustomersPage'
+
 // Inventory pages
 import InventoryPage from '@/pages/inventory/InventoryPage'
 import MovementsPage from '@/pages/inventory/MovementsPage'
+
+// Invoice pages
+import InvoicesPage from '@/pages/invoices/InvoicesPage'
 
 // Profile pages
 import ProfilePage from '@/pages/profile/ProfilePage'
@@ -108,18 +118,26 @@ export default function App() {
         <Route path="/products" element={<ProductsPage />} />
         <Route path="/products/categories" element={<CategoriesPage />} />
         <Route path="/products/bundles" element={<BundlesPage />} />
+        <Route path="/products/bundles/:id" element={<BundleDetailPage />} />
 
-        {/* Ventes / Réservations */}
+        {/* Ventes / Réservations / Clients */}
         <Route path="/events" element={<ReservationsPage />} />
+        <Route path="/customers" element={<CustomersPage />} />
 
         {/* Inventaire */}
         <Route path="/inventory/stock" element={<InventoryPage />} />
         <Route path="/inventory/movements" element={<MovementsPage />} />
 
+        {/* Factures */}
+        <Route path="/invoices" element={<InvoicesPage />} />
+
         {/* Admin */}
         <Route path="/admin/users" element={<UsersPage />} />
         <Route path="/admin/sessions" element={<SessionsPage />} />
         <Route path="/admin/audit-logs" element={<AuditLogsPage />} />
+        <Route path="/admin/features" element={<FeatureFlagsPage />} />
+        <Route path="/admin/api-keys" element={<ApiKeysPage />} />
+        <Route path="/admin/vpn" element={<VpnPage />} />
 
         {/* Profile & Settings */}
         <Route path="/profile" element={<ProfilePage />} />

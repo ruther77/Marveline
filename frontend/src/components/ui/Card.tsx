@@ -106,6 +106,7 @@ export interface StatCardProps {
   icon?: ReactNode;
   trend?: 'up' | 'down' | 'neutral';
   className?: string;
+  onClick?: () => void;
 }
 
 export function StatCard({
@@ -115,6 +116,7 @@ export function StatCard({
   icon,
   trend,
   className,
+  onClick,
 }: StatCardProps) {
   const trendColors = {
     up: 'text-green-500',
@@ -123,7 +125,7 @@ export function StatCard({
   };
 
   return (
-    <Card className={className}>
+    <Card className={className} hover={!!onClick} onClick={onClick}>
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-dark-400">{title}</p>
