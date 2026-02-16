@@ -297,6 +297,7 @@ class MovementService:
                     reservation.reference,
                     movement.id,
                 )
+                self._notify_delivery_completed(reservation, movement)
 
         elif movement.movement_type == MovementType.RETURN.value:
             if reservation.status == ReservationStatus.DELIVERED:
@@ -307,6 +308,50 @@ class MovementService:
                     reservation.reference,
                     movement.id,
                 )
+                self._notify_return_completed(reservation, movement)
+
+    # ── Notification Hooks (best-effort) ────────────────────────────
+
+    def _notify_delivery_completed(self, reservation, movement: InventoryMovement) -> None:
+        """Best-effort : notification livraison au client (async via Celery)."""
+        try:
+            from app.services.reservation import ReservationService
+            from app.tasks.notifications import send_delivery_completed_email
+
+            full_res = ReservationService(self.db).repo.get_by_id_with_relations(
+                reservation.id, reservation.tenant_id
+            )
+            if not full_res or not full_res.customer or not full_res.customer.email:
+                return
+            send_delivery_completed_email.delay(
+                email=full_res.customer.email,
+                customer_name=full_res.customer.display_name,
+                reservation_reference=reservation.reference,
+                delivery_address=movement.delivery_address or reservation.event_location or "",
+                delivery_date_iso=str(movement.actual_date),
+            )
+        except Exception:
+            logger.exception("Notification failed for delivery movement %d", movement.id)
+
+    def _notify_return_completed(self, reservation, movement: InventoryMovement) -> None:
+        """Best-effort : notification retour au client (async via Celery)."""
+        try:
+            from app.services.reservation import ReservationService
+            from app.tasks.notifications import send_return_completed_email
+
+            full_res = ReservationService(self.db).repo.get_by_id_with_relations(
+                reservation.id, reservation.tenant_id
+            )
+            if not full_res or not full_res.customer or not full_res.customer.email:
+                return
+            send_return_completed_email.delay(
+                email=full_res.customer.email,
+                customer_name=full_res.customer.display_name,
+                reservation_reference=reservation.reference,
+                return_date_iso=str(movement.actual_date),
+            )
+        except Exception:
+            logger.exception("Notification failed for return movement %d", movement.id)
 
     # ── Special Queries ──────────────────────────────────────────────
 

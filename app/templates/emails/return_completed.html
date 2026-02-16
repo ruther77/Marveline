@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 style="color:#2d3748; margin:0 0 16px; font-size:20px;">Retour effectué</h2>
+<p style="color:#4a5568; font-size:15px; line-height:1.6;">
+  Bonjour {{ customer_name }},
+</p>
+<p style="color:#4a5568; font-size:15px; line-height:1.6;">
+  Le retour de matériel pour votre réservation <strong>{{ reservation_reference }}</strong> a été enregistré le {{ return_date }}.
+</p>
+<p style="color:#4a5568; font-size:15px; line-height:1.6;">
+  Merci d'avoir fait confiance à Marveline pour votre événement. Nous espérons vous revoir bientôt !
+</p>
+{% endblock %}

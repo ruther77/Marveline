@@ -2,6 +2,8 @@
 import logging
 
 from celery import Celery
+from celery.schedules import crontab
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -28,19 +30,33 @@ celery_app.conf.update(
 )
 
 # Queues pour différents types de tâches
-# NOTE: task_routes et autodiscover activés quand les modules existent
-# celery_app.conf.task_routes = {
-#     "app.tasks.reservations.*": {"queue": "reservations"},
-#     "app.tasks.invoicing.*": {"queue": "invoicing"},
-#     "app.tasks.notifications.*": {"queue": "notifications"},
-#     "app.tasks.reports.*": {"queue": "reports"},
-# }
-# celery_app.autodiscover_tasks([
-#     "app.tasks.reservations",
-#     "app.tasks.invoicing",
-#     "app.tasks.notifications",
-#     "app.tasks.reports",
-# ])
+celery_app.conf.task_routes = {
+    "app.tasks.reservations.*": {"queue": "reservations"},
+    "app.tasks.invoicing.*": {"queue": "invoicing"},
+    "app.tasks.notifications.*": {"queue": "notifications"},
+    "app.tasks.monitoring.*": {"queue": "default"},
+}
+celery_app.autodiscover_tasks([
+    "app.tasks.invoicing",
+    "app.tasks.notifications",
+    "app.tasks.monitoring",
+])
+
+# Beat schedule — tâches périodiques
+celery_app.conf.beat_schedule = {
+    "check-overdue-invoices-daily": {
+        "task": "app.tasks.invoicing.check_overdue_invoices",
+        "schedule": crontab(hour=8, minute=0),
+    },
+    "check-late-movements-hourly": {
+        "task": "app.tasks.monitoring.check_late_movements",
+        "schedule": crontab(minute=0),
+    },
+    "check-low-stock-daily": {
+        "task": "app.tasks.monitoring.check_low_stock",
+        "schedule": crontab(hour=7, minute=0),
+    },
+}
 
 
 @celery_app.task(bind=True)

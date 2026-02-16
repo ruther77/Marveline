@@ -303,10 +303,9 @@ class ReservationService:
         reservation.status = ReservationStatus.CONFIRMED
         self.repo.update(reservation)
 
-        # Auto-générer facture pour la réservation confirmée
+        # Notifications et auto-génération
+        self._notify_reservation_confirmed(reservation)
         self._auto_generate_invoice(reservation, tenant_id)
-
-        # Auto-générer mouvement DEPARTURE pour la réservation confirmée
         self._auto_generate_departure_movement(reservation, tenant_id)
 
         return reservation
@@ -342,6 +341,7 @@ class ReservationService:
                 reservation.reference,
                 tenant_id,
             )
+            self._notify_invoice_created(invoice, reservation)
         except HTTPException as e:
             if e.status_code == 400:
                 # Invoice already exists — idempotent, skip
@@ -410,6 +410,48 @@ class ReservationService:
             reservation.reference,
             tenant_id,
         )
+
+    def _notify_reservation_confirmed(self, reservation: Reservation) -> None:
+        """Best-effort : notification confirmation au client (async via Celery)."""
+        try:
+            from app.tasks.notifications import send_reservation_confirmed_email
+
+            customer = reservation.customer
+            if not customer or not customer.email:
+                return
+            send_reservation_confirmed_email.delay(
+                email=customer.email,
+                customer_name=customer.display_name,
+                reference=reservation.reference,
+                event_date_iso=str(reservation.event_date),
+                delivery_date_iso=str(reservation.delivery_date),
+                return_date_iso=str(reservation.return_date),
+                event_location=reservation.event_location or "",
+                total_cents=reservation.total_amount,
+                deposit_cents=reservation.deposit_amount,
+            )
+        except Exception:
+            logger.exception("Notification failed for reservation %s", reservation.reference)
+
+    def _notify_invoice_created(self, invoice, reservation: Reservation) -> None:
+        """Best-effort : notification facture au client (async via Celery)."""
+        try:
+            from app.tasks.notifications import send_invoice_created_email
+
+            customer = reservation.customer
+            if not customer or not customer.email:
+                return
+            send_invoice_created_email.delay(
+                email=customer.email,
+                customer_name=customer.display_name,
+                invoice_number=invoice.invoice_number,
+                reservation_reference=reservation.reference,
+                total_cents=invoice.total_amount,
+                due_date_iso=str(invoice.due_date),
+                issue_date_iso=str(invoice.issue_date),
+            )
+        except Exception:
+            logger.exception("Notification failed for invoice %s", invoice.invoice_number)
 
     def cancel_reservation(
         self,
