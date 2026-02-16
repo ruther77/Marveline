@@ -126,6 +126,7 @@ export const inventoryApi = {
   },
 
   updateItem: async (
+    movementId: number,
     itemId: number,
     item: {
       quantity_actual?: number
@@ -134,13 +135,13 @@ export const inventoryApi = {
     }
   ): Promise<MovementItem> => {
     const { data } = await apiClient.patch(
-      `/inventory-movements/items/${itemId}`,
+      `/inventory-movements/${movementId}/items/${itemId}`,
       item
     )
     return data.data || data
   },
 
-  removeItem: async (itemId: number): Promise<void> => {
-    await apiClient.delete(`/inventory-movements/items/${itemId}`)
+  removeItem: async (movementId: number, itemId: number): Promise<void> => {
+    await apiClient.delete(`/inventory-movements/${movementId}/items/${itemId}`)
   },
 }

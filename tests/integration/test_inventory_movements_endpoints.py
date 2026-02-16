@@ -717,10 +717,11 @@ class TestUpdateItem:
             client, auth_headers_admin,
             items=[{"quantity_expected": 10}],
         )
+        movement_id = create_resp.json()["id"]
         item_id = create_resp.json()["items"][0]["id"]
 
         response = client.patch(
-            f"/api/v1/inventory-movements/items/{item_id}",
+            f"/api/v1/inventory-movements/{movement_id}/items/{item_id}",
             json={"quantity_actual": 8, "condition": "damaged", "condition_notes": "Casse"},
             headers=auth_headers_admin,
         )
@@ -732,17 +733,26 @@ class TestUpdateItem:
 
     def test_update_item_not_found_404(self, client: TestClient, auth_headers_admin):
         """Update d'un item inexistant -> 404."""
+        # Créer un movement pour avoir un movement_id valide
+        create_resp = _create_movement(client, auth_headers_admin, items=[{"quantity_expected": 1}])
+        movement_id = create_resp.json()["id"]
+
         response = client.patch(
-            "/api/v1/inventory-movements/items/99999",
+            f"/api/v1/inventory-movements/{movement_id}/items/99999",
             json={"quantity_actual": 5},
             headers=auth_headers_admin,
         )
         assert response.status_code == 404
 
-    def test_update_item_staff_forbidden(self, client: TestClient, auth_headers_real):
+    def test_update_item_staff_forbidden(self, client: TestClient, auth_headers_real, auth_headers_admin):
         """Un staff ne peut pas modifier un item -> 403."""
+        # Créer un movement avec admin pour avoir un movement_id et item_id valides
+        create_resp = _create_movement(client, auth_headers_admin, items=[{"quantity_expected": 1}])
+        movement_id = create_resp.json()["id"]
+        item_id = create_resp.json()["items"][0]["id"]
+
         response = client.patch(
-            "/api/v1/inventory-movements/items/1",
+            f"/api/v1/inventory-movements/{movement_id}/items/{item_id}",
             json={"quantity_actual": 5},
             headers=auth_headers_real,
         )
@@ -761,10 +771,11 @@ class TestRemoveItem:
             client, auth_headers_admin,
             items=[{"quantity_expected": 10}, {"quantity_expected": 5}],
         )
+        movement_id = create_resp.json()["id"]
         item_id = create_resp.json()["items"][0]["id"]
 
         response = client.delete(
-            f"/api/v1/inventory-movements/items/{item_id}",
+            f"/api/v1/inventory-movements/{movement_id}/items/{item_id}",
             headers=auth_headers_admin,
         )
         assert response.status_code == 204
@@ -786,23 +797,32 @@ class TestRemoveItem:
         )
 
         response = client.delete(
-            f"/api/v1/inventory-movements/items/{item_id}",
+            f"/api/v1/inventory-movements/{movement_id}/items/{item_id}",
             headers=auth_headers_admin,
         )
         assert response.status_code == 400
 
     def test_remove_item_not_found_404(self, client: TestClient, auth_headers_admin):
         """Suppression d'un item inexistant -> 404."""
+        # Créer un movement pour avoir un movement_id valide
+        create_resp = _create_movement(client, auth_headers_admin, items=[{"quantity_expected": 1}])
+        movement_id = create_resp.json()["id"]
+
         response = client.delete(
-            "/api/v1/inventory-movements/items/99999",
+            f"/api/v1/inventory-movements/{movement_id}/items/99999",
             headers=auth_headers_admin,
         )
         assert response.status_code == 404
 
-    def test_remove_item_staff_forbidden(self, client: TestClient, auth_headers_real):
+    def test_remove_item_staff_forbidden(self, client: TestClient, auth_headers_real, auth_headers_admin):
         """Un staff ne peut pas supprimer un item -> 403."""
+        # Créer un movement avec admin pour avoir un movement_id et item_id valides
+        create_resp = _create_movement(client, auth_headers_admin, items=[{"quantity_expected": 1}])
+        movement_id = create_resp.json()["id"]
+        item_id = create_resp.json()["items"][0]["id"]
+
         response = client.delete(
-            "/api/v1/inventory-movements/items/1",
+            f"/api/v1/inventory-movements/{movement_id}/items/{item_id}",
             headers=auth_headers_real,
         )
         assert response.status_code == 403

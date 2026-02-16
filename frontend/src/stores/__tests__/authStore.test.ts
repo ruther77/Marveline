@@ -4,7 +4,7 @@
  * Couvre : state initial, setTokens, setUser, setMfaSessionToken,
  * logout, fetchUser, initialize, persist config.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { useAuthStore } from '../authStore'
 import type { User } from '@/types'
 
@@ -12,6 +12,7 @@ import type { User } from '@/types'
 vi.mock('@/api/auth', () => ({
   authApi: {
     me: vi.fn(),
+    getCsrfToken: vi.fn(),
   },
 }))
 
@@ -38,6 +39,7 @@ function resetStore() {
     isAuthenticated: false,
     isLoading: false,
     mfaSessionToken: null,
+    csrfToken: null,
   })
 }
 
@@ -237,5 +239,131 @@ describe('AuthStore — persistance', () => {
       expect(stored.state.refreshToken).toBe('refresh')
       expect(stored.state.user).toBeUndefined()
     }
+  })
+})
+
+// ── CSRF Token Management ────────────────────────────────────────────
+
+describe('AuthStore — fetchCsrfToken', () => {
+  beforeEach(() => {
+    resetStore()
+    vi.clearAllMocks()
+    vi.clearAllTimers()
+    vi.useFakeTimers()
+    // Mock authApi.me pour empêcher initialize() d'interférer
+    vi.mocked(authApi.me).mockRejectedValue(new Error('Not authenticated'))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('appelle GET /auth/csrf et stocke le token dans le state', async () => {
+    const mockToken = 'csrf-token-abc123'
+    vi.mocked(authApi.getCsrfToken).mockResolvedValue({ csrf_token: mockToken })
+
+    await useAuthStore.getState().fetchCsrfToken()
+
+    expect(authApi.getCsrfToken).toHaveBeenCalledOnce()
+    expect(useAuthStore.getState().csrfToken).toBe(mockToken)
+  })
+
+  it('programme un auto-refresh apres 14 minutes si authentifie', async () => {
+    const mockToken = 'csrf-token-abc123'
+    vi.mocked(authApi.getCsrfToken).mockResolvedValue({ csrf_token: mockToken })
+
+    // Simuler utilisateur authentifié
+    useAuthStore.setState({ isAuthenticated: true })
+
+    await useAuthStore.getState().fetchCsrfToken()
+    const callsBeforeRefresh = vi.mocked(authApi.getCsrfToken).mock.calls.length
+
+    // Avancer de 14 minutes - 1 seconde (pas encore déclenché)
+    vi.advanceTimersByTime(14 * 60 * 1000 - 1000)
+    expect(authApi.getCsrfToken).toHaveBeenCalledTimes(callsBeforeRefresh)
+
+    // Avancer de 1 seconde supplémentaire (14 min exactement)
+    vi.advanceTimersByTime(1000)
+    // Wait for pending timers only (avoid infinite loop)
+    await vi.runOnlyPendingTimersAsync()
+
+    // Auto-refresh déclenché : au moins 1 appel supplémentaire (peut être plus si plusieurs timers)
+    expect(vi.mocked(authApi.getCsrfToken).mock.calls.length).toBeGreaterThan(callsBeforeRefresh)
+  })
+
+  it('ne declenche PAS de auto-refresh si utilisateur non authentifie', async () => {
+    const mockToken = 'csrf-token-abc123'
+    vi.mocked(authApi.getCsrfToken).mockResolvedValue({ csrf_token: mockToken })
+
+    // Simuler utilisateur non authentifié
+    useAuthStore.setState({ isAuthenticated: false })
+
+    await useAuthStore.getState().fetchCsrfToken()
+
+    // Avancer de 14 minutes
+    vi.advanceTimersByTime(14 * 60 * 1000)
+    await vi.runOnlyPendingTimersAsync()
+
+    expect(authApi.getCsrfToken).toHaveBeenCalledTimes(1) // Pas de 2ème appel
+  })
+
+  it('gere les erreurs silencieusement (console.warn uniquement)', async () => {
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(authApi.getCsrfToken).mockRejectedValue(new Error('Network error'))
+
+    await useAuthStore.getState().fetchCsrfToken()
+
+    expect(consoleWarnSpy).toHaveBeenCalledWith('Failed to fetch CSRF token')
+    expect(useAuthStore.getState().csrfToken).toBeNull() // State inchangé
+
+    consoleWarnSpy.mockRestore()
+  })
+})
+
+describe('AuthStore — setTokens appelle fetchCsrfToken', () => {
+  beforeEach(() => {
+    resetStore()
+    vi.clearAllMocks()
+    vi.clearAllTimers()
+    vi.useFakeTimers()
+    // Mock authApi.me pour empêcher initialize() d'interférer
+    vi.mocked(authApi.me).mockRejectedValue(new Error('Not authenticated'))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('appelle fetchCsrfToken automatiquement apres setTokens', async () => {
+    const mockToken = 'csrf-token-xyz789'
+    vi.mocked(authApi.getCsrfToken).mockResolvedValue({ csrf_token: mockToken })
+
+    useAuthStore.getState().setTokens('access-token', 'refresh-token')
+
+    // Wait for async fetchCsrfToken call (pending only, avoid infinite loop)
+    await vi.runOnlyPendingTimersAsync()
+
+    // Vérifier que getCsrfToken a été appelé au moins une fois après setTokens
+    expect(authApi.getCsrfToken).toHaveBeenCalled()
+    expect(useAuthStore.getState().csrfToken).toBe(mockToken)
+  })
+})
+
+describe('AuthStore — logout nettoie CSRF token', () => {
+  beforeEach(() => {
+    resetStore()
+  })
+
+  it('nettoie le CSRF token lors du logout', () => {
+    useAuthStore.setState({
+      csrfToken: 'csrf-token-to-clear',
+      accessToken: 'access-token',
+      isAuthenticated: true,
+    })
+
+    useAuthStore.getState().logout()
+
+    expect(useAuthStore.getState().csrfToken).toBeNull()
+    expect(useAuthStore.getState().isAuthenticated).toBe(false)
   })
 })
