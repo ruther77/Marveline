@@ -105,7 +105,14 @@ class AuditLog(Base):
         BigInteger,
         nullable=True,
         index=True,
-        comment="ID utilisateur (NULL pour actions système automatiques)"
+        comment="ID utilisateur (NULL pour actions système automatiques ou API key)"
+    )
+
+    api_key_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        nullable=True,
+        index=True,
+        comment="ID API key (NULL si action par utilisateur ou système)"
     )
 
     tenant_id: Mapped[int] = mapped_column(

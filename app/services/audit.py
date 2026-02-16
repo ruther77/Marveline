@@ -53,6 +53,7 @@ class AuditService:
         action: str,
         tenant_id: int,
         user_id: Optional[int] = None,
+        api_key_id: Optional[int] = None,
         entity_type: Optional[str] = None,
         entity_id: Optional[int] = None,
         changes: Optional[dict[str, Any]] = None,
@@ -100,6 +101,7 @@ class AuditService:
         """
         audit_log = AuditLog(
             user_id=user_id,
+            api_key_id=api_key_id,
             tenant_id=tenant_id,
             action=action,
             entity_type=entity_type,
@@ -298,10 +300,11 @@ class AuditService:
         entity_type: str,
         entity_id: int,
         tenant_id: int,
-        user_id: int,
-        ip_address: str,
-        user_agent: str,
-        request_id: str
+        user_id: int | None = None,
+        api_key_id: int | None = None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+        request_id: str | None = None
     ) -> AuditLog:
         """Enregistre accès à données sensibles (conformité RGPD).
 
@@ -311,7 +314,8 @@ class AuditService:
             entity_type: Type d'entité consultée (Customer, Invoice, User)
             entity_id: ID de l'entité consultée
             tenant_id: ID tenant
-            user_id: ID utilisateur ayant consulté
+            user_id: ID utilisateur ayant consulté (None si auth API key)
+            api_key_id: ID API key (None si auth utilisateur)
             ip_address: IP du client
             user_agent: User-Agent
             request_id: UUID corrélation
@@ -335,6 +339,7 @@ class AuditService:
             action="READ_SENSITIVE",
             tenant_id=tenant_id,
             user_id=user_id,
+            api_key_id=api_key_id,
             entity_type=entity_type,
             entity_id=entity_id,
             description=f"Accessed sensitive data {entity_type} #{entity_id}",

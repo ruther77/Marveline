@@ -102,12 +102,14 @@ class AuditMiddleware(BaseHTTPMiddleware):
         if request.url.path in self.EXCLUDED_PATHS:
             return await call_next(request)
 
-        # Utiliser user_id/tenant_id depuis RequestContextMiddleware (fix B3: plus de JWT triple decode)
+        # Utiliser user_id/tenant_id/api_key_id depuis RequestContextMiddleware (fix B3: plus de JWT triple decode)
         user_id = getattr(request.state, "user_id", None)
         tenant_id = getattr(request.state, "tenant_id", None)
+        api_key_id = getattr(request.state, "api_key_id", None)
+        principal_type = getattr(request.state, "principal_type", None)
 
-        # Skip audit si non authentifié (JWT obligatoire pour audit)
-        if not user_id or not tenant_id:
+        # Skip audit si non authentifié (user OU api_key requis)
+        if not tenant_id or (not user_id and not api_key_id):
             return await call_next(request)
 
         # Extraire IP et User-Agent
@@ -129,6 +131,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     path=path,
                     tenant_id=tenant_id,
                     user_id=user_id,
+                    api_key_id=api_key_id,
                     ip_address=ip_address,
                     user_agent=user_agent,
                     request_id=request_id
@@ -140,6 +143,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     path=path,
                     tenant_id=tenant_id,
                     user_id=user_id,
+                    api_key_id=api_key_id,
                     ip_address=ip_address,
                     user_agent=user_agent,
                     request_id=request_id
@@ -152,7 +156,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
         method: str,
         path: str,
         tenant_id: int,
-        user_id: int,
+        user_id: int | None,
+        api_key_id: int | None,
         ip_address: str,
         user_agent: str,
         request_id: str
@@ -163,7 +168,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
             method: HTTP method (POST, PUT, PATCH, DELETE)
             path: URL path (/api/v1/customers/123)
             tenant_id: ID tenant
-            user_id: ID utilisateur
+            user_id: ID utilisateur (None si auth API key)
+            api_key_id: ID API key (None si auth utilisateur)
             ip_address: IP client
             user_agent: User-Agent
             request_id: UUID corrélation
@@ -199,6 +205,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     action=action,
                     tenant_id=tenant_id,
                     user_id=user_id,
+                    api_key_id=api_key_id,
                     entity_type=entity_type,
                     entity_id=entity_id,
                     description=f"{method} {path}",
@@ -218,7 +225,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
         self,
         path: str,
         tenant_id: int,
-        user_id: int,
+        user_id: int | None,
+        api_key_id: int | None,
         ip_address: str,
         user_agent: str,
         request_id: str
@@ -228,7 +236,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
         Args:
             path: URL path (/api/v1/customers/123)
             tenant_id: ID tenant
-            user_id: ID utilisateur
+            user_id: ID utilisateur (None si auth API key)
+            api_key_id: ID API key (None si auth utilisateur)
             ip_address: IP client
             user_agent: User-Agent
             request_id: UUID corrélation
@@ -252,6 +261,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     entity_id=entity_id,
                     tenant_id=tenant_id,
                     user_id=user_id,
+                    api_key_id=api_key_id,
                     ip_address=ip_address,
                     user_agent=user_agent,
                     request_id=request_id
