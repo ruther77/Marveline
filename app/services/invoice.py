@@ -35,6 +35,60 @@ class InvoiceService:
         self.repo = InvoiceRepository(db)
         self.reservation_repo = ReservationRepository(db)
 
+    def list_invoices(
+        self,
+        tenant_id: int,
+        skip: int = 0,
+        limit: int = 100,
+        status_filter: Optional[str] = None,
+        reservation_id: Optional[int] = None,
+    ) -> tuple[list[Invoice], int]:
+        """Liste les factures avec filtres et pagination.
+
+        Args:
+            tenant_id: ID du tenant
+            skip: Offset pagination
+            limit: Limite pagination
+            status_filter: Filtre par statut (draft, sent, paid, overdue, cancelled)
+            reservation_id: Filtre par réservation
+
+        Returns:
+            Tuple (items, total) où items est la liste paginée
+        """
+        filters = {}
+        if status_filter:
+            filters["status"] = status_filter
+        if reservation_id:
+            filters["reservation_id"] = reservation_id
+
+        return self.repo.list(
+            tenant_id=tenant_id,
+            skip=skip,
+            limit=limit,
+            filters=filters if filters else None,
+        )
+
+    def get_invoice(self, invoice_id: int, tenant_id: int) -> Invoice:
+        """Récupère une facture par ID.
+
+        Args:
+            invoice_id: ID de la facture
+            tenant_id: ID du tenant
+
+        Returns:
+            Facture trouvée
+
+        Raises:
+            HTTPException 404: Si facture non trouvée
+        """
+        invoice = self.repo.get_by_id(invoice_id, tenant_id)
+        if not invoice:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorMessages.INVOICE_NOT_FOUND,
+            )
+        return invoice
+
     def generate_invoice_number(self) -> str:
         """Génère un numéro de facture unique.
 

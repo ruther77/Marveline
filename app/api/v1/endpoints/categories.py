@@ -8,7 +8,6 @@ from app.core.deps import get_current_user, require_permission
 from app.core.permissions import Permission
 from app.models.user import User
 from app.services.category import CategoryService
-from app.repositories.category import CategoryRepository
 from app.schemas.category import (
     CategoryCreate,
     CategoryUpdate,
@@ -33,19 +32,14 @@ def list_categories(
     current_user: User = Depends(get_current_user),
 ) -> PaginatedResponse[CategoryResponse]:
     """Liste les categories avec pagination."""
-    repo = CategoryRepository(db)
+    service = CategoryService(db)
 
-    filters = {}
-    if parent_id is not None:
-        filters["parent_id"] = parent_id
-
-    categories, total = repo.list(
+    categories, total = service.list_categories(
         tenant_id=current_user.tenant_id,
         skip=pagination.skip,
         limit=pagination.limit,
-        filters=filters,
+        parent_id=parent_id,
         include_inactive=not active_only,
-        order_by="display_order",
     )
 
     return PaginatedResponse(
@@ -73,13 +67,8 @@ def get_category(
     current_user: User = Depends(get_current_user),
 ) -> CategoryResponse:
     """Recupere les details d'une categorie."""
-    repo = CategoryRepository(db)
-    category = repo.get_by_id(category_id, current_user.tenant_id)
-    if not category:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=ErrorMessages.CATEGORY_NOT_FOUND,
-        )
+    service = CategoryService(db)
+    category = service.get_category(category_id, current_user.tenant_id)
     return CategoryResponse.model_validate(category)
 
 

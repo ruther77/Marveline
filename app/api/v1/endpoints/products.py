@@ -10,7 +10,6 @@ from app.core.permissions import Permission
 from app.models.user import User
 from app.models.product import Product
 from app.services.product import ProductService
-from app.repositories.product import ProductRepository
 from app.schemas.product import (
     ProductCreate,
     ProductUpdate,
@@ -73,23 +72,15 @@ def list_products(
         - Authentification JWT requise
         - Filtrage automatique par tenant_id
     """
-    repo = ProductRepository(db)
+    service = ProductService(db)
 
-    # Construire filtres
-    filters = {}
-    if category:
-        filters["category"] = category
-    if available_only:
-        filters["available_quantity__gt"] = 0
-    if not is_active:
-        filters["include_inactive"] = True
-
-    # Récupérer produits avec total
-    products, total = repo.list(
+    products, total = service.list_products(
         tenant_id=current_user.tenant_id,
         skip=pagination.skip,
         limit=pagination.limit,
-        filters=filters
+        category=category,
+        available_only=available_only,
+        include_inactive=not is_active,
     )
 
     return PaginatedResponse(
@@ -146,15 +137,8 @@ def get_product(
         - Authentification JWT requise
         - Filtrage automatique par tenant_id (404 si autre tenant)
     """
-    repo = ProductRepository(db)
-
-    product = repo.get_by_id(product_id, current_user.tenant_id)
-    if not product:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=ErrorMessages.PRODUCT_NOT_FOUND
-        )
-
+    service = ProductService(db)
+    product = service.get_product(product_id, current_user.tenant_id)
     return ProductResponse.model_validate(product)
 
 

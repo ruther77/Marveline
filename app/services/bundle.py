@@ -1,4 +1,5 @@
 """Service metier pour les bundles (packs de produits)."""
+from typing import Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from app.models.bundle import ProductBundle, BundleItem
@@ -17,6 +18,60 @@ class BundleService:
         self.repo = BundleRepository(db)
         self.item_repo = BundleItemRepository(db)
         self.product_repo = ProductRepository(db)
+
+    def list_bundles(
+        self,
+        tenant_id: int,
+        skip: int = 0,
+        limit: int = 100,
+        featured: Optional[bool] = None,
+        include_inactive: bool = False,
+    ) -> tuple[list[ProductBundle], int]:
+        """Liste les bundles avec filtres et pagination.
+
+        Args:
+            tenant_id: ID du tenant
+            skip: Offset pagination
+            limit: Limite pagination
+            featured: Filtre par featured (None = tous)
+            include_inactive: Inclure bundles soft-deleted
+
+        Returns:
+            Tuple (items, total) où items est la liste paginée
+        """
+        filters = {}
+        if featured is not None:
+            filters["featured"] = featured
+        if include_inactive:
+            filters["include_inactive"] = True
+
+        return self.repo.list(
+            tenant_id=tenant_id,
+            skip=skip,
+            limit=limit,
+            filters=filters if filters else None,
+        )
+
+    def get_bundle(self, bundle_id: int, tenant_id: int) -> ProductBundle:
+        """Récupère un bundle par ID avec ses items.
+
+        Args:
+            bundle_id: ID du bundle
+            tenant_id: ID du tenant
+
+        Returns:
+            Bundle trouvé avec items chargés
+
+        Raises:
+            HTTPException 404: Si bundle non trouvé
+        """
+        bundle = self.repo.get_with_items(bundle_id, tenant_id)
+        if not bundle:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorMessages.BUNDLE_NOT_FOUND,
+            )
+        return bundle
 
     def create_bundle(self, data: BundleCreate, tenant_id: int) -> ProductBundle:
         """Cree un nouveau bundle.

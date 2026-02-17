@@ -7,7 +7,6 @@ from app.core.deps import get_current_user, require_permission
 from app.core.permissions import Permission
 from app.models.user import User
 from app.services.bundle import BundleService
-from app.repositories.bundle import BundleRepository
 from app.schemas.bundle import (
     BundleCreate,
     BundleUpdate,
@@ -38,19 +37,14 @@ def list_bundles(
     current_user: User = Depends(get_current_user),
 ) -> PaginatedResponse[BundleResponse]:
     """Liste les bundles avec pagination."""
-    repo = BundleRepository(db)
+    service = BundleService(db)
 
-    filters = {}
-    if featured is not None:
-        filters["featured"] = featured
-
-    bundles, total = repo.list(
+    bundles, total = service.list_bundles(
         tenant_id=current_user.tenant_id,
         skip=pagination.skip,
         limit=pagination.limit,
-        filters=filters,
+        featured=featured,
         include_inactive=not active_only,
-        order_by="display_order",
     )
 
     return PaginatedResponse(
@@ -68,13 +62,8 @@ def get_bundle(
     current_user: User = Depends(get_current_user),
 ) -> BundleWithItems:
     """Recupere les details d'un bundle avec ses items."""
-    repo = BundleRepository(db)
-    bundle = repo.get_with_items(bundle_id, current_user.tenant_id)
-    if not bundle:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=ErrorMessages.BUNDLE_NOT_FOUND,
-        )
+    service = BundleService(db)
+    bundle = service.get_bundle(bundle_id, current_user.tenant_id)
     return BundleWithItems.model_validate(bundle)
 
 

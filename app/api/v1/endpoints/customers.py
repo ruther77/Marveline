@@ -6,8 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
-from app.models.customer import Customer
-from app.repositories.customer import CustomerRepository
+from app.services.customer import CustomerService
 from app.schemas.customer import (
     CustomerCreate,
     CustomerUpdate,
@@ -70,30 +69,16 @@ def list_customers(
         - Authentification JWT requise
         - Filtrage automatique par tenant_id
     """
-    repo = CustomerRepository(db)
+    service = CustomerService(db)
 
-    # Utiliser la méthode search si search_query fourni
-    if search_query:
-        customers, total = repo.search(
-            search_term=search_query,
-            tenant_id=current_user.tenant_id,
-            skip=pagination.skip,
-            limit=pagination.limit
-        )
-    else:
-        # Liste standard
-        filters = {}
-        if customer_type:
-            filters["customer_type"] = customer_type
-        if not is_active:
-            filters["include_inactive"] = True
-
-        customers, total = repo.list(
-            tenant_id=current_user.tenant_id,
-            skip=pagination.skip,
-            limit=pagination.limit,
-            filters=filters
-        )
+    customers, total = service.list_customers(
+        tenant_id=current_user.tenant_id,
+        skip=pagination.skip,
+        limit=pagination.limit,
+        search_query=search_query,
+        customer_type=customer_type,
+        include_inactive=not is_active,
+    )
 
     return PaginatedResponse(
         items=[CustomerList.model_validate(c) for c in customers],
@@ -149,15 +134,8 @@ def get_customer(
         - Authentification JWT requise
         - Filtrage automatique par tenant_id (404 si autre tenant)
     """
-    repo = CustomerRepository(db)
-
-    customer = repo.get_by_id(customer_id, current_user.tenant_id)
-    if not customer:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=ErrorMessages.CUSTOMER_NOT_FOUND
-        )
-
+    service = CustomerService(db)
+    customer = service.get_customer(customer_id, current_user.tenant_id)
     return CustomerResponse.model_validate(customer)
 
 
@@ -205,38 +183,12 @@ def create_customer(
         - Authentification JWT requise
         - tenant_id ajouté automatiquement depuis JWT
     """
-    repo = CustomerRepository(db)
-
-    # Vérifier unicité email si fourni
-    if customer_data.email:
-        if repo.email_exists(customer_data.email, current_user.tenant_id):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Customer with email '{customer_data.email}' already exists"
-            )
+    service = CustomerService(db)
 
     try:
-        # Créer modèle Customer
-        customer = Customer(
-            tenant_id=current_user.tenant_id,
-            customer_type=customer_data.customer_type,
-            first_name=customer_data.first_name,
-            last_name=customer_data.last_name,
-            email=customer_data.email,
-            phone=customer_data.phone,
-            address=customer_data.address,
-            city=customer_data.city,
-            postal_code=customer_data.postal_code,
-            country=customer_data.country,
-            company_name=customer_data.company_name,
-            is_active=True
-        )
-
-        # Créer en DB
-        customer = repo.create(customer)
+        customer = service.create_customer(customer_data, current_user.tenant_id)
         db.commit()
         db.refresh(customer)
-
         return CustomerResponse.model_validate(customer)
 
     except HTTPException:
@@ -290,34 +242,12 @@ def update_customer(
         - Authentification JWT requise
         - Filtrage automatique par tenant_id
     """
-    repo = CustomerRepository(db)
-
-    # Charger client
-    customer = repo.get_by_id(customer_id, current_user.tenant_id)
-    if not customer:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=ErrorMessages.CUSTOMER_NOT_FOUND
-        )
-
-    # Vérifier unicité email si modifié
-    if customer_data.email and customer_data.email != customer.email:
-        if repo.email_exists(customer_data.email, current_user.tenant_id):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Email '{customer_data.email}' already used by another customer"
-            )
+    service = CustomerService(db)
 
     try:
-        # Appliquer modifications (PATCH partiel)
-        update_data = customer_data.model_dump(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(customer, field, value)
-
-        customer = repo.update(customer)
+        customer = service.update_customer(customer_id, customer_data, current_user.tenant_id)
         db.commit()
         db.refresh(customer)
-
         return CustomerResponse.model_validate(customer)
 
     except HTTPException:
@@ -363,20 +293,10 @@ def delete_customer(
         - Authentification JWT requise
         - Filtrage automatique par tenant_id
     """
-    repo = CustomerRepository(db)
+    service = CustomerService(db)
 
     try:
-        if hard_delete:
-            success = repo.hard_delete(customer_id, current_user.tenant_id)
-        else:
-            success = repo.soft_delete(customer_id, current_user.tenant_id)
-
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=ErrorMessages.CUSTOMER_NOT_FOUND
-            )
-
+        service.delete_customer(customer_id, current_user.tenant_id, hard_delete)
         db.commit()
 
     except HTTPException:

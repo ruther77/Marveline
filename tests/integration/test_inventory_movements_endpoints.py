@@ -758,6 +758,26 @@ class TestUpdateItem:
         )
         assert response.status_code == 403
 
+    def test_update_item_wrong_movement_404(self, client: TestClient, auth_headers_admin):
+        """Tenter de modifier un item avec le mauvais movement_id -> 404."""
+        # Créer movement A avec item 1
+        create_resp_a = _create_movement(client, auth_headers_admin, items=[{"quantity_expected": 10}])
+        movement_id_a = create_resp_a.json()["id"]
+
+        # Créer movement B avec item 2
+        create_resp_b = _create_movement(client, auth_headers_admin, items=[{"quantity_expected": 5}])
+        movement_id_b = create_resp_b.json()["id"]
+        item_id_b = create_resp_b.json()["items"][0]["id"]
+
+        # Tenter de PATCH item_b via movement_a (validation cohérence doit échouer)
+        response = client.patch(
+            f"/api/v1/inventory-movements/{movement_id_a}/items/{item_id_b}",
+            json={"quantity_actual": 3},
+            headers=auth_headers_admin,
+        )
+        assert response.status_code == 404
+        assert "not found in this movement" in response.json()["detail"].lower()
+
 
 # -- DELETE /inventory-movements/items/{id} ----------------------------------
 
@@ -826,6 +846,265 @@ class TestRemoveItem:
             headers=auth_headers_real,
         )
         assert response.status_code == 403
+
+    def test_remove_item_wrong_movement_404(self, client: TestClient, auth_headers_admin):
+        """Tenter de supprimer un item avec le mauvais movement_id -> 404."""
+        # Créer movement A avec item 1
+        create_resp_a = _create_movement(client, auth_headers_admin, items=[{"quantity_expected": 10}])
+        movement_id_a = create_resp_a.json()["id"]
+
+        # Créer movement B avec item 2
+        create_resp_b = _create_movement(client, auth_headers_admin, items=[{"quantity_expected": 5}])
+        movement_id_b = create_resp_b.json()["id"]
+        item_id_b = create_resp_b.json()["items"][0]["id"]
+
+        # Tenter de DELETE item_b via movement_a (validation cohérence doit échouer)
+        response = client.delete(
+            f"/api/v1/inventory-movements/{movement_id_a}/items/{item_id_b}",
+            headers=auth_headers_admin,
+        )
+        assert response.status_code == 404
+        assert "not found in this movement" in response.json()["detail"].lower()
+
+
+# -- GET /inventory-movements/agenda ----------------------------------------
+
+
+class TestAgenda:
+    """Tests GET /api/v1/inventory-movements/agenda."""
+
+    def test_agenda_empty(self, client: TestClient, auth_headers_admin):
+        """Agenda vide sans réservations -> retourne structure vide."""
+        response = client.get(
+            "/api/v1/inventory-movements/agenda",
+            headers=auth_headers_admin,
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "events" in data
+        assert "date_start" in data
+        assert "date_end" in data
+        assert data["events"] == []
+        assert data["total_departures"] == 0
+        assert data["total_returns"] == 0
+
+    def test_agenda_with_reservation_and_movements(self, client: TestClient, test_db, auth_headers_admin):
+        """Agenda avec une réservation et des mouvements de départ/retour."""
+        from app.models.customer import Customer
+        from app.models.reservation import Reservation
+        from app.models.inventory_movement import InventoryMovement
+        from datetime import date, timedelta
+
+        # Créer un customer
+        customer = Customer(
+            tenant_id=1,
+            customer_type="individual",
+            first_name="Jean",
+            last_name="Dupont",
+            email="jean.dupont@test.com",
+            phone="0601020304",
+            is_active=True
+        )
+        test_db.add(customer)
+        test_db.commit()
+        test_db.refresh(customer)
+
+        # Créer une réservation
+        today = date.today()
+        event_date = today + timedelta(days=10)
+        delivery_date = today + timedelta(days=5)
+        return_date = today + timedelta(days=15)
+
+        reservation = Reservation(
+            tenant_id=1,
+            customer_id=customer.id,
+            reference="RES-TEST-001",
+            event_date=event_date,
+            delivery_date=delivery_date,
+            return_date=return_date,
+            event_location="Paris",
+            status="confirmed",
+            total_amount=50000,  # 500€
+            deposit_amount=10000,  # 100€
+            deposit_paid=True,
+        )
+        test_db.add(reservation)
+        test_db.commit()
+        test_db.refresh(reservation)
+
+        # Créer mouvement départ
+        departure_date = datetime.now(timezone.utc) + timedelta(days=5)
+        departure = InventoryMovement(
+            tenant_id=1,
+            reservation_id=reservation.id,
+            movement_type="departure",
+            scheduled_date=departure_date,
+            status="scheduled",
+            is_active=True,
+        )
+        test_db.add(departure)
+
+        # Créer mouvement retour
+        return_date_dt = datetime.now(timezone.utc) + timedelta(days=15)
+        return_mvt = InventoryMovement(
+            tenant_id=1,
+            reservation_id=reservation.id,
+            movement_type="return",
+            scheduled_date=return_date_dt,
+            status="scheduled",
+            is_active=True,
+        )
+        test_db.add(return_mvt)
+        test_db.commit()
+
+        # Appeler l'endpoint agenda
+        response = client.get(
+            "/api/v1/inventory-movements/agenda",
+            headers=auth_headers_admin,
+        )
+        assert response.status_code == 200
+        data = response.json()
+
+        # Vérifier structure
+        assert len(data["events"]) >= 1
+        assert data["total_departures"] >= 1
+        assert data["total_returns"] >= 1
+
+        # Vérifier contenu du premier event
+        event = data["events"][0]
+        assert event["reservation_id"] == reservation.id
+        assert event["customer_name"] == "Jean Dupont"
+        assert event["event_type"] == "Paris"
+        assert event["status"] == "confirmed"
+        assert event["departure"] is not None
+        assert event["return_movement"] is not None
+
+    def test_agenda_date_filter(self, client: TestClient, test_db, auth_headers_admin):
+        """Agenda avec filtrage par dates."""
+        from app.models.customer import Customer
+        from app.models.reservation import Reservation
+        from app.models.inventory_movement import InventoryMovement
+        from datetime import date, timedelta
+
+        # Créer customer + réservation dans le passé
+        customer_past = Customer(
+            tenant_id=1,
+            customer_type="individual",
+            first_name="Marie",
+            last_name="Martin",
+            email="marie.martin@test.com",
+            is_active=True
+        )
+        test_db.add(customer_past)
+        test_db.commit()
+        test_db.refresh(customer_past)
+
+        past_date = date.today() - timedelta(days=60)
+        reservation_past = Reservation(
+            tenant_id=1,
+            customer_id=customer_past.id,
+            reference="RES-PAST-001",
+            event_date=past_date,
+            delivery_date=past_date - timedelta(days=2),
+            return_date=past_date + timedelta(days=2),
+            status="returned",
+            total_amount=10000,
+            deposit_amount=2000,
+            deposit_paid=True,
+        )
+        test_db.add(reservation_past)
+        test_db.commit()
+        test_db.refresh(reservation_past)
+
+        # Créer mouvement pour réservation passée
+        movement_past = InventoryMovement(
+            tenant_id=1,
+            reservation_id=reservation_past.id,
+            movement_type="departure",
+            scheduled_date=datetime.now(timezone.utc) - timedelta(days=60),
+            status="in_transit",
+            is_active=True,
+        )
+        test_db.add(movement_past)
+        test_db.commit()
+
+        # Appeler l'endpoint avec filtre de dates (aujourd'hui + 30 jours)
+        today = date.today()
+        end_date = today + timedelta(days=30)
+        response = client.get(
+            f"/api/v1/inventory-movements/agenda?start_date={today}&end_date={end_date}",
+            headers=auth_headers_admin,
+        )
+        assert response.status_code == 200
+        data = response.json()
+
+        # La réservation passée NE doit PAS apparaître
+        past_reservations = [e for e in data["events"] if e["reservation_id"] == reservation_past.id]
+        assert len(past_reservations) == 0
+
+    def test_agenda_cross_tenant_isolation(
+        self, client: TestClient, test_db, auth_headers_admin, auth_headers_admin_tenant2
+    ):
+        """Le tenant 2 ne voit pas les réservations du tenant 1."""
+        from app.models.customer import Customer
+        from app.models.reservation import Reservation
+        from app.models.inventory_movement import InventoryMovement
+        from datetime import date, timedelta
+
+        # Créer customer + réservation pour tenant 1
+        customer_t1 = Customer(
+            tenant_id=1,
+            customer_type="individual",
+            first_name="Pierre",
+            last_name="Durand",
+            email="pierre.durand@test.com",
+            is_active=True
+        )
+        test_db.add(customer_t1)
+        test_db.commit()
+        test_db.refresh(customer_t1)
+
+        today = date.today()
+        reservation_t1 = Reservation(
+            tenant_id=1,
+            customer_id=customer_t1.id,
+            reference="RES-T1-001",
+            event_date=today + timedelta(days=10),
+            delivery_date=today + timedelta(days=5),
+            return_date=today + timedelta(days=15),
+            status="confirmed",
+            total_amount=10000,
+            deposit_amount=2000,
+            deposit_paid=True,
+        )
+        test_db.add(reservation_t1)
+        test_db.commit()
+        test_db.refresh(reservation_t1)
+
+        # Créer mouvement pour tenant 1
+        movement_t1 = InventoryMovement(
+            tenant_id=1,
+            reservation_id=reservation_t1.id,
+            movement_type="departure",
+            scheduled_date=datetime.now(timezone.utc) + timedelta(days=5),
+            status="scheduled",
+            is_active=True,
+        )
+        test_db.add(movement_t1)
+        test_db.commit()
+
+        # Admin tenant 2 appelle l'endpoint agenda
+        response = client.get(
+            "/api/v1/inventory-movements/agenda",
+            headers=auth_headers_admin_tenant2,
+        )
+        assert response.status_code == 200
+        data = response.json()
+
+        # Tenant 2 ne doit voir AUCUN événement du tenant 1
+        assert len(data["events"]) == 0
+        assert data["total_departures"] == 0
+        assert data["total_returns"] == 0
 
 
 # -- Cross-tenant isolation --------------------------------------------------

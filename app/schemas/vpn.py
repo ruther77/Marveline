@@ -41,7 +41,7 @@ class VpnPeerResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    tenant_id: int
+    tenant_id: Optional[int] = None  # Optionnel car non retourne par le microservice
     name: str
     public_key: str
     assigned_ip: Optional[str] = None
@@ -52,7 +52,7 @@ class VpnPeerResponse(BaseModel):
     is_enabled: bool = True
     is_active: bool = True
     expires_at: Optional[datetime] = None
-    created_by: Optional[str] = None
+    created_by: Optional[int] = None  # Int car le microservice retourne un int
     created_at: datetime
     updated_at: datetime
 

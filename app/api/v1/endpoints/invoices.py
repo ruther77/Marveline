@@ -9,7 +9,6 @@ from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.invoice import Invoice
 from app.services.invoice import InvoiceService
-from app.repositories.invoice import InvoiceRepository
 from app.schemas.invoice import (
     InvoiceCreate,
     InvoiceUpdate,
@@ -72,21 +71,14 @@ def list_invoices(
         - Authentification JWT requise
         - Filtrage automatique par tenant_id
     """
-    repo = InvoiceRepository(db)
+    service = InvoiceService(db)
 
-    # Construire filtres
-    filters = {}
-    if status_filter:
-        filters["status"] = status_filter
-    if reservation_id:
-        filters["reservation_id"] = reservation_id
-
-    # Récupérer factures avec total
-    invoices, total = repo.list(
+    invoices, total = service.list_invoices(
         tenant_id=current_user.tenant_id,
         skip=pagination.skip,
         limit=pagination.limit,
-        filters=filters
+        status_filter=status_filter,
+        reservation_id=reservation_id,
     )
 
     return PaginatedResponse(
@@ -210,15 +202,8 @@ def get_invoice(
         - Authentification JWT requise
         - Filtrage automatique par tenant_id (404 si autre tenant)
     """
-    repo = InvoiceRepository(db)
-
-    invoice = repo.get_by_id(invoice_id, current_user.tenant_id)
-    if not invoice:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=ErrorMessages.INVOICE_NOT_FOUND
-        )
-
+    service = InvoiceService(db)
+    invoice = service.get_invoice(invoice_id, current_user.tenant_id)
     return InvoiceResponse.model_validate(invoice)
 
 

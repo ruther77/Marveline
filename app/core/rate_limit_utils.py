@@ -7,6 +7,7 @@ entre RateLimitMiddleware et MetricsMiddleware.
 from typing import Optional
 from fastapi import Request
 from app.constants import AuthEndpoints, HTTPMethods, RateLimitScope
+from app.core.deps import X_API_KEY_HEADER
 from app.core.security import decode_token
 
 
@@ -46,9 +47,10 @@ def determine_rate_limit_scope(request: Request) -> str:
 
     Priorités (ordre de vérification) :
     1. Login endpoint → "login" (5 req/min strict)
-    2. User authentifié → "user_authenticated" (200 req/min)
-    3. Mutations (POST/PUT/PATCH/DELETE) → "mutations" (100 req/min)
-    4. Reads (GET) → "reads" (300 req/min)
+    2. API key présente → "api_key_authenticated" (quota par key)
+    3. User authentifié → "user_authenticated" (200 req/min)
+    4. Mutations (POST/PUT/PATCH/DELETE) → "mutations" (100 req/min)
+    5. Reads (GET) → "reads" (300 req/min)
 
     Args:
         request: Requête FastAPI
@@ -82,6 +84,10 @@ def determine_rate_limit_scope(request: Request) -> str:
     # Scope login (brute force protection)
     if request.url.path == AuthEndpoints.LOGIN:
         return RateLimitScope.LOGIN
+
+    # Scope API key authentifiée (quota par API key)
+    if request.headers.get(X_API_KEY_HEADER):
+        return RateLimitScope.API_KEY_AUTHENTICATED
 
     # Scope user authentifié (quota utilisateur)
     if get_user_id_from_jwt(request) is not None:

@@ -227,3 +227,76 @@ class MovementStatistics(BaseSchema):
     def total_damage_fees_euros(self) -> float:
         """Total frais dommages en euros."""
         return self.total_damage_fees / 100
+
+
+# ── Agenda Schemas ────────────────────────────────────────────────────
+
+
+class AgendaItem(BaseSchema):
+    """Schema pour un item de l'agenda (événement/réservation avec mouvements)."""
+
+    event_id: Optional[int] = Field(
+        None,
+        description="ID événement (legacy, peut être null)",
+    )
+    reservation_id: Optional[int] = Field(
+        None,
+        description="ID réservation",
+    )
+    customer_name: str = Field(
+        ...,
+        description="Nom du client",
+    )
+    event_type: str = Field(
+        default="",
+        description="Type d'événement",
+    )
+    event_date: datetime = Field(
+        ...,
+        description="Date de l'événement",
+    )
+    rental_start_date: datetime = Field(
+        ...,
+        description="Date début location",
+    )
+    rental_end_date: datetime = Field(
+        ...,
+        description="Date fin location",
+    )
+    status: str = Field(
+        ...,
+        description="Statut de la réservation",
+    )
+    departure: Optional[MovementListItem] = Field(
+        default=None,
+        description="Mouvement de départ (si existant)",
+    )
+    return_movement: Optional[MovementListItem] = Field(
+        default=None,
+        description="Mouvement de retour (si existant)",
+    )
+
+
+class AgendaView(BaseSchema):
+    """Schema pour la vue agenda complète."""
+
+    date_start: str = Field(
+        ...,
+        description="Date de début de la plage (YYYY-MM-DD)",
+    )
+    date_end: str = Field(
+        ...,
+        description="Date de fin de la plage (YYYY-MM-DD)",
+    )
+    events: list[AgendaItem] = Field(
+        default_factory=list,
+        description="Liste des événements/réservations avec mouvements",
+    )
+    total_departures: int = Field(
+        default=0,
+        description="Nombre total de départs dans la plage",
+    )
+    total_returns: int = Field(
+        default=0,
+        description="Nombre total de retours dans la plage",
+    )

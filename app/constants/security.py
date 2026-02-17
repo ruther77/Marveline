@@ -247,13 +247,15 @@ class RateLimitScope(str, Enum):
         1. GLOBAL_IP : 1000 req/min (protection DDoS)
         2. LOGIN : 5 req/min (anti brute force)
         3. USER_AUTHENTICATED : 200 req/min (quota utilisateur)
-        4. MUTATIONS : 100 req/min (write abuse)
-        5. READS : 300 req/min (read abuse)
+        4. API_KEY_AUTHENTICATED : variable req/min (quota par API key)
+        5. MUTATIONS : 100 req/min (write abuse)
+        6. READS : 300 req/min (read abuse)
     """
 
     GLOBAL_IP = "global_ip"
     LOGIN = "login"
     USER_AUTHENTICATED = "user_authenticated"
+    API_KEY_AUTHENTICATED = "api_key_authenticated"
     MUTATIONS = "mutations"
     READS = "reads"
 

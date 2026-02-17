@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { authApi } from '@/api/auth';
 
 // ============================================
 // Types
@@ -48,6 +49,9 @@ export interface UIState {
   // Loading global
   globalLoading: boolean;
   globalLoadingMessage: string | null;
+
+  // CSRF token
+  csrfToken: string | null;
 }
 
 export interface UIActions {
@@ -85,6 +89,11 @@ export interface UIActions {
 
   // Loading
   setGlobalLoading: (loading: boolean, message?: string) => void;
+
+  // CSRF
+  setCsrfToken: (token: string) => void;
+  fetchCsrfToken: () => Promise<void>;
+  clearCsrfToken: () => void;
 }
 
 // ============================================
@@ -123,6 +132,7 @@ export const useUIStore = create<UIState & UIActions>()(
       soundEnabled: true,
       globalLoading: false,
       globalLoadingMessage: null,
+      csrfToken: null,
 
       // Theme actions
       setTheme: (theme) => {
@@ -226,6 +236,29 @@ export const useUIStore = create<UIState & UIActions>()(
           globalLoading,
           globalLoadingMessage: message || null,
         }),
+
+      // CSRF actions
+      setCsrfToken: (token) => {
+        set({ csrfToken: token });
+      },
+
+      fetchCsrfToken: async () => {
+        try {
+          const response = await authApi.getCsrfToken();
+          set({ csrfToken: response.csrf_token });
+
+          // Rafraîchir le token avant expiration (14 min, TTL backend = 15 min)
+          setTimeout(() => {
+            get().fetchCsrfToken();
+          }, 14 * 60 * 1000);
+        } catch {
+          // Erreur silencieuse, le middleware renverra 403 et forcera une nouvelle tentative
+        }
+      },
+
+      clearCsrfToken: () => {
+        set({ csrfToken: null });
+      },
     }),
     {
       name: 'marveline-ui',
@@ -236,6 +269,7 @@ export const useUIStore = create<UIState & UIActions>()(
         compactMode: state.compactMode,
         animationsEnabled: state.animationsEnabled,
         soundEnabled: state.soundEnabled,
+        csrfToken: state.csrfToken,
       }),
     }
   )

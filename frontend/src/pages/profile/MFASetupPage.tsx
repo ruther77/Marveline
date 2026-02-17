@@ -36,21 +36,23 @@ export default function MFASetupPage() {
     mutationFn: authApi.mfaSetup,
     onSuccess: (data) => {
       setSetupData(data)
+      // Stocker les recovery_codes pour les afficher après activation
+      setBackupCodes(data.recovery_codes)
       setStep('setup')
     },
   })
 
   const enableMutation = useMutation({
     mutationFn: authApi.mfaEnable,
-    onSuccess: (data) => {
-      setBackupCodes(data.backup_codes)
+    onSuccess: () => {
+      // Les backup_codes sont déjà stockés depuis setupMutation
       setStep('backup')
       fetchUser()
       queryClient.invalidateQueries({ queryKey: ['mfa-status'] })
     },
     onError: (err: unknown) => {
-      const error = err as { response?: { data?: { message?: string } } }
-      setError(error.response?.data?.message || 'Code invalide')
+      const error = err as Error
+      setError(error.message || 'Code invalide')
     },
   })
 
@@ -63,8 +65,8 @@ export default function MFASetupPage() {
       queryClient.invalidateQueries({ queryKey: ['mfa-status'] })
     },
     onError: (err: unknown) => {
-      const error = err as { response?: { data?: { message?: string } } }
-      setError(error.response?.data?.message || 'Code invalide')
+      const error = err as Error
+      setError(error.message || 'Code invalide')
     },
   })
 

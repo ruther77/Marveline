@@ -20,6 +20,7 @@ from app.schemas.inventory_movement import (
     MovementItemCreate,
     MovementItemUpdate,
     MovementItemResponse,
+    AgendaView,
 )
 from app.schemas.common import PaginatedResponse
 
@@ -107,6 +108,23 @@ def get_statistics(
         end_date=end_date,
     )
     return MovementStatistics(**stats)
+
+
+@router.get("/agenda", response_model=AgendaView)
+def get_agenda(
+    start_date: date | None = Query(None, description="Date de début (filtre scheduled_date mouvements)"),
+    end_date: date | None = Query(None, description="Date de fin (filtre scheduled_date mouvements)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AgendaView:
+    """Retourne la vue agenda avec événements/réservations et mouvements associés."""
+    service = MovementService(db)
+    agenda_data = service.get_agenda(
+        current_user.tenant_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    return AgendaView(**agenda_data)
 
 
 # ── Single movement CRUD ──────────────────────────────────────────────

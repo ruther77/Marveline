@@ -356,6 +356,135 @@ class MovementService:
         """Retourne les statistiques des mouvements."""
         return self.repo.get_statistics(tenant_id, start_date=start_date, end_date=end_date)
 
+    def get_agenda(
+        self,
+        tenant_id: int,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> dict[str, Any]:
+        """Retourne la vue agenda avec événements/réservations et leurs mouvements.
+
+        Args:
+            tenant_id: ID du tenant
+            start_date: Date début plage (filtre sur scheduled_date des mouvements)
+            end_date: Date fin plage (filtre sur scheduled_date des mouvements)
+
+        Returns:
+            Dict contenant date_start, date_end, events[], total_departures, total_returns
+        """
+        from app.repositories.reservation import ReservationRepository
+        from app.models.customer import Customer
+
+        reservation_repo = ReservationRepository(self.db)
+
+        # Déterminer dates
+        if not start_date:
+            start_date = date.today()
+        if not end_date:
+            from datetime import timedelta
+            end_date = start_date + timedelta(days=30)
+
+        # Récupérer toutes les réservations avec leurs mouvements dans la plage
+        # Filtre sur delivery_date/return_date pour inclure réservations pertinentes
+        reservations = (
+            self.db.query(reservation_repo.model_class)
+            .filter(
+                reservation_repo.model_class.tenant_id == tenant_id,
+                # Réservation dont delivery_date ou return_date dans la plage
+                (
+                    (reservation_repo.model_class.delivery_date >= start_date) &
+                    (reservation_repo.model_class.delivery_date <= end_date)
+                ) | (
+                    (reservation_repo.model_class.return_date >= start_date) &
+                    (reservation_repo.model_class.return_date <= end_date)
+                )
+            )
+            .join(Customer, reservation_repo.model_class.customer_id == Customer.id)
+            .all()
+        )
+
+        # Construire events avec mouvements
+        events = []
+        total_departures = 0
+        total_returns = 0
+
+        for reservation in reservations:
+            # Trouver mouvements departure et return pour cette réservation
+            departure_movement = None
+            return_movement = None
+
+            for movement in reservation.movements:
+                if not movement.is_active:
+                    continue
+
+                # Vérifier si dans la plage de dates
+                if movement.scheduled_date.date() < start_date or movement.scheduled_date.date() > end_date:
+                    continue
+
+                if movement.movement_type == MovementType.DEPARTURE.value:
+                    departure_movement = movement
+                    total_departures += 1
+                elif movement.movement_type == MovementType.RETURN.value:
+                    return_movement = movement
+                    total_returns += 1
+
+            # Construire AgendaItem
+            event_item = {
+                "event_id": None,  # Legacy, pas de table events
+                "reservation_id": reservation.id,
+                "customer_name": f"{reservation.customer.first_name} {reservation.customer.last_name}".strip(),
+                "event_type": reservation.event_location or "",
+                "event_date": reservation.event_date.isoformat(),
+                "rental_start_date": reservation.delivery_date.isoformat(),
+                "rental_end_date": reservation.return_date.isoformat(),
+                "status": reservation.status,
+                "departure": None,
+                "return_movement": None,
+            }
+
+            # Ajouter mouvements si existants
+            if departure_movement:
+                event_item["departure"] = {
+                    "id": departure_movement.id,
+                    "tenant_id": departure_movement.tenant_id,
+                    "event_id": departure_movement.event_id,
+                    "reservation_id": departure_movement.reservation_id,
+                    "movement_type": departure_movement.movement_type,
+                    "scheduled_date": departure_movement.scheduled_date.isoformat(),
+                    "actual_date": departure_movement.actual_date.isoformat() if departure_movement.actual_date else None,
+                    "status": departure_movement.status,
+                    "delivery_method": departure_movement.delivery_method,
+                    "items_count": len(departure_movement.items) if hasattr(departure_movement, 'items') else 0,
+                    "created_at": departure_movement.created_at.isoformat(),
+                    "updated_at": departure_movement.updated_at.isoformat(),
+                }
+
+            if return_movement:
+                event_item["return_movement"] = {
+                    "id": return_movement.id,
+                    "tenant_id": return_movement.tenant_id,
+                    "event_id": return_movement.event_id,
+                    "reservation_id": return_movement.reservation_id,
+                    "movement_type": return_movement.movement_type,
+                    "scheduled_date": return_movement.scheduled_date.isoformat(),
+                    "actual_date": return_movement.actual_date.isoformat() if return_movement.actual_date else None,
+                    "status": return_movement.status,
+                    "delivery_method": return_movement.delivery_method,
+                    "items_count": len(return_movement.items) if hasattr(return_movement, 'items') else 0,
+                    "created_at": return_movement.created_at.isoformat(),
+                    "updated_at": return_movement.updated_at.isoformat(),
+                }
+
+            events.append(event_item)
+
+        return {
+            "date_start": start_date.isoformat(),
+            "date_end": end_date.isoformat(),
+            "events": events,
+            "total_departures": total_departures,
+            "total_returns": total_returns,
+        }
+
     # ── Items Management ─────────────────────────────────────────────
 
     def add_item(

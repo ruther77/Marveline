@@ -16,6 +16,59 @@ class CategoryService:
         self.db = db
         self.repo = CategoryRepository(db)
 
+    def list_categories(
+        self,
+        tenant_id: int,
+        skip: int = 0,
+        limit: int = 100,
+        parent_id: Optional[int] = None,
+        include_inactive: bool = False,
+    ) -> tuple[list[Category], int]:
+        """Liste les categories avec filtres et pagination.
+
+        Args:
+            tenant_id: ID du tenant
+            skip: Offset pagination
+            limit: Limite pagination
+            parent_id: Filtre par categorie parente (None = tous)
+            include_inactive: Inclure categories soft-deleted
+
+        Returns:
+            Tuple (items, total) où items est la liste paginée
+        """
+        filters = {}
+        if parent_id is not None:
+            filters["parent_id"] = parent_id
+
+        return self.repo.list(
+            tenant_id=tenant_id,
+            skip=skip,
+            limit=limit,
+            filters=filters if filters else None,
+            include_inactive=include_inactive,
+        )
+
+    def get_category(self, category_id: int, tenant_id: int) -> Category:
+        """Récupère une categorie par ID.
+
+        Args:
+            category_id: ID de la categorie
+            tenant_id: ID du tenant
+
+        Returns:
+            Categorie trouvée
+
+        Raises:
+            HTTPException 404: Si categorie non trouvée
+        """
+        category = self.repo.get_by_id(category_id, tenant_id)
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorMessages.CATEGORY_NOT_FOUND,
+            )
+        return category
+
     def create_category(self, data: CategoryCreate, tenant_id: int) -> Category:
         """Cree une nouvelle categorie.
 

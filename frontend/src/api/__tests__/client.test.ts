@@ -6,10 +6,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
 import { apiClient } from '../client'
 import { useAuthStore } from '@/stores/authStore'
+import { useUIStore } from '@/stores/uiStore'
 
-// Mock useAuthStore
+// Mock useAuthStore (accessToken, refreshToken, logout)
 vi.mock('@/stores/authStore', () => ({
   useAuthStore: {
+    getState: vi.fn(),
+  },
+}))
+
+// Mock useUIStore (csrfToken, fetchCsrfToken)
+vi.mock('@/stores/uiStore', () => ({
+  useUIStore: {
     getState: vi.fn(),
   },
 }))
@@ -26,10 +34,8 @@ describe('API Client - Request Interceptor (CSRF)', () => {
 
   // ── POST/PUT/PATCH/DELETE : ajoute X-CSRF-Token ─────────────────────
   it('ajoute X-CSRF-Token header pour POST si csrfToken existe', async () => {
-    vi.mocked(useAuthStore.getState).mockReturnValue({
-      accessToken: 'access-token',
-      csrfToken: 'csrf-token-abc123',
-    } as any)
+    vi.mocked(useAuthStore.getState).mockReturnValue({ accessToken: 'access-token' } as any)
+    vi.mocked(useUIStore.getState).mockReturnValue({ csrfToken: 'csrf-token-abc123' } as any)
 
     const requestInterceptor = apiClient.interceptors.request.handlers[0]
     const config: InternalAxiosRequestConfig = {
@@ -44,10 +50,8 @@ describe('API Client - Request Interceptor (CSRF)', () => {
   })
 
   it('ajoute X-CSRF-Token header pour PUT si csrfToken existe', async () => {
-    vi.mocked(useAuthStore.getState).mockReturnValue({
-      accessToken: 'access-token',
-      csrfToken: 'csrf-token-xyz',
-    } as any)
+    vi.mocked(useAuthStore.getState).mockReturnValue({ accessToken: 'access-token' } as any)
+    vi.mocked(useUIStore.getState).mockReturnValue({ csrfToken: 'csrf-token-xyz' } as any)
 
     const requestInterceptor = apiClient.interceptors.request.handlers[0]
     const config: InternalAxiosRequestConfig = {
@@ -62,10 +66,8 @@ describe('API Client - Request Interceptor (CSRF)', () => {
   })
 
   it('ajoute X-CSRF-Token header pour PATCH si csrfToken existe', async () => {
-    vi.mocked(useAuthStore.getState).mockReturnValue({
-      accessToken: 'access-token',
-      csrfToken: 'csrf-patch-token',
-    } as any)
+    vi.mocked(useAuthStore.getState).mockReturnValue({ accessToken: 'access-token' } as any)
+    vi.mocked(useUIStore.getState).mockReturnValue({ csrfToken: 'csrf-patch-token' } as any)
 
     const requestInterceptor = apiClient.interceptors.request.handlers[0]
     const config: InternalAxiosRequestConfig = {
@@ -80,10 +82,8 @@ describe('API Client - Request Interceptor (CSRF)', () => {
   })
 
   it('ajoute X-CSRF-Token header pour DELETE si csrfToken existe', async () => {
-    vi.mocked(useAuthStore.getState).mockReturnValue({
-      accessToken: 'access-token',
-      csrfToken: 'csrf-delete-token',
-    } as any)
+    vi.mocked(useAuthStore.getState).mockReturnValue({ accessToken: 'access-token' } as any)
+    vi.mocked(useUIStore.getState).mockReturnValue({ csrfToken: 'csrf-delete-token' } as any)
 
     const requestInterceptor = apiClient.interceptors.request.handlers[0]
     const config: InternalAxiosRequestConfig = {
@@ -99,10 +99,8 @@ describe('API Client - Request Interceptor (CSRF)', () => {
 
   // ── GET : n'ajoute PAS X-CSRF-Token ─────────────────────────────────
   it('n ajoute PAS X-CSRF-Token header pour GET (safe method)', async () => {
-    vi.mocked(useAuthStore.getState).mockReturnValue({
-      accessToken: 'access-token',
-      csrfToken: 'csrf-token-should-not-be-added',
-    } as any)
+    vi.mocked(useAuthStore.getState).mockReturnValue({ accessToken: 'access-token' } as any)
+    vi.mocked(useUIStore.getState).mockReturnValue({ csrfToken: 'csrf-token-should-not-be-added' } as any)
 
     const requestInterceptor = apiClient.interceptors.request.handlers[0]
     const config: InternalAxiosRequestConfig = {
@@ -117,10 +115,8 @@ describe('API Client - Request Interceptor (CSRF)', () => {
   })
 
   it('n ajoute PAS X-CSRF-Token si csrfToken est null', async () => {
-    vi.mocked(useAuthStore.getState).mockReturnValue({
-      accessToken: 'access-token',
-      csrfToken: null,
-    } as any)
+    vi.mocked(useAuthStore.getState).mockReturnValue({ accessToken: 'access-token' } as any)
+    vi.mocked(useUIStore.getState).mockReturnValue({ csrfToken: null } as any)
 
     const requestInterceptor = apiClient.interceptors.request.handlers[0]
     const config: InternalAxiosRequestConfig = {
@@ -141,10 +137,8 @@ describe('API Client - Request Interceptor (Auth Token)', () => {
   })
 
   it('ajoute Authorization header si accessToken existe', async () => {
-    vi.mocked(useAuthStore.getState).mockReturnValue({
-      accessToken: 'bearer-token-123',
-      csrfToken: null,
-    } as any)
+    vi.mocked(useAuthStore.getState).mockReturnValue({ accessToken: 'bearer-token-123' } as any)
+    vi.mocked(useUIStore.getState).mockReturnValue({ csrfToken: null } as any)
 
     const requestInterceptor = apiClient.interceptors.request.handlers[0]
     const config: InternalAxiosRequestConfig = {
@@ -159,10 +153,8 @@ describe('API Client - Request Interceptor (Auth Token)', () => {
   })
 
   it('n ajoute PAS Authorization header si accessToken est null', async () => {
-    vi.mocked(useAuthStore.getState).mockReturnValue({
-      accessToken: null,
-      csrfToken: null,
-    } as any)
+    vi.mocked(useAuthStore.getState).mockReturnValue({ accessToken: null } as any)
+    vi.mocked(useUIStore.getState).mockReturnValue({ csrfToken: null } as any)
 
     const requestInterceptor = apiClient.interceptors.request.handlers[0]
     const config: InternalAxiosRequestConfig = {
@@ -184,7 +176,8 @@ describe('API Client - Response Interceptor (403 CSRF Retry)', () => {
 
   it('detecte erreur 403 CSRF et refetch le token automatiquement', async () => {
     const mockFetchCsrfToken = vi.fn().mockResolvedValue(undefined)
-    vi.mocked(useAuthStore.getState).mockReturnValue({
+    vi.mocked(useAuthStore.getState).mockReturnValue({ refreshToken: null, logout: vi.fn() } as any)
+    vi.mocked(useUIStore.getState).mockReturnValue({
       fetchCsrfToken: mockFetchCsrfToken,
       csrfToken: 'new-csrf-token',
     } as any)
@@ -220,7 +213,8 @@ describe('API Client - Response Interceptor (403 CSRF Retry)', () => {
 
   it('detecte erreur 403 avec detail contenant "token" (case-insensitive)', async () => {
     const mockFetchCsrfToken = vi.fn().mockResolvedValue(undefined)
-    vi.mocked(useAuthStore.getState).mockReturnValue({
+    vi.mocked(useAuthStore.getState).mockReturnValue({ refreshToken: null, logout: vi.fn() } as any)
+    vi.mocked(useUIStore.getState).mockReturnValue({
       fetchCsrfToken: mockFetchCsrfToken,
       csrfToken: 'new-csrf-token',
     } as any)
@@ -256,7 +250,8 @@ describe('API Client - Response Interceptor (403 CSRF Retry)', () => {
 
   it('ne retry PAS si erreur 403 n est pas liee au CSRF', async () => {
     const mockFetchCsrfToken = vi.fn()
-    vi.mocked(useAuthStore.getState).mockReturnValue({
+    vi.mocked(useAuthStore.getState).mockReturnValue({ refreshToken: null, logout: vi.fn() } as any)
+    vi.mocked(useUIStore.getState).mockReturnValue({
       fetchCsrfToken: mockFetchCsrfToken,
       csrfToken: 'token',
     } as any)
@@ -292,7 +287,8 @@ describe('API Client - Response Interceptor (403 CSRF Retry)', () => {
 
   it('ne retry PAS deux fois (flag _retry)', async () => {
     const mockFetchCsrfToken = vi.fn().mockResolvedValue(undefined)
-    vi.mocked(useAuthStore.getState).mockReturnValue({
+    vi.mocked(useAuthStore.getState).mockReturnValue({ refreshToken: null, logout: vi.fn() } as any)
+    vi.mocked(useUIStore.getState).mockReturnValue({
       fetchCsrfToken: mockFetchCsrfToken,
       csrfToken: 'new-csrf-token',
     } as any)

@@ -32,6 +32,64 @@ class ProductService:
         self.db = db
         self.repo = ProductRepository(db)
 
+    def list_products(
+        self,
+        tenant_id: int,
+        skip: int = 0,
+        limit: int = 100,
+        category: Optional[str] = None,
+        available_only: bool = False,
+        include_inactive: bool = False,
+    ) -> tuple[list[Product], int]:
+        """Liste les produits avec filtres et pagination.
+
+        Args:
+            tenant_id: ID du tenant
+            skip: Offset pagination
+            limit: Limite pagination
+            category: Filtre par catégorie (slug)
+            available_only: Si True, ne retourner que produits avec stock > 0
+            include_inactive: Inclure produits soft-deleted
+
+        Returns:
+            Tuple (items, total) où items est la liste paginée
+        """
+        filters = {}
+        if category:
+            filters["category"] = category
+        if available_only:
+            filters["available_quantity__gt"] = 0
+        if include_inactive:
+            filters["include_inactive"] = True
+
+        return self.repo.list(
+            tenant_id=tenant_id,
+            skip=skip,
+            limit=limit,
+            filters=filters if filters else None,
+        )
+
+    def get_product(self, product_id: int, tenant_id: int) -> Product:
+        """Récupère un produit par ID.
+
+        Args:
+            product_id: ID du produit
+            tenant_id: ID du tenant
+
+        Returns:
+            Produit trouvé
+
+        Raises:
+            HTTPException 404: Si produit non trouvé
+        """
+        product = self.repo.get_by_id(product_id, tenant_id)
+        if not product:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorMessages.PRODUCT_NOT_FOUND,
+            )
+        return product
+
     def create_product(
         self,
         product_data: ProductCreate,

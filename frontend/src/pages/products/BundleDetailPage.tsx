@@ -148,7 +148,7 @@ export default function BundleDetailPage() {
         <div className="card">
           <label className="text-sm text-dark-400">Prix formule</label>
           <p className="text-xl font-bold mt-1">
-            {Number(bundle.bundle_price).toFixed(2)} EUR
+            {(bundle.bundle_price_euros ?? 0).toFixed(2)} EUR
           </p>
         </div>
         <div className="card">
@@ -157,7 +157,7 @@ export default function BundleDetailPage() {
             {bundle.cleaning_fee > 0 ? (
               <span className="flex items-center gap-1">
                 <Tag className="w-4 h-4 text-blue-500" />
-                {Number(bundle.cleaning_fee).toFixed(2)} EUR
+                {(bundle.cleaning_fee_euros ?? 0).toFixed(2)} EUR
               </span>
             ) : (
               <span className="text-dark-500">-</span>
@@ -175,10 +175,10 @@ export default function BundleDetailPage() {
             </label>
             <p className={cn(
               'text-xl font-bold mt-1',
-              priceCalc.discount_amount > 0 ? 'text-green-400' : 'text-dark-500'
+              (priceCalc.savings_cents ?? 0) > 0 ? 'text-green-400' : 'text-dark-500'
             )}>
-              {priceCalc.discount_amount > 0
-                ? `-${Number(priceCalc.discount_amount).toFixed(2)} EUR`
+              {(priceCalc.savings_cents ?? 0) > 0
+                ? `-${((priceCalc.savings_cents ?? 0) / 100).toFixed(2)} EUR`
                 : '-'}
             </p>
           </div>
@@ -217,7 +217,7 @@ export default function BundleDetailPage() {
                   <option value="">Selectionner un produit...</option>
                   {availableProducts.map((p: Product) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} ({p.sku}) — {(p.price_per_day_cents / 100).toFixed(2)} EUR/j
+                      {p.name} ({p.sku}) — {((p.price_per_day_cents ?? 0) / 100).toFixed(2)} EUR/j
                     </option>
                   ))}
                 </select>
@@ -319,7 +319,7 @@ export default function BundleDetailPage() {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <span className="text-sm">
-                        {(item.product.price_per_day_cents / 100).toFixed(2)} EUR
+                        {((item.product.price_per_day_cents ?? 0) / 100).toFixed(2)} EUR
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">
@@ -344,17 +344,17 @@ export default function BundleDetailPage() {
             <div className="flex justify-end gap-8 text-sm">
               <div>
                 <span className="text-dark-400">Prix individuel : </span>
-                <span>{Number(priceCalc.total_price).toFixed(2)} EUR</span>
+                <span>{((priceCalc.individual_price_cents ?? 0) / 100).toFixed(2)} EUR</span>
               </div>
-              {priceCalc.discount_amount > 0 && (
+              {(priceCalc.savings_cents ?? 0) > 0 && (
                 <div>
                   <span className="text-dark-400">Remise : </span>
-                  <span className="text-green-400">-{Number(priceCalc.discount_amount).toFixed(2)} EUR</span>
+                  <span className="text-green-400">-{((priceCalc.savings_cents ?? 0) / 100).toFixed(2)} EUR</span>
                 </div>
               )}
               <div>
                 <span className="text-dark-400">Prix formule : </span>
-                <span className="font-bold text-primary-400">{Number(priceCalc.final_price).toFixed(2)} EUR</span>
+                <span className="font-bold text-primary-400">{((priceCalc.bundle_price_cents ?? 0) / 100).toFixed(2)} EUR</span>
               </div>
             </div>
           </div>

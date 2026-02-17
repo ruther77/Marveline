@@ -1,5 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
+import { useUIStore } from '@/stores/uiStore'
 import { normalizeError } from '@/errors'
 
 const API_URL = import.meta.env.VITE_API_URL || '/api/v1'
@@ -16,7 +17,8 @@ export const apiClient = axios.create({
 // Request interceptor - add auth token and CSRF token
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const { accessToken, csrfToken } = useAuthStore.getState()
+    const { accessToken } = useAuthStore.getState()
+    const { csrfToken } = useUIStore.getState()
 
     // Add auth token
     if (accessToken) {
@@ -79,10 +81,10 @@ apiClient.interceptors.response.use(
         originalRequest._retry = true
 
         try {
-          await useAuthStore.getState().fetchCsrfToken()
+          await useUIStore.getState().fetchCsrfToken()
           // Attendre que le token soit stocké dans le store
           await new Promise(resolve => setTimeout(resolve, 100))
-          const csrfToken = useAuthStore.getState().csrfToken
+          const csrfToken = useUIStore.getState().csrfToken
 
           if (csrfToken) {
             originalRequest.headers['X-CSRF-Token'] = csrfToken

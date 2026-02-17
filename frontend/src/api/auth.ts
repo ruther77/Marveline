@@ -44,13 +44,13 @@ export const authApi = {
     return response.data
   },
 
-  mfaEnable: async (code: string): Promise<{ backup_codes: string[] }> => {
-    const response = await apiClient.post('/mfa/verify-setup', { code })
+  mfaEnable: async (code: string): Promise<{ enabled: boolean; message: string }> => {
+    const response = await apiClient.post('/mfa/verify-setup', { totp_code: code })
     return response.data
   },
 
   mfaDisable: async (code: string): Promise<void> => {
-    await apiClient.delete('/mfa', { data: { code } })
+    await apiClient.delete('/mfa')
   },
 
   mfaVerify: async (data: MFAVerifyRequest): Promise<LoginResponse> => {
@@ -70,7 +70,7 @@ export const authApi = {
   },
 
   regenerateBackupCodes: async (code: string): Promise<{ backup_codes: string[] }> => {
-    const response = await apiClient.post('/mfa/backup-codes/regenerate', { code })
+    const response = await apiClient.post('/mfa/backup-codes/regenerate', { totp_code: code })
     return response.data
   },
 
@@ -79,5 +79,10 @@ export const authApi = {
       current_password: currentPassword,
       new_password: newPassword,
     })
+  },
+
+  getCsrfToken: async (): Promise<{ csrf_token: string; expires_in: number }> => {
+    const response = await apiClient.get('/auth/csrf')
+    return response.data
   },
 }

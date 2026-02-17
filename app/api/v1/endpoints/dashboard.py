@@ -36,13 +36,13 @@ def get_dashboard_stats(
     active_statuses = [ReservationStatus.CONFIRMED, ReservationStatus.DELIVERED]
     active_reservations = (
         db.query(func.count(Reservation.id))
-        .filter(Reservation.tenant_id == tid, Reservation.is_active == True, Reservation.status.in_(active_statuses))
+        .filter(Reservation.tenant_id == tid, Reservation.status.in_(active_statuses))
         .scalar()
     ) or 0
 
     draft_reservations = (
         db.query(func.count(Reservation.id))
-        .filter(Reservation.tenant_id == tid, Reservation.is_active == True, Reservation.status == ReservationStatus.DRAFT)
+        .filter(Reservation.tenant_id == tid, Reservation.status == ReservationStatus.DRAFT)
         .scalar()
     ) or 0
 
@@ -56,7 +56,6 @@ def get_dashboard_stats(
         db.query(func.coalesce(func.sum(Reservation.total_amount), 0))
         .filter(
             Reservation.tenant_id == tid,
-            Reservation.is_active == True,
             Reservation.status.in_(revenue_statuses),
             extract("year", Reservation.created_at) == today.year,
             extract("month", Reservation.created_at) == today.month,
@@ -67,19 +66,19 @@ def get_dashboard_stats(
     # ── Factures ──────────────────────────────────────────────────
     overdue_invoices = (
         db.query(func.count(Invoice.id))
-        .filter(Invoice.tenant_id == tid, Invoice.is_active == True, Invoice.status == InvoiceStatus.OVERDUE)
+        .filter(Invoice.tenant_id == tid, Invoice.status == InvoiceStatus.OVERDUE)
         .scalar()
     ) or 0
 
     overdue_amount_cents = (
         db.query(func.coalesce(func.sum(Invoice.total_amount), 0))
-        .filter(Invoice.tenant_id == tid, Invoice.is_active == True, Invoice.status == InvoiceStatus.OVERDUE)
+        .filter(Invoice.tenant_id == tid, Invoice.status == InvoiceStatus.OVERDUE)
         .scalar()
     ) or 0
 
     unpaid_invoices = (
         db.query(func.count(Invoice.id))
-        .filter(Invoice.tenant_id == tid, Invoice.is_active == True, Invoice.status == InvoiceStatus.SENT)
+        .filter(Invoice.tenant_id == tid, Invoice.status == InvoiceStatus.SENT)
         .scalar()
     ) or 0
 

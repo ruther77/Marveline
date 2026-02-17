@@ -48,6 +48,80 @@ class ReservationService:
         self.product_repo = ProductRepository(db)
         self.product_service = ProductService(db)
 
+    def list_reservations(
+        self,
+        tenant_id: int,
+        skip: int = 0,
+        limit: int = 100,
+        status_filter: Optional[str] = None,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        customer_id: Optional[int] = None,
+    ) -> tuple[list[Reservation], int]:
+        """Liste les réservations avec filtres et pagination.
+
+        Args:
+            tenant_id: ID du tenant
+            skip: Offset pagination
+            limit: Limite pagination
+            status_filter: Filtre par statut (pending, confirmed, cancelled, completed)
+            start_date: Date début pour filtre par plage
+            end_date: Date fin pour filtre par plage
+            customer_id: Filtre par client
+
+        Returns:
+            Tuple (items, total) où items est la liste paginée
+        """
+        # Filtre par statut si fourni
+        if status_filter:
+            return self.repo.list_by_status(
+                status=status_filter,
+                tenant_id=tenant_id,
+                skip=skip,
+                limit=limit,
+            )
+        # Filtre par plage de dates si fourni
+        elif start_date or end_date:
+            return self.repo.list_by_date_range(
+                start_date=start_date,
+                end_date=end_date,
+                tenant_id=tenant_id,
+                skip=skip,
+                limit=limit,
+            )
+        # Liste standard avec filtres optionnels
+        else:
+            filters = {}
+            if customer_id:
+                filters["customer_id"] = customer_id
+            return self.repo.list(
+                tenant_id=tenant_id,
+                skip=skip,
+                limit=limit,
+                filters=filters if filters else None,
+            )
+
+    def get_reservation(self, reservation_id: int, tenant_id: int) -> Reservation:
+        """Récupère une réservation par ID avec relations.
+
+        Args:
+            reservation_id: ID de la réservation
+            tenant_id: ID du tenant
+
+        Returns:
+            Réservation trouvée avec relations (customer, lines)
+
+        Raises:
+            HTTPException 404: Si réservation non trouvée
+        """
+        reservation = self.repo.get_by_id_with_relations(reservation_id, tenant_id)
+        if not reservation:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorMessages.RESERVATION_NOT_FOUND,
+            )
+        return reservation
+
     def generate_reference(self) -> str:
         """Génère une référence unique pour une réservation.
 

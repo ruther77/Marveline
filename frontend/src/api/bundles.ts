@@ -7,6 +7,7 @@ import type {
   BundleItem,
   BundleItemCreate,
   PaginatedBundles,
+  BundlePriceCalc,
 } from '../types/product'
 
 export const bundlesApi = {
@@ -79,11 +80,7 @@ export const bundlesApi = {
     await apiClient.delete(`/bundles/${bundleId}/items/${itemId}`)
   },
 
-  calculatePrice: async (bundleId: number): Promise<{
-    total_price: number
-    discount_amount: number
-    final_price: number
-  }> => {
+  calculatePrice: async (bundleId: number): Promise<BundlePriceCalc> => {
     const { data } = await apiClient.get(`/bundles/${bundleId}/calculate-price`)
     return data.data || data
   },

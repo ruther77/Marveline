@@ -196,6 +196,7 @@ export default function MFAVerifyPage() {
         {code.map((digit, index) => (
           <input
             key={index}
+            data-index={index}
             ref={(el) => (inputRefs.current[index] = el)}
             type="text"
             inputMode="numeric"

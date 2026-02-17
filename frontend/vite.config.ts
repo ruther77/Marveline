@@ -11,10 +11,13 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    host: '0.0.0.0',  // Écouter sur toutes interfaces (requis pour Docker)
+    port: 5173,       // Port standard Vite
+    strictPort: true, // Fail si port occupé (pas de fallback auto)
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        // En dev Docker: api container. En local: localhost:8001
+        target: process.env.DOCKER === 'true' ? 'http://api:8000' : 'http://localhost:8001',
         changeOrigin: true,
       },
     },

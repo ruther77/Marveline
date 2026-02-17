@@ -244,7 +244,7 @@ describe('API Auth - MFA Enable', () => {
 
     const result = await authApi.mfaEnable('123456')
 
-    expect(apiClient.post).toHaveBeenCalledWith('/mfa/verify-setup', { code: '123456' })
+    expect(apiClient.post).toHaveBeenCalledWith('/mfa/verify-setup', { totp_code: '123456' })
     expect(result.backup_codes).toHaveLength(3)
   })
 
@@ -266,7 +266,7 @@ describe('API Auth - MFA Disable', () => {
 
     await authApi.mfaDisable('654321')
 
-    expect(apiClient.delete).toHaveBeenCalledWith('/mfa', { data: { code: '654321' } })
+    expect(apiClient.delete).toHaveBeenCalledWith('/mfa')
   })
 
   it('propage les erreurs 400 si code invalide', async () => {
@@ -351,7 +351,7 @@ describe('API Auth - Regenerate Backup Codes', () => {
 
     const result = await authApi.regenerateBackupCodes('123456')
 
-    expect(apiClient.post).toHaveBeenCalledWith('/mfa/backup-codes/regenerate', { code: '123456' })
+    expect(apiClient.post).toHaveBeenCalledWith('/mfa/backup-codes/regenerate', { totp_code: '123456' })
     expect(result.backup_codes).toHaveLength(5)
   })
 

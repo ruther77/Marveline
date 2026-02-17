@@ -15,6 +15,7 @@ from app.services.feature_flag import FeatureFlagService
 from app.services.notification import NotificationService, notification_service
 from app.services.inventory_movement import MovementService
 from app.services.reservation_workflow import ReservationWorkflowService
+from app.services.customer import CustomerService
 
 __all__ = [
     "AuthService",
@@ -41,4 +42,5 @@ __all__ = [
     "notification_service",
     "MovementService",
     "ReservationWorkflowService",
+    "CustomerService",
 ]

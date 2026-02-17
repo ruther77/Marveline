@@ -9,7 +9,6 @@ from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.reservation import Reservation
 from app.services.reservation import ReservationService
-from app.repositories.reservation import ReservationRepository
 from app.schemas.reservation import (
     ReservationCreate,
     ReservationUpdate,
@@ -74,39 +73,17 @@ def list_reservations(
         - Authentification JWT requise
         - Filtrage automatique par tenant_id
     """
-    repo = ReservationRepository(db)
+    service = ReservationService(db)
 
-    # Filtre par statut si fourni
-    if status_filter:
-        reservations, total = repo.list_by_status(
-            status=status_filter,
-            tenant_id=current_user.tenant_id,
-            skip=pagination.skip,
-            limit=pagination.limit
-        )
-
-    # Filtre par plage de dates si fourni
-    elif start_date or end_date:
-        reservations, total = repo.list_by_date_range(
-            start_date=start_date,
-            end_date=end_date,
-            tenant_id=current_user.tenant_id,
-            skip=pagination.skip,
-            limit=pagination.limit
-        )
-
-    # Liste standard
-    else:
-        filters = {}
-        if customer_id:
-            filters["customer_id"] = customer_id
-
-        reservations, total = repo.list(
-            tenant_id=current_user.tenant_id,
-            skip=pagination.skip,
-            limit=pagination.limit,
-            filters=filters
-        )
+    reservations, total = service.list_reservations(
+        tenant_id=current_user.tenant_id,
+        skip=pagination.skip,
+        limit=pagination.limit,
+        status_filter=status_filter,
+        start_date=start_date,
+        end_date=end_date,
+        customer_id=customer_id,
+    )
 
     return PaginatedResponse(
         items=[ReservationList.model_validate(r) for r in reservations],
@@ -171,15 +148,8 @@ def get_reservation(
         - Authentification JWT requise
         - Filtrage automatique par tenant_id (404 si autre tenant)
     """
-    repo = ReservationRepository(db)
-
-    reservation = repo.get_by_id_with_relations(reservation_id, current_user.tenant_id)
-    if not reservation:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=ErrorMessages.RESERVATION_NOT_FOUND
-        )
-
+    service = ReservationService(db)
+    reservation = service.get_reservation(reservation_id, current_user.tenant_id)
     return ReservationResponse.model_validate(reservation)
 
 
@@ -248,8 +218,7 @@ def create_reservation(
         db.refresh(reservation)
 
         # Recharger avec relations pour response complète
-        repo = ReservationRepository(db)
-        reservation = repo.get_by_id_with_relations(reservation.id, current_user.tenant_id)
+        reservation = service.get_reservation(reservation.id, current_user.tenant_id)
 
         return ReservationResponse.model_validate(reservation)
 
@@ -311,8 +280,7 @@ def update_reservation(
         db.refresh(reservation)
 
         # Recharger avec relations
-        repo = ReservationRepository(db)
-        reservation = repo.get_by_id_with_relations(reservation.id, current_user.tenant_id)
+        reservation = service.get_reservation(reservation.id, current_user.tenant_id)
 
         return ReservationResponse.model_validate(reservation)
 
@@ -379,8 +347,7 @@ def confirm_reservation(
         db.refresh(reservation)
 
         # Recharger avec relations
-        repo = ReservationRepository(db)
-        reservation = repo.get_by_id_with_relations(reservation.id, current_user.tenant_id)
+        reservation = service.get_reservation(reservation.id, current_user.tenant_id)
 
         return ReservationResponse.model_validate(reservation)
 
@@ -446,8 +413,7 @@ def cancel_reservation(
         db.refresh(reservation)
 
         # Recharger avec relations
-        repo = ReservationRepository(db)
-        reservation = repo.get_by_id_with_relations(reservation.id, current_user.tenant_id)
+        reservation = service.get_reservation(reservation.id, current_user.tenant_id)
 
         return ReservationResponse.model_validate(reservation)
 

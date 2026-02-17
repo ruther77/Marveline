@@ -280,6 +280,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if scope == RateLimitScope.LOGIN:
             # Pour login, rate limit par IP uniquement
             identifier = client_ip
+        elif scope == RateLimitScope.API_KEY_AUTHENTICATED:
+            # Pour API key, rate limit par api_key_id
+            api_key_id = getattr(request.state, "api_key_id", None)
+            identifier = f"apikey_{api_key_id}" if api_key_id else client_ip
         elif scope == RateLimitScope.USER_AUTHENTICATED:
             # Pour user, rate limit par user_id
             user_id = get_user_id_from_jwt(request)
