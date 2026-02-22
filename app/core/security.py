@@ -43,9 +43,11 @@ def create_access_token(
     """
     to_encode = data.copy()
 
-    # JWT spec: "sub" claim MUST be a string (not int)
+    # JWT spec: "sub" et "tenant_id" MUST be strings (RFC 7519)
     if "sub" in to_encode and not isinstance(to_encode["sub"], str):
         to_encode["sub"] = str(to_encode["sub"])
+    if "tenant_id" in to_encode and not isinstance(to_encode["tenant_id"], str):
+        to_encode["tenant_id"] = str(to_encode["tenant_id"])
 
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
@@ -84,9 +86,11 @@ def create_refresh_token(data: dict[str, Any]) -> str:
     """
     to_encode = data.copy()
 
-    # JWT spec: "sub" claim MUST be a string (not int)
+    # JWT spec: "sub" et "tenant_id" MUST be strings (RFC 7519)
     if "sub" in to_encode and not isinstance(to_encode["sub"], str):
         to_encode["sub"] = str(to_encode["sub"])
+    if "tenant_id" in to_encode and not isinstance(to_encode["tenant_id"], str):
+        to_encode["tenant_id"] = str(to_encode["tenant_id"])
 
     expire = datetime.now(timezone.utc) + timedelta(
         days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS

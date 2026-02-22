@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # Database
-    DATABASE_URL: str = "postgresql+psycopg2://caro:password@localhost:5433/CaroCorp"
+    DATABASE_URL: str = "postgresql+psycopg2://caro:dev_local@localhost:5433/CaroCorp"
     DB_POOL_SIZE: int = 5
     DB_MAX_OVERFLOW: int = 10
 
@@ -32,11 +32,11 @@ class Settings(BaseSettings):
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Limits.REFRESH_TOKEN_EXPIRE_DAYS
 
     # Redis
-    REDIS_URL: str = "redis://:password@localhost:6380/0"
+    REDIS_URL: str = "redis://:dev_local@localhost:6380/0"
 
     # Celery
-    CELERY_BROKER_URL: str = "redis://:password@localhost:6380/1"
-    CELERY_RESULT_BACKEND: str = "redis://:password@localhost:6380/2"
+    CELERY_BROKER_URL: str = "redis://:dev_local@localhost:6380/1"
+    CELERY_RESULT_BACKEND: str = "redis://:dev_local@localhost:6380/2"
 
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3002"]
@@ -66,6 +66,18 @@ class Settings(BaseSettings):
     SMTP_HOST: str = "localhost"
     SMTP_PORT: int = 1025
     SMTP_FROM: str = "noreply@marveline.com"
+
+    # Sentry (APM + erreurs)
+    SENTRY_DSN: str = ""
+    SENTRY_ENVIRONMENT: str = "development"
+
+    # Uploads
+    UPLOAD_DIR: str = "/uploads"
+
+    # Proxy de confiance (nginx/traefik) — activer pour utiliser X-Forwarded-For
+    # DÉSACTIVÉ par défaut : sans proxy de confiance configuré, X-Forwarded-For
+    # est contrôlable par le client → bypass rate limit possible.
+    TRUSTED_PROXY_HEADERS: bool = False
 
     # Logging & compression
     LOG_LEVEL: str = "INFO"

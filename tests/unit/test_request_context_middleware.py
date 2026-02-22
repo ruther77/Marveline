@@ -121,7 +121,7 @@ class TestJWTClaimsExtraction:
             headers={"Authorization": f"Bearer {token}"},
         )
         body = response.json()
-        assert body["tenant_id"] == 7
+        assert body["tenant_id"] == "7"  # RFC 7519 — string
 
     def test_user_id_extrait_du_jwt(self, test_client):
         """Le user_id (sub) est extrait et converti en int."""
@@ -197,7 +197,7 @@ class TestContextVars:
         )
         body = response.json()
         assert body["ctx_request_id"] is not None
-        assert body["ctx_tenant_id"] == 3
+        assert body["ctx_tenant_id"] == "3"  # RFC 7519 — string
         assert body["ctx_user_id"] == 10
 
     def test_context_vars_nettoyees_apres_requete(self, test_client):

@@ -96,7 +96,7 @@ class TestDecodeTokenExceptions:
         token = create_access_token({"sub": 1, "tenant_id": 1, "email": "t@t.com", "role": "staff"})
         payload = decode_token(token)
         assert payload["sub"] == "1"
-        assert payload["tenant_id"] == 1
+        assert payload["tenant_id"] == "1"  # RFC 7519 — string
 
     def test_decode_expired_token_raises_token_expired(self):
         """Token expiré doit lever TokenExpired."""

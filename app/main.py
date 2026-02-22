@@ -1,12 +1,20 @@
 """Point d'entree principal de l'API CaroCorp."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.staticfiles import StaticFiles
+
+try:
+    import sentry_sdk
+    _SENTRY_AVAILABLE = True
+except ImportError:
+    _SENTRY_AVAILABLE = False
 
 from app.core.config import settings
 from app.constants import PublicEndpoints
@@ -25,6 +33,14 @@ from app.middleware.request_context import RequestContextMiddleware
 from app.middleware.timing import TimingMiddleware
 
 logger = logging.getLogger(__name__)
+
+if _SENTRY_AVAILABLE and settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.SENTRY_ENVIRONMENT,
+        traces_sample_rate=0.1,
+        ignore_errors=[404, 401, 422],
+    )
 
 
 @asynccontextmanager
@@ -94,7 +110,15 @@ def create_application() -> FastAPI:
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
-        allow_headers=["*"],
+        allow_headers=[
+            "Content-Type",
+            "Authorization",
+            "X-CSRF-Token",
+            "X-Request-ID",
+            "Accept",
+            "Accept-Language",
+            "Cache-Control",
+        ],
         expose_headers=[
             "X-Request-ID",
             "X-Response-Time",
@@ -105,7 +129,7 @@ def create_application() -> FastAPI:
     )
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1", "*.carocorp.local", "testserver"],
+        allowed_hosts=["localhost", "127.0.0.1", "*.carocorp.local", "testserver", "api"],
     )
 
     # Outermost — capturent TOUTES les responses (y compris 429 rate limit)
@@ -114,6 +138,15 @@ def create_application() -> FastAPI:
 
     # --- Routes ---
     app.include_router(api_router, prefix="/api/v1")
+
+    # --- Static files ---
+    uploads_dir = "/app/uploads"
+    os.makedirs(uploads_dir, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
+    # Sous-dossier dommages (photos de dommages)
+    damages_dir = os.path.join(uploads_dir, "damages")
+    os.makedirs(damages_dir, exist_ok=True)
 
     @app.get("/metrics")
     def metrics():

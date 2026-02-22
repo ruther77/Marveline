@@ -380,50 +380,45 @@ def test_fail_open_on_redis_error(client: TestClient):
         # Note: En production, erreur serait loggée pour alerting
 
 
-def test_x_forwarded_for_ip_extraction(client: TestClient):
-    """Test extraction IP depuis header X-Forwarded-For.
+def test_x_forwarded_for_ip_extraction(monkeypatch):
+    """Test extraction IP depuis header X-Forwarded-For via _get_client_ip.
 
-    Vérifie que :
-    - X-Forwarded-For: "client_ip, proxy1, proxy2" → extrait client_ip
-    - Format : première IP = client réel
-    - Gère correctement proxies / load balancers
-
-    Notes:
-        - X-Forwarded-For ajouté par proxies (nginx, AWS ALB, Cloudflare)
-        - Format : "original_client, proxy1, proxy2, ..."
-        - On prend toujours la première IP
+    Vérifie directement la méthode du middleware (test unitaire pur, sans Redis) :
+    - TRUSTED_PROXY_HEADERS=True → première IP de X-Forwarded-For
+    - TRUSTED_PROXY_HEADERS=False → IP du client direct (pas X-Forwarded-For)
+    - Format "client, proxy1, proxy2" → extrait client (première IP)
     """
-    login_data = {
-        "username": "test@carocorp.com",
-        "password": "wrongpass"
-    }
+    from unittest.mock import MagicMock
+    from app.core.config import settings
+    from app.middleware.security import RateLimitMiddleware
 
-    # Requête 1 : avec X-Forwarded-For
-    headers_with_xff = {
-        "X-Forwarded-For": "203.0.113.42, 198.51.100.1, 192.0.2.1",
-        "Content-Type": "application/x-www-form-urlencoded"
-    }
-    response1 = client.post("/api/v1/auth/login", data=login_data, headers=headers_with_xff)
-    assert response1.status_code in [200, 401]  # Pas encore rate limited
+    middleware = RateLimitMiddleware(app=MagicMock())
 
-    # Requête 2-5 : même IP client (203.0.113.42)
-    for _ in range(4):
-        response = client.post("/api/v1/auth/login", data=login_data, headers=headers_with_xff)
-        assert response.status_code in [200, 401, 429]
+    def make_request(xff_value: str) -> MagicMock:
+        from starlette.datastructures import Headers
+        req = MagicMock()
+        # Starlette Headers est case-insensitive (comme HTTP)
+        req.headers = Headers(raw=[(b"x-forwarded-for", xff_value.encode())])
+        req.client = MagicMock()
+        req.client.host = "127.0.0.1"
+        return req
 
-    # Requête 6 : devrait être rate limited (5 req/min pour 203.0.113.42)
-    response6 = client.post("/api/v1/auth/login", data=login_data, headers=headers_with_xff)
-    assert response6.status_code == 429, \
-        "Requêtes depuis même IP client (X-Forwarded-For) devraient être rate limited ensemble"
+    # TRUSTED_PROXY_HEADERS=True → utilise X-Forwarded-For
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_HEADERS", True)
+    req = make_request("203.0.113.42, 198.51.100.1, 192.0.2.1")
+    ip = middleware._get_client_ip(req)
+    assert ip == "203.0.113.42", "Doit extraire la première IP de X-Forwarded-For"
 
-    # Requête 7 : DIFFÉRENTE IP client (nouvelle série de 5 autorisée)
-    headers_different_ip = {
-        "X-Forwarded-For": "198.51.100.99, 192.0.2.1",  # IP différente
-        "Content-Type": "application/x-www-form-urlencoded"
-    }
-    response7 = client.post("/api/v1/auth/login", data=login_data, headers=headers_different_ip)
-    assert response7.status_code in [200, 401], \
-        "Nouvelle IP client devrait avoir son propre quota (pas 429)"
+    # Format sans proxy chain
+    req_single = make_request("10.0.0.1")
+    assert middleware._get_client_ip(req_single) == "10.0.0.1"
+
+    # TRUSTED_PROXY_HEADERS=False → ignore X-Forwarded-For, utilise client.host
+    monkeypatch.setattr(settings, "TRUSTED_PROXY_HEADERS", False)
+    req_no_trust = make_request("203.0.113.42, 198.51.100.1")
+    ip_direct = middleware._get_client_ip(req_no_trust)
+    assert ip_direct == "127.0.0.1", \
+        "Sans TRUSTED_PROXY_HEADERS, X-Forwarded-For ignoré (bypass rate limit impossible)"
 
 
 def test_scope_priority_user_authenticated_over_reads(
