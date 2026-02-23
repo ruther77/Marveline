@@ -38,15 +38,30 @@ def ensure_test_db_exists():
         base_engine.dispose()
 
 
+def _reset_schema(engine):
+    """Réinitialise le schéma public (gère les FK circulaires entre tables)."""
+    with engine.connect() as conn:
+        conn.execute(text("DROP SCHEMA public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
+        conn.execute(text("GRANT ALL ON SCHEMA public TO PUBLIC"))
+        conn.commit()
+
+
 @pytest.fixture(scope="session")
 def test_engine():
-    """Engine de test pour la session — état propre garanti."""
+    """Engine de test pour la session — état propre garanti.
+
+    Le teardown ne détruit PAS le schéma : supprimer les tables en fin de session
+    peut causer des "relation does not exist" sur des tests encore en cours
+    d'initialisation dans d'autres modules. Le prochain setup (run suivant)
+    fera le clean slate via _reset_schema().
+    """
     ensure_test_db_exists()
     engine = create_engine(TEST_DATABASE_URL)
-    Base.metadata.drop_all(bind=engine)     # Clean slate (supprime état sale d'un run précédent)
+    _reset_schema(engine)               # Clean slate au démarrage uniquement
     Base.metadata.create_all(bind=engine)
     yield engine
-    Base.metadata.drop_all(bind=engine)
+    engine.dispose()                    # Libère les connexions, ne détruit pas les tables
 
 
 @pytest.fixture(scope="function")
