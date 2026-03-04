@@ -1,6 +1,7 @@
 """Schemas Pydantic pour l'entité Customer (clients)."""
-from typing import Optional
-from pydantic import EmailStr, Field, field_validator, model_validator
+from datetime import date
+from typing import Optional, List
+from pydantic import EmailStr, Field, computed_field, field_validator, model_validator
 from app.schemas.base import BaseSchema, EntityResponseSchema
 from app.constants import CustomerType
 
@@ -10,7 +11,7 @@ class CustomerBase(BaseSchema):
 
     customer_type: CustomerType = Field(
         ...,
-        description="Type de client: individual (particulier) ou company (entreprise)"
+        description="Type de client: individual, company, professional ou association"
     )
 
     email: EmailStr = Field(
@@ -76,23 +77,30 @@ class CustomerBase(BaseSchema):
         description="Pays"
     )
 
+    notes: Optional[str] = Field(
+        default=None,
+        max_length=2000,
+        description="Note interne (non visible client)"
+    )
+
     @model_validator(mode='after')
     def validate_customer_data_coherence(self):
-        """Validation cohérence données individual vs company.
+        """Validation cohérence données selon le type de client.
 
         Rules:
             - individual: first_name et last_name requis
-            - company: company_name requis
+            - company / professional / association: company_name requis
         """
+        org_types = {CustomerType.COMPANY, CustomerType.PROFESSIONAL, CustomerType.ASSOCIATION}
         if self.customer_type == CustomerType.INDIVIDUAL:
             if not self.first_name or not self.last_name:
                 raise ValueError(
                     "first_name and last_name are required for individual customers"
                 )
-        elif self.customer_type == CustomerType.COMPANY:
+        elif self.customer_type in org_types:
             if not self.company_name:
                 raise ValueError(
-                    "company_name is required for company customers"
+                    "company_name is required for company, professional and association customers"
                 )
         return self
 
@@ -122,15 +130,19 @@ class CustomerUpdate(BaseSchema):
     """Schema pour mise à jour d'un client existant.
 
     Tous les champs sont optionnels (PATCH partiel).
-    customer_type est immutable (ne peut pas être changé après création).
 
     Example:
         {
-            "phone": "+33698765432",
-            "address": "456 Avenue des Champs",
-            "city": "Lyon"
+            "customer_type": "company",
+            "company_name": "SARL Exemple",
+            "phone": "+33698765432"
         }
     """
+
+    customer_type: Optional[CustomerType] = Field(
+        default=None,
+        description="Type de client (particulier ou entreprise)"
+    )
 
     email: Optional[EmailStr] = Field(
         default=None,
@@ -186,6 +198,12 @@ class CustomerUpdate(BaseSchema):
         description="Pays"
     )
 
+    notes: Optional[str] = Field(
+        default=None,
+        max_length=2000,
+        description="Note interne (non visible client)"
+    )
+
 
 class CustomerList(EntityResponseSchema):
     """Schema simplifié pour listes de clients (sans relations)."""
@@ -200,9 +218,15 @@ class CustomerList(EntityResponseSchema):
     company_name: Optional[str] = None
 
     # Adresse
+    address: Optional[str] = None
     city: Optional[str] = None
+    postal_code: Optional[str] = None
     country: str
 
+    # Note interne
+    notes: Optional[str] = None
+
+    @computed_field
     @property
     def display_name(self) -> str:
         """Nom d'affichage du client (calculé côté frontend aussi)."""
@@ -231,9 +255,13 @@ class CustomerResponse(EntityResponseSchema):
     postal_code: Optional[str] = None
     country: str
 
+    # Note interne
+    notes: Optional[str] = None
+
     # Relations (optionnel selon endpoint)
     # reservations: Optional[list["ReservationList"]] = None
 
+    @computed_field
     @property
     def display_name(self) -> str:
         """Nom d'affichage du client."""
@@ -262,3 +290,85 @@ class CustomerResponse(EntityResponseSchema):
             }
         ]
     }
+
+
+class CustomerHistoryReservation(BaseSchema):
+    """Résumé de réservation pour l'historique client."""
+
+    id: int
+    reference: str
+    event_date: date
+    status: str
+    total_amount: int = Field(description="Montant total en centimes")
+
+
+class CustomerHistoryInvoice(BaseSchema):
+    """Résumé de facture pour l'historique client."""
+
+    id: int
+    invoice_number: str
+    status: str
+    total_amount: int = Field(description="Montant total en centimes")
+    paid_amount: int = Field(description="Montant payé en centimes")
+
+
+class CustomerHistoryStats(BaseSchema):
+    """Statistiques agrégées d'un client."""
+
+    total_reservations: int
+    total_revenue_cents: int
+    last_event_date: Optional[date] = None
+
+
+class CustomerHistory(BaseSchema):
+    """Historique complet d'un client : réservations, factures, stats."""
+
+    customer: CustomerResponse
+    reservations: List[CustomerHistoryReservation]
+    invoices: List[CustomerHistoryInvoice]
+    stats: CustomerHistoryStats
+
+
+class CustomerRFMItem(BaseSchema):
+    """Résultat RFM pour un client (Recency / Frequency / Monetary)."""
+
+    customer_id: int
+    customer_name: str
+    recency_days: int
+    frequency: int
+    monetary_cents: int
+    segment: str  # Champions | Loyal | Potential | At Risk | Lost | New
+
+
+class CustomerRFMResponse(BaseSchema):
+    """Réponse complète de l'analyse RFM."""
+
+    items: List[CustomerRFMItem]
+    total: int
+
+
+class RFMCampaignRequest(BaseSchema):
+    """Requête d'envoi de campagne email par segment RFM."""
+
+    segment: str = Field(
+        ...,
+        description="Segment RFM ciblé",
+        pattern=r"^(Champions|Loyal|Potential|At Risk|Lost|New)$",
+    )
+    subject: str = Field(
+        ..., min_length=3, max_length=200,
+        description="Sujet de l'email",
+    )
+    message: str = Field(
+        ..., min_length=10, max_length=5000,
+        description="Corps du message (texte brut)",
+    )
+
+
+class RFMCampaignResponse(BaseSchema):
+    """Résultat d'envoi de campagne RFM."""
+
+    segment: str
+    recipients_count: int
+    sent_count: int
+    failed_count: int
