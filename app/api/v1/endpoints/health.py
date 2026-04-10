@@ -170,7 +170,7 @@ def readiness_probe(db: Session = Depends(get_db)) -> Dict[str, Any]:
     response = {
         "status": "ready" if all_healthy else "not_ready",
         "service": "CaroCorp",
-        "version": "0.1.0",  # TODO: récupérer depuis settings ou pyproject.toml
+        "version": settings.APP_VERSION,
         "checks": {
             "postgres": postgres_metadata,
             "redis": redis_metadata,
