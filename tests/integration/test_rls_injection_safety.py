@@ -27,7 +27,7 @@ from sqlalchemy.pool import NullPool
 
 from app.core.database import (
     _current_tenant_id,
-    _set_rls_tenant_on_begin,
+    _inject_rls_tenant,
     clear_tenant_context,
     set_tenant_context,
 )
@@ -38,7 +38,7 @@ from tests.conftest import ASYNC_TEST_DATABASE_URL
 @pytest.fixture
 async def async_db(test_engine):
     """Session async avec listener 'begin' attaché — réplique exacte du listener
-    production `_set_rls_tenant_on_begin` pour test isolé.
+    production `_inject_rls_tenant` pour test isolé.
 
     Le listener prod est bindé à `async_engine.sync_engine` (engine global).
     Notre engine test est une instance distincte → on attache la même fonction
@@ -47,13 +47,13 @@ async def async_db(test_engine):
     engine = create_async_engine(
         ASYNC_TEST_DATABASE_URL, poolclass=NullPool, pool_pre_ping=True,
     )
-    event.listen(engine.sync_engine, "begin", _set_rls_tenant_on_begin)
+    event.listen(engine.sync_engine, "before_cursor_execute", _inject_rls_tenant)
     session_factory = async_sessionmaker(
         engine, class_=AsyncSession, expire_on_commit=False
     )
     async with session_factory() as session:
         yield session
-    event.remove(engine.sync_engine, "begin", _set_rls_tenant_on_begin)
+    event.remove(engine.sync_engine, "before_cursor_execute", _inject_rls_tenant)
     await engine.dispose()
 
 
@@ -121,6 +121,38 @@ class TestRLSInjectionSafety:
                 "SELECT current_setting('app.current_tenant_id', true)"
             ))
             assert result.scalar() == "7"
+        finally:
+            _current_tenant_id.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_set_tenant_context_after_first_query_applies_to_next(
+        self, async_db: AsyncSession
+    ):
+        """Régression : pattern auth réel — set_tenant_context APRÈS la 1ère query.
+
+        Reproduit le scénario _resolve_api_key_async :
+          1. Query #1 (lookup ApiKey) : pas de tenant connu → contextvar None
+          2. Tenant résolu → set_tenant_context(api_key.tenant_id)
+          3. Query #2 (endpoint logic) : doit voir le contexte tenant set
+
+        Avec event 'begin', ce 2ème query rate le set_config (TX déjà ouverte,
+        begin ne re-fire pas). Avec 'before_cursor_execute', le hook re-fire
+        et applique set_config sur la TX en cours. Test fail si on régresse
+        vers 'begin'.
+        """
+        clear_tenant_context()
+        await async_db.execute(text("SELECT 1"))
+
+        token = _current_tenant_id.set(123)
+        try:
+            result = await async_db.execute(text(
+                "SELECT current_setting('app.current_tenant_id', true)"
+            ))
+            assert result.scalar() == "123", (
+                "F01 régression : set_tenant_context post-1ère-query non appliqué "
+                "à la 2ème query de la même TX (event 'begin' au lieu de "
+                "'before_cursor_execute' ?)"
+            )
         finally:
             _current_tenant_id.reset(token)
 
