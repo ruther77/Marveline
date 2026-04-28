@@ -141,9 +141,30 @@ async def login(
             password_change_required=password_change_required,
         )
 
-    except HTTPException:
-        raise
-    except AppException:
+    except (HTTPException, AppException) as exc:
+        # S1.T6 (F1002 / AUDIT-LOGIN-EXCL-01) — RGPD Art.30 tracabilite.
+        # /auth/login est exclu d'AuditMiddleware (EXCLUDED_PATHS), donc on log
+        # ici manuellement avant propagation 401/403. Session separee :
+        # robustesse meme si la session principale est rollback par AuthV2Service.
+        try:
+            from app.core.database import get_async_db_context
+            async with get_async_db_context() as audit_db:
+                await AuditService(audit_db).log_action(
+                    action="LOGIN_FAILED",
+                    tenant_id=effective_tenant_id if effective_tenant_id else 0,
+                    user_id=None,
+                    description=f"Login failed for {form_data.username}",
+                    changes={
+                        "reason": exc.__class__.__name__,
+                        "actor_email": form_data.username,
+                    },
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    request_id=request_id,
+                )
+                await audit_db.commit()
+        except Exception:
+            logger.exception("F1002: failed to write audit_log for login failure")
         raise
     except Exception:
         logger.exception("Unexpected error during login")
