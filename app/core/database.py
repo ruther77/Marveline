@@ -67,26 +67,34 @@ async_engine = create_async_engine(
 
 install_slow_query_listener(async_engine.sync_engine)
 
-# ─── RLS : injecter tenant_id à chaque début de transaction PostgreSQL ────────
+# ─── RLS : injecter tenant_id avant chaque cursor execute PostgreSQL ─────────
 
-@event.listens_for(async_engine.sync_engine, "begin")
-def _set_rls_tenant_on_begin(conn):
-    """Définit app.current_tenant_id pour le RLS PostgreSQL — début de transaction.
+# Marqueur anti-récursion : le set_config interne ne doit pas re-déclencher
+# le hook (sinon stack overflow).
+_RLS_SET_CONFIG_MARKER = "set_config('app.current_tenant_id'"
 
-    Le RLS PostgreSQL utilise current_setting('app.current_tenant_id') dans
-    les policies USING pour filtrer par tenant.
 
-    F01 fix (B1.S1.T1) : paramétrisation SQLAlchemy text() + bind dict
-    au lieu de f-string interpolée (defense-in-depth contre injection sur
-    le contexte RLS). Le cast int() reste comme garde supplémentaire.
+@event.listens_for(async_engine.sync_engine, "before_cursor_execute")
+def _inject_rls_tenant(conn, cursor, statement, parameters, context, executemany):
+    """Injecte app.current_tenant_id pour le RLS PostgreSQL — avant chaque query.
 
-    set_config(name, value, is_local=true) est l'équivalent paramétrable
-    de SET LOCAL (PostgreSQL n'accepte pas les params liés sur SET LOCAL,
-    set_config oui — sémantique RLS strictement identique).
+    Pourquoi 'before_cursor_execute' (vs 'begin') : le contexte tenant peut
+    être set APRÈS la 1ère query d'une session (pattern auth :
+    `_resolve_api_key_async` fait des queries pour résoudre l'ApiKey AVANT
+    de connaître son tenant_id). 'begin' ne re-fire pas dans la même TX,
+    donc set_config serait skip pour les queries post-auth.
+    'before_cursor_execute' fire à chaque query → capture le set tardif.
 
-    Event 'begin' (vs ancien 'before_cursor_execute') : fire 1× par TX
-    au lieu d'1× par cursor execute. Cohérent avec SET LOCAL scope.
+    F01 fix (B1.S1.T1) : paramétrisation SQLAlchemy text() + bind dict au
+    lieu de f-string interpolée + cast int() defense-in-depth. set_config
+    (name, value, is_local=true) est l'équivalent paramétrable de SET LOCAL
+    (PostgreSQL n'accepte pas les params liés sur SET LOCAL, set_config oui).
+
+    Anti-récursion : le set_config lui-même est un conn.execute qui re-fire
+    le hook. On skip via marqueur sur le statement.
     """
+    if statement and _RLS_SET_CONFIG_MARKER in statement:
+        return  # anti-récursion : c'est notre propre injection
     tid = _current_tenant_id.get()
     if tid is None:
         return
@@ -95,6 +103,9 @@ def _set_rls_tenant_on_begin(conn):
     except (TypeError, ValueError):
         logger.error("RLS rejected non-int tenant_id: %r", tid)
         return
+    # text() + bind dict = portable cross-driver (psycopg2 %s vs asyncpg $1).
+    # SQLAlchemy traduit en placeholder natif. L'anti-récursion ci-dessus
+    # filtre le re-fire causé par ce conn.execute.
     conn.execute(
         text("SELECT set_config('app.current_tenant_id', :tid, true)"),
         {"tid": str(tid_int)},
