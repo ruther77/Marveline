@@ -22,9 +22,9 @@ def test_login_success(client: TestClient, test_user):
     assert response.status_code == 200
     data = response.json()
     assert "access_token" in data
-    assert "refresh_token" in data
+    assert "refresh_token" in response.cookies  # httpOnly cookie
     assert data["token_type"] == "bearer"
-    assert data["expires_in"] == 1800  # 30 minutes
+    assert data["expires_in"] == 900  # 15 minutes (CaroCorp §02-TOKEN-LIFECYCLE)
 
 
 def test_login_wrong_password(client: TestClient, test_user):
@@ -57,8 +57,8 @@ def test_login_nonexistent_user(client: TestClient):
 
 def test_login_inactive_user(client: TestClient, test_db, test_user):
     """Test login avec compte inactif → 403."""
-    # Désactiver le compte
-    test_user.is_active = False
+    # Désactiver le compte via l'Account sous-jacent (UserCompat.is_active est une property)
+    test_user._account.is_active = False
     test_db.commit()
 
     response = client.post(
@@ -73,7 +73,7 @@ def test_login_inactive_user(client: TestClient, test_db, test_user):
     assert "Account is inactive" in response.json()["detail"]
 
     # Réactiver pour les autres tests
-    test_user.is_active = True
+    test_user._account.is_active = True
     test_db.commit()
 
 
@@ -87,19 +87,19 @@ def test_refresh_token_success(client: TestClient, test_user):
             "password": "testpass123"
         }
     )
-    refresh_token = login_response.json()["refresh_token"]
+    refresh_token = login_response.cookies["refresh_token"]
 
     # Utiliser refresh token
     response = client.post(
         "/api/v1/auth/refresh",
-        json={"refresh_token": refresh_token}
+        cookies={"refresh_token": refresh_token}
     )
 
     assert response.status_code == 200
     data = response.json()
     assert "access_token" in data
-    assert "refresh_token" in data
-    assert data["refresh_token"] != refresh_token  # Rotation: nouveau refresh token
+    assert "refresh_token" in response.cookies  # httpOnly cookie
+    assert response.cookies["refresh_token"] != refresh_token  # Rotation: nouveau refresh token
     assert data["token_type"] == "bearer"
 
 
@@ -107,7 +107,7 @@ def test_refresh_token_invalid(client: TestClient):
     """Test refresh token invalide → 401."""
     response = client.post(
         "/api/v1/auth/refresh",
-        json={"refresh_token": "invalid_token_string"}
+        cookies={"refresh_token": "invalid_token_string"}
     )
 
     assert response.status_code == 401
@@ -118,7 +118,7 @@ def test_refresh_token_with_access_token(client: TestClient, test_user, auth_tok
     # Tenter d'utiliser access token comme refresh token
     response = client.post(
         "/api/v1/auth/refresh",
-        json={"refresh_token": auth_token}  # Access token, pas refresh
+        cookies={"refresh_token": auth_token}  # Access token, pas refresh
     )
 
     assert response.status_code == 401
@@ -134,7 +134,7 @@ def test_jwt_token_contains_correct_claims(test_user, auth_token):
 
     assert payload is not None
     assert payload["sub"] == str(test_user.id)  # sub est une string selon RFC 7519
-    assert payload["tenant_id"] == test_user.tenant_id
+    assert payload["tid"] == str(test_user.tenant_id)  # tid = claim v3 (§01-CRYPTO-JWT)
     assert payload["email"] == test_user.email
     assert payload["role"] == test_user.role
     assert payload["type"] == "access"
@@ -232,7 +232,7 @@ class TestLoginTokenClaims:
             data={"username": "test@carocorp.com", "password": "testpass123"},
         )
         assert resp.status_code == 200
-        payload = decode_token(resp.json()["refresh_token"])
+        payload = decode_token(resp.cookies["refresh_token"])
         assert "jti" in payload, "Refresh token must have a JTI"
 
     def test_csrf_token_returned_after_login(self, client, test_user):
@@ -256,8 +256,7 @@ class TestLoginTokenClaims:
             "/api/v1/auth/login",
             data={"username": "test@carocorp.com", "password": "testpass123"},
         )
-        data = resp.json()
-        assert data["access_token"] != data["refresh_token"]
+        assert resp.json()["access_token"] != resp.cookies["refresh_token"]
 
     def test_login_response_structure(self, client, test_user):
         """La réponse de login contient tous les champs attendus."""
@@ -267,5 +266,6 @@ class TestLoginTokenClaims:
         )
         assert resp.status_code == 200
         data = resp.json()
-        required_keys = {"access_token", "refresh_token", "token_type", "expires_in"}
+        required_keys = {"access_token", "token_type", "expires_in"}
         assert required_keys.issubset(data.keys())
+        assert "refresh_token" in resp.cookies  # httpOnly cookie

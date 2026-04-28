@@ -1,5 +1,5 @@
 """Modèles InventoryMovement et MovementItem — Mouvements de stock."""
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from sqlalchemy import (
     BigInteger,
@@ -24,6 +24,9 @@ from app.models.base import Base, SoftDeleteMixin, TenantMixin, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.reservation import Reservation
+    from app.models.product_variant import ProductVariant
+    from app.models.product import Product
+    from app.models.movement_item_unit import MovementItemUnit
 
 
 class InventoryMovement(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
@@ -106,7 +109,7 @@ class InventoryMovement(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
 
     handled_by_user_id: Mapped[Optional[int]] = mapped_column(
         Integer,
-        ForeignKey("users.id"),
+        ForeignKey("accounts.id"),
         nullable=True,
         comment="Utilisateur responsable du mouvement",
     )
@@ -123,7 +126,7 @@ class InventoryMovement(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
         comment="Notes d'inspection",
     )
 
-    damage_fee: Mapped[int] = mapped_column(
+    damage_fee_cents: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
         default=0,
@@ -161,7 +164,7 @@ class InventoryMovement(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
             name="check_inspection_status_valid",
         ),
         CheckConstraint(
-            "damage_fee >= 0",
+            "damage_fee_cents >= 0",
             name="check_damage_fee_positive",
         ),
         Index("ix_inventory_movement_tenant_status", "tenant_id", "status"),
@@ -184,7 +187,7 @@ class MovementItem(Base, TimestampMixin, TenantMixin):
         movement_id: FK vers inventory_movements.id
         event_item_id: Référence ligne événement (nullable, pas de FK)
         product_id: FK vers products.id (nullable)
-        product_variation_id: Référence variation produit (nullable, pas de FK)
+        variant_id: FK vers product_variants.id (nullable si produit sans variantes)
         quantity_expected: Quantité prévue
         quantity_actual: Quantité effective (remplie au retour/complétion)
         condition: État de l'article (nullable)
@@ -215,10 +218,11 @@ class MovementItem(Base, TimestampMixin, TenantMixin):
         comment="FK produit",
     )
 
-    product_variation_id: Mapped[Optional[int]] = mapped_column(
+    variant_id: Mapped[Optional[int]] = mapped_column(
         Integer,
+        ForeignKey("product_variants.id", ondelete="RESTRICT"),
         nullable=True,
-        comment="Référence variation produit (pas de FK)",
+        comment="FK variante couleur du produit",
     )
 
     quantity_expected: Mapped[int] = mapped_column(
@@ -249,6 +253,22 @@ class MovementItem(Base, TimestampMixin, TenantMixin):
     movement: Mapped["InventoryMovement"] = relationship(
         "InventoryMovement",
         back_populates="items",
+    )
+
+    variant: Mapped[Optional["ProductVariant"]] = relationship(
+        "ProductVariant",
+        foreign_keys=[variant_id],
+    )
+
+    product: Mapped[Optional["Product"]] = relationship(
+        "Product",
+        foreign_keys=[product_id],
+    )
+
+    units: Mapped[List["MovementItemUnit"]] = relationship(
+        "MovementItemUnit",
+        back_populates="movement_item",
+        cascade="all, delete-orphan",
     )
 
     __table_args__ = (

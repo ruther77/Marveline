@@ -35,8 +35,8 @@ class TestCancelReservationWorkflow:
             name="Assiette blanche",
             sku="ASS-001",
             category=ProductCategory.ASSIETTES,
-            price_per_day=200,
-            deposit_amount=500,
+            price_per_day_cents=200,
+            deposit_amount_cents=500,
             stock_quantity=100,
             available_quantity=100,
             condition=ProductCondition.BON
@@ -54,8 +54,8 @@ class TestCancelReservationWorkflow:
             delivery_date=today + timedelta(days=9),
             return_date=today + timedelta(days=11),
             status=ReservationStatus.CONFIRMED,
-            total_amount=4000,  # 20 assiettes × 200
-            deposit_amount=10000
+            total_amount_cents=4000,  # 20 assiettes × 200
+            deposit_amount_cents=10000
         )
         test_db.add(reservation)
         test_db.flush()
@@ -66,8 +66,8 @@ class TestCancelReservationWorkflow:
             reservation_id=reservation.id,
             product_id=product.id,
             quantity=20,
-            unit_price=200,
-            subtotal=4000
+            unit_price_cents=200,
+            subtotal_cents=4000
         )
         test_db.add(line)
 
@@ -78,8 +78,8 @@ class TestCancelReservationWorkflow:
             invoice_number="INV-CANCEL-001",
             issue_date=today,
             due_date=today + timedelta(days=15),
-            total_amount=4000,
-            paid_amount=0,
+            total_amount_cents=4000,
+            paid_amount_cents=0,
             status=InvoiceStatus.SENT
         )
         test_db.add(invoice)
@@ -126,8 +126,8 @@ class TestPartialPaymentWorkflow:
             delivery_date=today + timedelta(days=6),
             return_date=today + timedelta(days=8),
             status=ReservationStatus.CONFIRMED,
-            total_amount=100000,  # 1000€
-            deposit_amount=0
+            total_amount_cents=100000,  # 1000€
+            deposit_amount_cents=0
         )
         test_db.add(reservation)
         test_db.flush()
@@ -139,8 +139,8 @@ class TestPartialPaymentWorkflow:
             invoice_number="INV-PAYMENT-001",
             issue_date=today,
             due_date=today + timedelta(days=30),
-            total_amount=100000,
-            paid_amount=0,
+            total_amount_cents=100000,
+            paid_amount_cents=0,
             status=InvoiceStatus.SENT
         )
         test_db.add(invoice)
@@ -151,7 +151,7 @@ class TestPartialPaymentWorkflow:
         assert invoice.remaining_amount == 100000
 
         # 4. Premier paiement partiel : 30%
-        invoice.paid_amount = 30000
+        invoice.paid_amount_cents = 30000
         invoice.payment_method=PaymentMethod.TRANSFER
         test_db.commit()
 
@@ -160,14 +160,14 @@ class TestPartialPaymentWorkflow:
         assert invoice.status == "sent"
 
         # 5. Deuxième paiement partiel : +40%
-        invoice.paid_amount = 70000
+        invoice.paid_amount_cents = 70000
         test_db.commit()
 
         assert invoice.is_paid is False
         assert invoice.remaining_amount == 30000
 
         # 6. Paiement final : solde complet
-        invoice.paid_amount = 100000
+        invoice.paid_amount_cents = 100000
         invoice.status=InvoiceStatus.PAID
         invoice.payment_date = today
         test_db.commit()
@@ -189,8 +189,8 @@ class TestProductSoftDelete:
             name="Verre à champagne",
             sku="VERR-CHAMP-001",
             category=ProductCategory.VERRES,
-            price_per_day=150,
-            deposit_amount=400,
+            price_per_day_cents=150,
+            deposit_amount_cents=400,
             stock_quantity=50,
             available_quantity=50,
             condition=ProductCondition.BON,
@@ -242,7 +242,7 @@ class TestProductSoftDelete:
             delivery_date=today + timedelta(days=4),
             return_date=today + timedelta(days=6),
             status=ReservationStatus.CONFIRMED,
-            total_amount=750
+            total_amount_cents=750
         )
         test_db.add(reservation)
         test_db.flush()
@@ -252,8 +252,8 @@ class TestProductSoftDelete:
             reservation_id=reservation.id,
             product_id=product_id,
             quantity=5,
-            unit_price=150,
-            subtotal=750
+            unit_price_cents=150,
+            subtotal_cents=750
         )
         test_db.add(line)
         test_db.commit()
@@ -300,7 +300,7 @@ class TestMultiTenantIsolation:
             name="Assiette Tenant 1",
             sku="ASS-T1-001",
             category=ProductCategory.ASSIETTES,
-            price_per_day=100,
+            price_per_day_cents=100,
             stock_quantity=10,
             available_quantity=10
         )
@@ -309,7 +309,7 @@ class TestMultiTenantIsolation:
             name="Assiette Tenant 2",
             sku="ASS-T2-001",  # Même SKU dans tenant différent = OK
             category=ProductCategory.ASSIETTES,
-            price_per_day=200,
+            price_per_day_cents=200,
             stock_quantity=20,
             available_quantity=20
         )
@@ -326,7 +326,7 @@ class TestMultiTenantIsolation:
             delivery_date=today + timedelta(days=4),
             return_date=today + timedelta(days=6),
             status=ReservationStatus.CONFIRMED,
-            total_amount=500
+            total_amount_cents=500
         )
         reservation_tenant2 = Reservation(
             tenant_id=2,
@@ -336,7 +336,7 @@ class TestMultiTenantIsolation:
             delivery_date=today + timedelta(days=4),
             return_date=today + timedelta(days=6),
             status=ReservationStatus.CONFIRMED,
-            total_amount=1000
+            total_amount_cents=1000
         )
         test_db.add_all([reservation_tenant1, reservation_tenant2])
         test_db.commit()

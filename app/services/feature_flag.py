@@ -5,12 +5,13 @@ import logging
 from typing import Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import RedisKeys
+from app.constants.errors import ErrorMessages
 from app.core.redis import redis_client
 from app.models.feature_flag import FeatureFlag
-from app.repositories.feature_flag import FeatureFlagRepository
+from app.repositories.feature_flag import AsyncFeatureFlagRepository
 from app.schemas.feature_flag import FeatureFlagCreate, FeatureFlagUpdate
 
 logger = logging.getLogger(__name__)
@@ -32,11 +33,11 @@ class FeatureFlagService:
         3. target_tenants is None -> rollout_pct (hash deterministe)
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
-        self.repo = FeatureFlagRepository(db)
+        self.repo = AsyncFeatureFlagRepository(db)
 
-    def create_flag(self, data: FeatureFlagCreate) -> FeatureFlag:
+    async def create_flag(self, data: FeatureFlagCreate) -> FeatureFlag:
         """Cree un nouveau feature flag.
 
         Args:
@@ -48,10 +49,10 @@ class FeatureFlagService:
         Raises:
             HTTPException 409: Si le nom existe deja
         """
-        if self.repo.name_exists(data.name):
+        if await self.repo.name_exists(data.name):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Feature flag '{data.name}' existe deja"
+                detail=ErrorMessages.FEATURE_FLAG_KEY_EXISTS
             )
 
         flag = FeatureFlag(
@@ -63,9 +64,9 @@ class FeatureFlagService:
             metadata_json=data.metadata_json,
         )
 
-        return self.repo.create(flag)
+        return await self.repo.create(flag)
 
-    def update_flag(
+    async def update_flag(
         self,
         flag_id: int,
         data: FeatureFlagUpdate,
@@ -82,7 +83,7 @@ class FeatureFlagService:
         Raises:
             HTTPException 404: Si flag non trouve
         """
-        flag = self.repo.get_by_id(flag_id)
+        flag = await self.repo.get_by_id(flag_id)
         if not flag:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -106,11 +107,11 @@ class FeatureFlagService:
         if data.metadata_json is not None:
             flag.metadata_json = data.metadata_json
 
-        self.repo.update(flag)
-        self._invalidate_cache(flag.name)
+        await self.repo.update(flag)
+        await self._invalidate_cache(flag.name)
         return flag
 
-    def delete_flag(self, flag_id: int) -> None:
+    async def delete_flag(self, flag_id: int) -> None:
         """Supprime un feature flag (hard delete).
 
         Args:
@@ -119,7 +120,7 @@ class FeatureFlagService:
         Raises:
             HTTPException 404: Si flag non trouve
         """
-        flag = self.repo.get_by_id(flag_id)
+        flag = await self.repo.get_by_id(flag_id)
         if not flag:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -127,10 +128,10 @@ class FeatureFlagService:
             )
 
         flag_name = flag.name
-        self.repo.delete(flag)
-        self._invalidate_cache(flag_name)
+        await self.repo.delete(flag)
+        await self._invalidate_cache(flag_name)
 
-    def get_flag(self, flag_id: int) -> FeatureFlag:
+    async def get_flag(self, flag_id: int) -> FeatureFlag:
         """Recupere un feature flag par ID.
 
         Args:
@@ -142,7 +143,7 @@ class FeatureFlagService:
         Raises:
             HTTPException 404: Si non trouve
         """
-        flag = self.repo.get_by_id(flag_id)
+        flag = await self.repo.get_by_id(flag_id)
         if not flag:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -150,7 +151,7 @@ class FeatureFlagService:
             )
         return flag
 
-    def get_flag_by_name(self, name: str) -> FeatureFlag:
+    async def get_flag_by_name(self, name: str) -> FeatureFlag:
         """Recupere un feature flag par nom.
 
         Args:
@@ -162,15 +163,15 @@ class FeatureFlagService:
         Raises:
             HTTPException 404: Si non trouve
         """
-        flag = self.repo.get_by_name(name)
+        flag = await self.repo.get_by_name(name)
         if not flag:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Feature flag '{name}' non trouve"
+                detail=ErrorMessages.FEATURE_FLAG_NOT_FOUND
             )
         return flag
 
-    def list_flags(
+    async def list_flags(
         self,
         skip: int = 0,
         limit: int = 100,
@@ -184,9 +185,9 @@ class FeatureFlagService:
         Returns:
             Tuple (liste, total)
         """
-        return self.repo.list_all(skip=skip, limit=limit)
+        return await self.repo.list_all(skip=skip, limit=limit)
 
-    def is_feature_enabled(self, flag_name: str, tenant_id: int) -> tuple[bool, str]:
+    async def is_feature_enabled(self, flag_name: str, tenant_id: int) -> tuple[bool, str]:
         """Evalue si un feature flag est actif pour un tenant donne.
 
         Logique d'evaluation:
@@ -205,12 +206,12 @@ class FeatureFlagService:
         Returns:
             Tuple (enabled: bool, reason: str)
         """
-        # Tenter le cache Redis
-        flag_data = self._get_from_cache(flag_name)
+        # Tenter le cache Redis (sync — client sync)
+        flag_data = await self._get_from_cache(flag_name)
 
         if flag_data is None:
             # Cache miss -> lookup DB
-            flag = self.repo.get_by_name(flag_name)
+            flag = await self.repo.get_by_name(flag_name)
             if not flag:
                 return False, "not_found"
 
@@ -219,7 +220,7 @@ class FeatureFlagService:
                 "target_tenants": flag.target_tenants,
                 "rollout_pct": flag.rollout_pct,
             }
-            self._set_cache(flag_name, flag_data)
+            await self._set_cache(flag_name, flag_data)
 
         # 1. Kill switch
         if not flag_data["is_enabled"]:
@@ -249,7 +250,7 @@ class FeatureFlagService:
 
     # -- Cache Redis --------------------------------------------------------
 
-    def _get_from_cache(self, flag_name: str) -> Optional[dict]:
+    async def _get_from_cache(self, flag_name: str) -> Optional[dict]:
         """Recupere un flag depuis le cache Redis.
 
         Returns:
@@ -257,7 +258,7 @@ class FeatureFlagService:
         """
         try:
             cache_key = f"{RedisKeys.FEATURE_FLAG_CACHE}{flag_name}"
-            raw = redis_client.client.get(cache_key)
+            raw = await redis_client.client.get(cache_key)
             if raw is None:
                 return None
             return json.loads(raw)
@@ -265,20 +266,20 @@ class FeatureFlagService:
             logger.debug("Redis cache miss for feature flag '%s' (error)", flag_name)
             return None
 
-    def _set_cache(self, flag_name: str, data: dict) -> None:
+    async def _set_cache(self, flag_name: str, data: dict) -> None:
         """Met en cache les donnees d'un flag."""
         try:
             cache_key = f"{RedisKeys.FEATURE_FLAG_CACHE}{flag_name}"
-            redis_client.client.setex(
+            await redis_client.client.setex(
                 cache_key, FEATURE_FLAG_CACHE_TTL, json.dumps(data)
             )
         except Exception:
             logger.debug("Failed to cache feature flag '%s'", flag_name)
 
-    def _invalidate_cache(self, flag_name: str) -> None:
+    async def _invalidate_cache(self, flag_name: str) -> None:
         """Invalide le cache pour un flag."""
         try:
             cache_key = f"{RedisKeys.FEATURE_FLAG_CACHE}{flag_name}"
-            redis_client.client.delete(cache_key)
+            await redis_client.client.delete(cache_key)
         except Exception:
             logger.debug("Failed to invalidate feature flag cache '%s'", flag_name)

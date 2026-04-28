@@ -1,0 +1,84 @@
+{
+  "id": "page:admin-settings",
+  "type": "page",
+  "name": "Paramètres tenant",
+  "description": "Page principale \"Paramètres tenant\". Contient : Informations & paramètres métier, Paramètres financiers, Configuration e-mail (SMTP), Branding, Fonctionnalités activées, Sécurité. Paramètres : ma-societe, contact-masociete-fr, 33-1-23-45-67-89, 1-rue-de-la-paix-paris.",
+  "route": "/admin/settings",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "admin"
+    ],
+    "group": "Admin",
+    "dom_h1": "Paramètres système"
+  },
+  "params": {
+    "ma-societe": "text",
+    "contact-masociete-fr": "email",
+    "33-1-23-45-67-89": "text",
+    "1-rue-de-la-paix-paris": "text"
+  },
+  "features": [
+    "Informations & paramètres métier",
+    "Paramètres financiers",
+    "Configuration e-mail (SMTP)",
+    "Branding",
+    "Fonctionnalités activées",
+    "Sécurité",
+    "Champ : Ma Société",
+    "Champ : contact@masociete.fr",
+    "Champ : +33 1 23 45 67 89",
+    "Champ : 1 rue de la Paix, Paris"
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Enregistrer",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

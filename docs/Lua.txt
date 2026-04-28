@@ -1,0 +1,323 @@
+1. Le script Lua Redis — la boîte noire centrale
+Comment le family_id est construit et stocké ?
+Le family_id est un UUID v4 généré à l'émission du premier refresh token (au login). Il est ensuite propagé à chaque rotation : quand le client soumet un refresh token et reçoit un nouveau, le nouveau JTI rejoint la même famille. Il n'est jamais changé pendant la durée de vie de la session.
+Côté stockage, deux endroits :
+
+Dans le payload du JWT refresh lui-même, dans le claim fid (custom claim CaroCorp)
+Dans Redis : family:{family_id} → SET contenant tous les JTI de cette famille
+
+Au login : family_id = uuid4(), jti = uuid4(), on crée family:{family_id} avec SADD family:{family_id} {jti} et TTL 7j.
+Que se passe-t-il si Redis-SEC est injoignable pendant l'exécution Lua ?
+C'est une question de comportement Redis lui-même, pas du script. Un script Lua Redis est exécuté en entier ou pas du tout du point de vue du moteur Redis (atomicité garantie par Redis single-thread). Mais si la connexion est perdue avant que le résultat soit retourné au client, deux cas :
+
+Le script a fini d'exécuter côté Redis → les changements sont appliqués, le client n'a juste pas reçu la réponse. Le client doit traiter ça comme un timeout, donc refuser le refresh par précaution (FAIL-CLOSED).
+Redis était injoignable avant le début du script → pas d'exécution du tout, FAIL-CLOSED déclenché normalement.
+
+La règle d'implémentation : tout timeout sur EVALSHA → retourner 401, ne jamais supposer que le script n'a pas tourné.
+Le cas où whitelist:refresh:{user_id}:{device_id} est vide mais le JTI existe dans family:{family_id}
+C'est le cas le plus subtil. Ça peut arriver si :
+
+Un FLUSHALL partiel a nettoyé la whitelist mais pas les family markers
+Un bug d'implémentation a oublié de synchroniser les deux structures
+
+Le script doit traiter ce cas comme un replay — principe de FAIL-CLOSED. Si le JTI est dans une famille mais pas dans la whitelist, c'est soit un token révoqué, soit un état incohérent. Dans les deux cas, comportement identique : REPLAY_DETECTED, révocation de toute la famille, relogin forcé.
+La règle : la whitelist est la source de vérité. La family est un index de révocation de secours, jamais une source d'autorisation.
+lua-- Pseudo-code du script Lua
+local jti = ARGV[1]
+local user_id = ARGV[2]
+local device_id = ARGV[3]
+local family_id = ARGV[4]
+local now = tonumber(ARGV[5])
+
+local whitelist_key = "whitelist:refresh:" .. user_id .. ":" .. device_id
+local family_key = "family:" .. family_id
+
+-- Vérifier si JTI est dans la whitelist
+local in_whitelist = redis.call("SISMEMBER", whitelist_key, jti)
+
+if in_whitelist == 1 then
+  -- Refresh légitime : rotation
+  local new_jti = ARGV[6]
+  redis.call("SREM", whitelist_key, jti)
+  redis.call("SADD", whitelist_key, new_jti)
+  redis.call("EXPIRE", whitelist_key, 604800) -- 7j
+  redis.call("SADD", family_key, new_jti)
+  return "OK:" .. new_jti
+
+else
+  -- JTI absent de whitelist : révoqué ou inconnu
+  -- Vérifier si connu dans la famille (token révoqué = replay)
+  local in_family = redis.call("SISMEMBER", family_key, jti)
+  
+  if in_family == 1 then
+    -- REPLAY DÉTECTÉ : révoquer toute la famille
+    local family_members = redis.call("SMEMBERS", family_key)
+    for _, member_jti in ipairs(family_members) do
+      -- Blacklister chaque JTI access associé avec TTL résiduel
+      redis.call("SET", "blacklist:jti:" .. member_jti, "1", "EX", 900)
+    end
+    redis.call("DEL", whitelist_key)
+    redis.call("DEL", family_key)
+    return "REPLAY_DETECTED"
+  else
+    -- JTI totalement inconnu
+    return "TOKEN_INVALID"
+  end
+end
+
+2. L'émission des tokens
+Payload exact du JWT
+Access token (signé KMS RS256, TTL 15 min) :
+json{
+  "iss": "https://auth.carocorp.io",
+  "sub": "42",
+  "aud": "carocorp-api",
+  "exp": 1740000900,
+  "nbf": 1740000000,
+  "iat": 1740000000,
+  "jti": "550e8400-e29b-41d4-a716-446655440000",
+  "tid": "tenant_abc123",
+  "role": "manager",
+  "scopes": ["reservations:write", "stock:read"],
+  "did": "device_xyz789",
+  "fid": "family_uuid_here"
+}
+Refresh token (signé KMS RS256 avec clé dédiée, TTL 7j) :
+json{
+  "iss": "https://auth.carocorp.io",
+  "sub": "42",
+  "exp": 1740604800,
+  "iat": 1740000000,
+  "jti": "nouveau-jti-uuid",
+  "tid": "tenant_abc123",
+  "did": "device_xyz789",
+  "fid": "family_uuid_here",
+  "type": "refresh"
+}
+```
+
+Claims custom CaroCorp : `tid` (tenant_id), `role`, `scopes`, `did` (device_id), `fid` (family_id). Le `scopes` dans l'access token évite d'aller chercher les permissions en DB à chaque requête.
+
+### Comment `family_id` est assigné à l'émission
+
+Toujours au **login** uniquement — `family_id = uuid4()`. Il est ensuite copié tel quel dans chaque refresh token généré par rotation. Un refresh token n'a jamais un `fid` différent de son parent.
+
+L'exception : si l'utilisateur se connecte depuis un nouveau device, un nouveau `family_id` est créé pour cette session device. Chaque paire `(user_id, device_id, session)` a sa propre famille.
+
+### Le `device_id` est-il dans le JWT ?
+
+Oui, dans le claim `did` (voir payload ci-dessus). Il est présent dans **les deux tokens** (access et refresh). Cela permet au script Lua d'identifier la bonne clé whitelist (`whitelist:refresh:{user_id}:{device_id}`) sans requête PostgreSQL.
+
+### Qui initialise `whitelist:refresh:{user_id}:{device_id}` ?
+
+Au **login**, simultanément à l'émission des tokens :
+```
+SADD whitelist:refresh:{user_id}:{device_id} {jti_refresh}
+EXPIRE whitelist:refresh:{user_id}:{device_id} 604800
+SADD family:{family_id} {jti_refresh}
+EXPIRE family:{family_id} 604800
+```
+
+Jamais lors du premier refresh — ce serait un TOCTOU : entre le login et le premier refresh, la whitelist serait vide et n'importe quel JTI semblerait inconnu.
+
+---
+
+## 3. Le flow d'authentification complet
+
+### Séquence Login → MFA → tokens
+```
+Client                    Auth Service              Redis-SEC          KMS
+  |                           |                         |               |
+  |-- POST /auth/login ------->|                         |               |
+  |   {email, password}       |                         |               |
+  |                           |-- check brute:user_id ->|               |
+  |                           |<- count (< 5 OK) -------|               |
+  |                           |                         |               |
+  |                           |-- verify bcrypt hash    |               |
+  |                           |   (PostgreSQL users)    |               |
+  |                           |                         |               |
+  |  [si TOTP actif]          |                         |               |
+  |<-- 200 {mfa_required,  ---|                         |               |
+  |    mfa_session_token}     |                         |               |
+  |                           |                         |               |
+  |-- POST /mfa/verify ------->|                         |               |
+  |   {code, mfa_session_token}|                        |               |
+  |                           |-- check totp:used: ---->|               |
+  |                           |<- (absent = OK) --------|               |
+  |                           |-- verify TOTP code      |               |
+  |                           |-- SET totp:used: ------->|               |
+  |                           |                         |               |
+  |  [tokens émis]            |                         |               |
+  |                           |-------------------------------- kms:Sign ->|
+  |                           |<------------------------------- AT signé --|
+  |                           |-------------------------------- kms:Sign ->|
+  |                           |<------------------------------- RT signé --|
+  |                           |                         |               |
+  |                           |-- SADD whitelist:refresh|               |
+  |                           |-- SADD family:          |               |
+  |                           |-- INSERT user_sessions ->|              |
+  |                           |   (PostgreSQL)          |               |
+  |<-- Set-Cookie: refresh=RT |                         |               |
+  |    (httpOnly, Secure)     |                         |               |
+  |    Body: {access_token}   |                         |               |
+```
+
+### Le `mfa_session_token` — comment il est stocké
+
+C'est un token court-lived (5 min, non signé KMS — trop coûteux pour un usage aussi temporaire) stocké dans Redis-SEC : `mfa_session:{token_uuid}` → `{user_id, verified_password: true}` avec TTL 300s.
+
+Il est retourné dans le body JSON de `/auth/login` (pas en cookie — il n'a pas besoin de protection httpOnly, il ne donne accès à rien seul).
+
+### Ce que retourne `/auth/login`
+```
+HTTP 200
+Set-Cookie: refresh_token={RT_JWT}; HttpOnly; Secure; SameSite=Strict; Path=/auth/refresh; Max-Age=604800
+
+Body JSON:
+{
+  "access_token": "eyJ...",     ← dans le body, pas dans un cookie
+  "token_type": "bearer",
+  "expires_in": 900
+}
+```
+
+Le **refresh token est dans le cookie httpOnly** — jamais accessible en JavaScript. L'**access token est dans le body** — stocké en mémoire côté client (pas localStorage). Cette séparation est intentionnelle : les XSS ne peuvent pas voler le refresh token.
+
+---
+
+## 4. Le mécanisme de step-up
+
+### Qu'est-ce qui déclenche un step-up ?
+
+Les tablettes sont des devices **partagés entre plusieurs utilisateurs** dans un contexte terrain. Un step-up est déclenché quand un utilisateur tente une **mutation sensible** (valider un départ, confirmer une réservation, modifier du stock) sur une tablette où une session est déjà active.
+
+La logique : l'utilisateur A s'est connecté sur la tablette. Utilisateur B prend la tablette et tente une action — avant d'exécuter, l'API vérifie `stepup:{user_id}:{device_id}`. Si absent : challenge step-up (re-saisie du code TOTP ou PIN court).
+
+### Quel endpoint le valide ?
+
+`POST /auth/step-up` avec body `{totp_code}`. Si validation OK : `SET stepup:{user_id}:{device_id} 1 EX 900` dans Redis-SEC.
+
+Les endpoints qui requièrent step-up ont un middleware dédié qui vérifie la présence de cette clé Redis avant d'autoriser la mutation.
+
+### Que se passe-t-il si le step-up expire pendant une mutation en cours ?
+
+La mutation en cours n'est pas interrompue — le TTL step-up est vérifié à **l'entrée** du middleware, pas en continu pendant l'exécution. Si la mutation prend plus de 15 min (improbable pour des opérations terrain), elle se termine normalement. La prochaine mutation déclenchera un nouveau step-up.
+
+C'est un choix délibéré : interrompre une mutation à mi-chemin serait pire (état incohérent) que de laisser la fenêtre step-up expirer pendant son exécution.
+
+### Pourquoi 15 min de TTL ?
+
+C'est aligné sur le TTL des access tokens — cohérence : un access token expiré = session step-up expirée. Si l'utilisateur doit refresher son access token, il doit aussi re-valider le step-up. Le raisonnement : 15 min est suffisant pour une séquence d'opérations terrain (scan QR + validation départ), sans laisser une tablette abandonnée avec des mutations ouvertes trop longtemps.
+
+---
+
+## 5. La sync offline des devices mobiles
+
+### Format de signature
+
+ECDSA P-256 (secp256r1). Raisons du choix face à Ed25519 : P-256 est nativement supporté par les Secure Enclave iOS et Android Keystore sans librairie externe. Ed25519 est plus rapide et plus compact mais le support hardware natif est moins universel sur les devices Android < API 31.
+
+Chaque événement offline est sérialisé en JSON canonicalisé (RFC 8785) puis signé : `signature = ECDSA_P256.sign(private_key_secure_enclave, SHA256(canonical_json))`.
+
+### Comment le serveur vérifie la signature
+```
+PostgreSQL user_devices :
+  device_id | user_id | public_key_pem | enrolled_at | revoked_at
+À la sync, le serveur :
+
+Récupère public_key_pem depuis user_devices WHERE device_id = X AND revoked_at IS NULL
+Si revoked_at IS NOT NULL → rejeter tous les événements, retourner 403 DEVICE_REVOKED
+Pour chaque événement offline : vérifier ECDSA_P256.verify(public_key, SHA256(canonical_json), signature)
+Événement avec signature invalide → rejeté silencieusement + loggé (ne pas bloquer les autres événements du même batch)
+
+Si la sync échoue après révocation — le device retente-t-il indéfiniment ?
+Le device ne sait pas qu'il est révoqué avant d'avoir tenté une sync. Après un 403 DEVICE_REVOKED, l'app doit :
+
+Effacer le state local auth
+Afficher "appareil révoqué — reconnectez-vous depuis un autre appareil"
+Ne plus retenter — c'est la responsabilité de l'app de traiter ce code comme terminal
+
+Côté serveur, pas de mécanisme de rate-limiting spécifique pour les retries post-révocation — on s'appuie sur le comportement correct de l'app. Pour une implémentation robuste, on pourrait ajouter un brute:device:{device_id} dans Redis mais ce n'est pas dans les runbooks actuels — c'est un gap.
+Conflits offline/online — comportement
+Modèle last-write-wins avec validation métier :
+
+L'événement offline arrive avec un timestamp signé
+Le serveur compare l'état actuel de la ressource avec l'état au moment où l'événement a été créé (snapshot dans l'événement lui-même)
+Si l'état a changé entre le snapshot et maintenant : conflit détecté
+Politique : l'événement offline est rejeté si le conflit porte sur des quantités de stock (on ne peut pas sortir du matériel déjà sorti par quelqu'un d'autre). Retourné avec code CONFLICT dans la réponse de sync.
+L'app affiche le conflit à l'utilisateur qui doit re-valider manuellement.
+
+C'est un autre gap du runbook — la politique de résolution de conflits n'est jamais documentée.
+
+6. Gestion des refresh tokens sur multi-devices
+La limite de 6 sessions — par device ou par user ?
+Par user, globalement. La limite vise à détecter les comportements anormaux (account takeover avec de nombreux devices simultanés), pas à limiter les devices légitimes.
+Un utilisateur avec 2 devices peut avoir 3 sessions par device = 6 au total. Un utilisateur avec 6 devices actifs simultanément = suspicious.
+Comptage exact
+Dans user_sessions PostgreSQL, la requête est :
+sqlSELECT COUNT(*) FROM user_sessions 
+WHERE user_id = X AND revoked_at IS NULL
+Pas de distinction par device dans le comptage — c'est le total de sessions actives qui est limité.
+Au-delà de 6 — quel critère d'éviction ?
+La session la plus ancienne par last_activity. C'est LRU sur les sessions : ORDER BY last_activity ASC LIMIT 1 est révoquée automatiquement. L'utilisateur reçoit un message explicite : "Session la plus ancienne révoquée car limite atteinte — reconnectez-vous si nécessaire."
+C'est important de ne pas faire une éviction silencieuse — sinon l'utilisateur ne comprend pas pourquoi il a été déconnecté.
+
+7. CSRF — mobile vs web
+Mobile n'utilise pas de cookies — donc pas de CSRF au sens classique
+La protection CSRF protège contre les cross-site request forgery — un site malveillant qui déclenche des requêtes vers ton API en utilisant les credentials de l'utilisateur. Sur mobile, les requêtes ne proviennent pas d'un browser avec un contexte cross-origin, donc le CSRF classique ne s'applique pas.
+Ce qui s'applique à la place : s'assurer que le token Bearer (access token) ne peut pas être volé et rejoué depuis un contexte different. C'est géré par la durée de vie courte (15 min) et le JTI blacklist.
+Le header X-CSRF-Token est-il requis sur mobile ?
+Non. Le middleware CSRF doit discriminer par type de client :
+
+Authorization: Bearer {token} présent → client mobile ou API → bypass CSRF check
+Cookie refresh_token présent sans Authorization → client web → CSRF check obligatoire
+
+csrf:{session_id} — comment la session mobile est identifiée
+Elle ne l'est pas — et c'est correct. Les clés csrf:{session_id} dans Redis ne concernent que les sessions web. Sur mobile, le session_id du cookie n'existe pas. Il n'y a pas de clé CSRF pour les sessions mobiles.
+
+8. Rotation HMAC — les entrées historiques
+Comment les entrées historiques restent vérifiables après rotation
+La clé HMAC est versionnée dans Secrets Manager. Quand on la rotate :
+
+L'ancienne clé est conservée sous hmac-audit-key-v{N-1} avec période de rétention de 3 ans
+Chaque entrée d'audit log contient un champ hmac_key_version indiquant quelle version de clé a signé
+Pour vérifier une ancienne entrée : récupérer hmac-audit-key-v{N} depuis Secrets Manager et reverify
+
+json{
+  "event_id": "...",
+  "hmac_key_version": "v3",
+  "hmac_signature": "sha256hex..."
+}
+Qui peut vérifier une signature HMAC
+Uniquement les systèmes ayant accès à Secrets Manager avec la policy IAM appropriée. Un auditeur externe ne peut pas vérifier directement — il doit passer par un service de vérification interne qui expose POST /audit/verify en lecture seule. C'est intentionnel : la clé HMAC ne doit jamais sortir d'AWS.
+Pour les audits ISO 27001 ou SOC 2, on fournit le résultat de la vérification (rapport signé par le système), pas la clé elle-même.
+
+9. RB-02 — Impact business non chiffré
+Impact financier estimé de 4h d'auth down
+C'est effectivement une lacune du document. Pour un SaaS B2B comme CaroCorp, le modèle de calcul standard :
+MRR / (730h dans le mois) × durée = coût direct. Mais en plus il y a le coût indirect : pénalités SLA clients, support inbound, perte de confiance.
+Un runbook professionnel devrait avoir cette ligne : "Impact estimé : X€/h d'indisponibilité — décision d'arrêt service (RB-02) ne peut être prise que si l'impact sécurité dépasse cet impact business." C'est le Business Impact Analysis (BIA) — il manque complètement.
+Mode dégradé pendant l'indisponibilité
+Non documenté — autre gap réel. Des options architecturales possibles :
+
+Read-only mode : access tokens existants valides pour lecture seule pendant le TTR (mais impossible si KMS est désactivé — les tokens ne peuvent plus être vérifiés non plus)
+Cache JWT public key : les services consommateurs cachent la clé publique JWKS localement — pendant la rotation KMS, les tokens existants restent vérifiables si la clé publique est en cache. C'est le comportement standard des JWT vérifications — et c'est pour ça que retirer l'ancienne clé du JWKS trop tôt est dangereux.
+
+Notification des clients tenant
+Non documenté. Il devrait exister un status.carocorp.io avec un webhook ou email automatique. C'est un gap opérationnel classique — les équipes gèrent l'incident en interne et oublient de prévenir les clients.
+
+10. Tests annuels — procédure réelle
+Comment simuler un replay attack sans impacter d'autres tests
+Isolation par tenant de test dédié sur staging. Le compte test utilisé pour RB-05 appartient à un tenant tenant_security_test qui n'a aucune donnée réelle. La simulation se fait sur ce tenant uniquement — les autres tenants sur le même staging ne voient rien.
+Le script de simulation inject un ancien JTI (précédemment révoqué) directement via redis-cli sur l'instance Redis-SEC staging : SADD family:{test_family_id} {old_jti} puis soumet ce JTI via l'API. Le script Lua doit retourner REPLAY_DETECTED et révoquer la famille.
+Redis-SEC staging — isolé ou partagé avec CI/CD
+Doit être isolé. L'instance Redis-SEC staging est physiquement séparée de Redis-SEC CI/CD. Les tests CI/CD ne touchent jamais à une instance avec maxmemory-policy = noeviction — ils utilisent Redis-CACHE ou une instance Redis de test allkeys-lru.
+Si ce n'est pas le cas, n'importe quel test CI/CD qui injecte des clés pourrait déclencher des alarmes d'éviction sur "staging" et casser la signification des alertes.
+Qui joue le rôle de l'attaquant
+Un script automatisé maintenu par l'équipe sécurité, pas une personne. Raisons :
+
+Reproductible
+Pas de dépendance à la disponibilité d'un humain
+Loggué précisément pour les preuves de conformité
+
+Le script est lui-même archivé dans S3 avec le rapport de test — c'est une preuve que la simulation était contrôlée et répétable, pas une action ad-hoc.

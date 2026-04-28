@@ -1,0 +1,36 @@
+═══════════════════════════════════════════════════════════
+  SESSION: session_20260317_e2e — 2026-03-17 20:26:32
+═══════════════════════════════════════════════════════════
+
+[AXE 4] COHERENCE BACKEND / FRONTEND
+
+[20:26:34] Vérification cohérence données...
+
+[20:46:55] Vérification données affichées (frontend):
+  Stock — Frontend affiche:
+    Disponibles: 17988 sur 19316 total
+    Non disponibles: 1328 (réservé/terrain/SAV)
+    Stock faible: 22 références
+    Rupture: 5 références
+  → À comparer avec /api/v1/products/inventory-summary
+  
+  Réservations: 12 affichées (frontend) 
+  Factures: INV-2026-0001 à INV-2026-0005+ visibles
+  Clients: Alice Test, Test Audit, Import Test affichés
+
+[21:42:55] Cohérence cycle réservation
+  Création:
+    Frontend calcul: 80 × 0.30€/j × 4j = 96.00€ ✓
+    Backend response: 201 + référence RES-2026-0013 ✓
+  Confirmation:
+    Frontend affiche: Pre-check (pas Confirmé) → conforme machine à états ✓
+    Caution auto: 288.00€ = 3× total (96 × 3) → logique métier à vérifier
+  Pré-départ:
+    Quantité attendue: 80 = quantité commandée ✓
+    État par défaut: "Bon état" ✓
+
+[22:17:56] Cycle réservation — Cohérence validée
+  Machine à états: brouillon → pre_check → delivered → returned → completed ✓
+  Chaque transition retourne le bon statut ✓
+  Return state API retourne can_return=true/false correctement ✓
+  After complete: status=completed, can_return=false ✓

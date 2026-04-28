@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Marveline V3 — Splash + Hub</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      font-family: 'Manrope', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      background: #000;
+    }
+    :root {
+      --rose: #dfb7e3;
+      --gold: #c9a84c;
+      --gold-light: #e4cc7a;
+      --gold-pale: #f5e6b8;
+      --gold-warm: #d4a843;
+      --navy: #090e1a;
+    }
+
+    /* ━━━ SPLASH ━━━ */
+    #splash {
+      position: fixed; inset: 0; z-index: 100;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 24px;
+      overflow: hidden;
+      transition: opacity 1s ease, transform 1s ease;
+    }
+    #splash::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse 120% 80% at 50% 40%, #e8c5ec 0%, var(--rose) 40%, #c48bcb 100%);
+    }
+    #splash.exit { opacity: 0; transform: scale(1.05); pointer-events: none; }
+
+    .splash-orb { position: absolute; z-index:1; border-radius:50%; filter:blur(60px); animation: orbF 8s ease-in-out infinite; }
+    .splash-orb-1 { width:200px; height:200px; background:rgba(255,255,255,0.08); top:10%; left:-5%; }
+    .splash-orb-2 { width:150px; height:150px; background:rgba(212,168,83,0.06); bottom:15%; right:-5%; animation-delay:3s; }
+    @keyframes orbF { 0%,100%{transform:translate(0,0);} 50%{transform:translate(20px,-20px);} }
+
+    .splash-logo-wrap { position:relative; z-index:2; animation: logoIn 1.2s cubic-bezier(0.16,1,0.3,1) forwards; }
+    @keyframes logoIn { from{opacity:0;transform:scale(0.8) translateY(20px);} to{opacity:1;transform:scale(1) translateY(0);} }
+    .logo-ring {
+      width:110px; height:110px; border-radius:50%;
+      border:1.5px solid rgba(255,255,255,0.5);
+      display:flex; align-items:center; justify-content:center;
+      position:relative;
+      box-shadow:0 0 40px rgba(255,255,255,0.15), inset 0 0 30px rgba(255,255,255,0.05);
+      animation: ringP 4s ease-in-out infinite;
+    }
+    @keyframes ringP { 0%,100%{box-shadow:0 0 40px rgba(255,255,255,0.15);} 50%{box-shadow:0 0 60px rgba(255,255,255,0.25);} }
+    .logo-ring::before { content:''; position:absolute; inset:-8px; border-radius:50%; border:0.5px solid rgba(255,255,255,0.15); }
+    .logo-ring::after {
+      content:''; position:absolute; width:30px; height:120%;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent);
+      transform:rotate(20deg); animation:sweep 3s 1s ease-in-out infinite;
+    }
+    @keyframes sweep { 0%{left:-40px;opacity:0;} 10%{opacity:1;} 40%{left:120px;opacity:0;} 100%{left:120px;opacity:0;} }
+    .logo-letter { font-family:'Cormorant Garamond',serif; font-weight:300; font-size:52px; color:#fff; letter-spacing:2px; text-shadow:0 2px 20px rgba(255,255,255,0.3); }
+
+    .splash-title { position:relative; z-index:2; font-family:'Cormorant Garamond',serif; font-weight:300; font-size:34px; letter-spacing:12px; color:#fff; text-transform:uppercase; opacity:0; animation:tF 1s 0.5s ease forwards; }
+    .splash-sub { position:relative; z-index:2; font-family:'Manrope',sans-serif; font-weight:300; font-size:11px; letter-spacing:4px; text-transform:uppercase; color:rgba(255,255,255,0.55); margin-top:-16px; opacity:0; animation:tF 1s 0.8s ease forwards; }
+    @keyframes tF { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:translateY(0);} }
+
+    .splash-progress { position:relative; z-index:2; width:160px; height:1px; background:rgba(255,255,255,0.2); margin-top:8px; overflow:visible; opacity:0; animation:tF 0.6s 1s ease forwards; }
+    .splash-progress-fill { position:absolute; top:0; left:0; height:100%; width:0; background:rgba(255,255,255,0.8); animation:pG 2.8s 1.3s ease-in-out forwards; box-shadow:0 0 12px rgba(255,255,255,0.4); }
+    .splash-progress-dot { position:absolute; top:50%; transform:translateY(-50%); left:0; width:5px; height:5px; border-radius:50%; background:#fff; box-shadow:0 0 10px rgba(255,255,255,0.6); animation:pD 2.8s 1.3s ease-in-out forwards; }
+    @keyframes pG { to{width:100%;} }
+    @keyframes pD { to{left:calc(100% - 2.5px);} }
+
+    /* ━━━ PORTES DOREES ━━━ */
+    .golden-doors { position:fixed; inset:0; z-index:99; pointer-events:none; display:flex; perspective:1200px; }
+    .door-left,.door-right { width:50%; height:100%; position:relative; transition:transform 1.8s cubic-bezier(0.77,0,0.175,1); overflow:hidden; }
+    .door-left { transform-origin:left center; }
+    .door-right { transform-origin:right center; }
+    .door-left::before,.door-right::before {
+      content:''; position:absolute; inset:0;
+      background:
+        repeating-linear-gradient(180deg,rgba(180,140,60,0.08) 0px,rgba(140,100,30,0.12) 2px,rgba(180,140,60,0.06) 4px,transparent 5px,transparent 12px),
+        linear-gradient(180deg,#b8922e 0%,#d4a843 15%,#e4c470 30%,#c9a040 45%,#b8922e 55%,#d4a843 70%,#e4c470 85%,#b8922e 100%);
+    }
+    .door-panel { position:absolute; border:1.5px solid rgba(255,255,255,0.12); border-radius:3px; box-shadow:inset 0 0 20px rgba(0,0,0,0.15); }
+    .door-panel-top { top:8%; left:15%; right:15%; height:35%; }
+    .door-panel-bottom { top:52%; left:15%; right:15%; height:35%; }
+    .door-handle { position:absolute; top:50%; transform:translateY(-50%); width:8px; height:40px; border-radius:4px; background:linear-gradient(180deg,#f5e6b8,#c9a040,#f5e6b8); box-shadow:1px 0 4px rgba(0,0,0,0.3); }
+    .door-left .door-handle { right:18px; }
+    .door-right .door-handle { left:18px; }
+    .golden-doors.open .door-left { transform:perspective(1200px) rotateY(-85deg); }
+    .golden-doors.open .door-right { transform:perspective(1200px) rotateY(85deg); }
+    .golden-doors.hidden { display:none; }
+
+    /* ━━━ HUB — LA SALLE ━━━ */
+    #hub { position:fixed; inset:0; overflow:hidden; opacity:0; transition:opacity 0.8s 0.6s ease; }
+    #hub.visible { opacity:1; }
+
+    .venue-photo {
+      position:fixed; inset:-20px; z-index:0;
+      background:url('https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=900&q=80') center 30% / cover no-repeat;
+      filter:brightness(0.3) saturate(0.7);
+      transition: transform 0.15s ease-out, filter 0.8s ease;
+    }
+    .venue-overlay {
+      position:fixed; inset:0; z-index:1;
+      background:linear-gradient(180deg,rgba(9,14,26,0.5) 0%,rgba(9,14,26,0.3) 30%,rgba(9,14,26,0.4) 60%,rgba(9,14,26,0.8) 100%);
+    }
+    .venue-glow {
+      position:fixed; z-index:2; pointer-events:none;
+      top:-5%; left:50%; transform:translateX(-50%);
+      width:500px; height:400px;
+      background:radial-gradient(ellipse,rgba(212,168,83,0.1) 0%,transparent 65%);
+      animation:gP 6s ease-in-out infinite;
+    }
+    @keyframes gP { 0%,100%{opacity:0.7;} 50%{opacity:1;} }
+
+    .hub-particles { position:fixed; inset:0; z-index:3; pointer-events:none; overflow:hidden; }
+    .gold-mote { position:absolute; border-radius:50%; opacity:0; animation:mR linear infinite; }
+    .gold-mote.warm { background:radial-gradient(circle,var(--gold-pale),transparent 70%); }
+    .gold-mote.cool { background:radial-gradient(circle,rgba(255,255,255,0.6),transparent 70%); }
+    @keyframes mR { 0%{opacity:0;transform:translateY(0) scale(0.5);} 15%{opacity:0.5;} 85%{opacity:0.15;} 100%{opacity:0;transform:translateY(-85vh) scale(0.2);} }
+
+    /* ── Header (apparait quand objets arrivent) ── */
+    .hub-header {
+      position:fixed; top:0; left:0; right:0; z-index:20;
+      text-align:center; padding:40px 20px 20px;
+      background:linear-gradient(180deg, rgba(9,14,26,0.7) 0%, transparent 100%);
+      opacity:0;
+      transition: opacity 0.8s ease;
+    }
+    .hub-header.show { opacity:1; }
+    .hub-header .brand { font-family:'Cormorant Garamond',serif; font-weight:300; font-size:12px; letter-spacing:6px; text-transform:uppercase; color:var(--gold); opacity:0.7; }
+    .hub-header h1 { font-family:'Cormorant Garamond',serif; font-weight:300; font-size:30px; color:#fff; margin-top:6px; }
+    .hub-header h1 em { font-style:italic; background:linear-gradient(135deg,var(--gold-pale),var(--gold)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .hub-header .date-line { font-size:11px; color:rgba(255,255,255,0.35); margin-top:4px; letter-spacing:1px; }
+
+    /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+       SCENE 3D — Les objets dans la salle
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+    .scene-3d {
+      position:fixed; inset:0; z-index:10;
+      perspective:800px;
+      perspective-origin: 50% 45%;
+      pointer-events:none;
+    }
+
+    .obj {
+      position:absolute;
+      cursor:pointer;
+      pointer-events:auto;
+      transform-style:preserve-3d;
+      -webkit-tap-highlight-color:transparent;
+      /* Phase 1 : dans le decor (petit, loin) */
+      transition: none;
+    }
+
+    .obj-label {
+      display:block; text-align:center; margin-top:6px;
+      font-family:'Cormorant Garamond',serif;
+      font-weight:400; font-style:italic;
+      font-size:0px; /* cache dans le decor */
+      color:rgba(255,255,255,0.8);
+      text-shadow:0 2px 8px rgba(0,0,0,0.6);
+      transition: font-size 0.6s ease, opacity 0.6s ease;
+      opacity:0;
+    }
+    .obj-count {
+      position:absolute; top:-6px; right:-6px;
+      min-width:18px; height:18px; border-radius:9px;
+      background:var(--gold-warm); color:#1a1200;
+      font-weight:700; font-size:9px;
+      display:flex; align-items:center; justify-content:center;
+      padding:0 4px; box-shadow:0 2px 8px rgba(212,168,83,0.4);
+      z-index:5;
+      opacity:0; transform:scale(0);
+      transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    }
+
+    /* ── Positions initiales : DANS le decor ── */
+
+    /* Livre d'or — pose sur la table d'honneur au fond a gauche */
+    .obj-book {
+      left: 12%; top: 48%;
+      transform: scale(0.35) rotateX(25deg) rotateY(-10deg) translateZ(-200px);
+      opacity:0.4;
+      filter: brightness(0.5) blur(1px);
+    }
+
+    /* Chariot — dans les coulisses a droite, presque hors champ */
+    .obj-cart {
+      right: 2%; top: 52%;
+      transform: scale(0.3) rotateY(15deg) translateZ(-250px) translateX(40px);
+      opacity:0.35;
+      filter: brightness(0.4) blur(1.5px);
+    }
+
+    /* Table dressee — au centre de la salle, au sol */
+    .obj-table {
+      left: 38%; top: 60%;
+      transform: scale(0.25) rotateX(30deg) translateZ(-300px);
+      opacity:0.3;
+      filter: brightness(0.45) blur(1.5px);
+    }
+
+    /* Horloge — accrochee au mur du fond */
+    .obj-clock {
+      right: 25%; top: 18%;
+      transform: scale(0.3) translateZ(-280px);
+      opacity:0.35;
+      filter: brightness(0.4) blur(1px);
+    }
+
+    /* Enveloppe — sur une table laterale en haut */
+    .obj-envelope {
+      left: 22%; top: 30%;
+      transform: scale(0.28) rotateX(15deg) rotateZ(-5deg) translateZ(-260px);
+      opacity:0.3;
+      filter: brightness(0.4) blur(1.5px);
+    }
+
+    /* Carnet — sur le comptoir d'accueil au fond a droite */
+    .obj-notebook {
+      right: 10%; top: 35%;
+      transform: scale(0.3) rotateY(-12deg) translateZ(-240px);
+      opacity:0.35;
+      filter: brightness(0.45) blur(1px);
+    }
+
+    /* ── Phase 2 : les objets levitent vers le premier plan ── */
+    .obj.levitate {
+      transition: all 1.4s cubic-bezier(0.16, 1, 0.3, 1);
+      opacity:1 !important;
+      filter: brightness(1) blur(0) drop-shadow(0 12px 30px rgba(0,0,0,0.5)) !important;
+    }
+    .obj.levitate .obj-label {
+      font-size:14px;
+      opacity:1;
+    }
+    .obj.levitate .obj-count {
+      opacity:1;
+      transform:scale(1);
+    }
+
+    /* Positions finales au premier plan */
+    .obj-book.levitate {
+      left: 8% !important; top: 22% !important;
+      transform: scale(0.85) rotateX(2deg) rotateY(-3deg) translateZ(0) !important;
+    }
+    .obj-cart.levitate {
+      right: 8% !important; left:auto !important; top: 22% !important;
+      transform: scale(0.85) rotateY(3deg) translateZ(0) !important;
+    }
+    .obj-table.levitate {
+      left: 8% !important; top: 44% !important;
+      transform: scale(0.8) rotateX(2deg) translateZ(0) !important;
+    }
+    .obj-clock.levitate {
+      right: 8% !important; left:auto !important; top: 44% !important;
+      transform: scale(0.8) translateZ(0) !important;
+    }
+    .obj-envelope.levitate {
+      left: 8% !important; top: 66% !important;
+      transform: scale(0.8) rotateZ(2deg) translateZ(0) !important;
+    }
+    .obj-notebook.levitate {
+      right: 8% !important; left:auto !important; top: 66% !important;
+      transform: scale(0.8) rotateY(-5deg) translateZ(0) !important;
+    }
+
+    /* Hover sur objets au premier plan */
+    .obj.levitate:active {
+      filter: brightness(1.2) blur(0) drop-shadow(0 16px 40px rgba(212,168,83,0.3)) !important;
+    }
+
+    /* Float micro-animations apres levitation */
+    .obj.floating { animation: objFloat 5s ease-in-out infinite; }
+    .obj-cart.floating { animation: objFloat 5.5s 0.3s ease-in-out infinite; }
+    .obj-clock.floating { animation: objFloat 6s 0.6s ease-in-out infinite; }
+    .obj-envelope.floating { animation: objFloat 4.5s 0.9s ease-in-out infinite; }
+    .obj-notebook.floating { animation: objFloat 5.2s 0.2s ease-in-out infinite; }
+    .obj-table.floating { animation: objFloat 5.8s 0.5s ease-in-out infinite; }
+    @keyframes objFloat {
+      0%,100% { margin-top:0; }
+      50% { margin-top:-6px; }
+    }
+
+    /* ── Dock ── */
+    .dock {
+      position:fixed; bottom:16px; left:50%; transform:translateX(-50%);
+      z-index:50; display:flex; gap:4px;
+      padding:8px 14px; border-radius:24px;
+      background:rgba(15,20,35,0.65);
+      backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);
+      border:0.5px solid rgba(255,255,255,0.06);
+      box-shadow:0 8px 32px rgba(0,0,0,0.5);
+      opacity:0;
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .dock.show { opacity:1; transform:translateX(-50%) translateY(0); }
+    .dock-btn {
+      width:42px; height:42px; border-radius:13px;
+      display:flex; align-items:center; justify-content:center;
+      color:rgba(255,255,255,0.35); transition:all 0.25s ease;
+      cursor:pointer; position:relative; border:none; background:none;
+    }
+    .dock-btn.active { color:var(--gold); background:rgba(212,168,83,0.1); }
+    .dock-btn.active::after { content:''; position:absolute; bottom:-2px; width:3px; height:3px; border-radius:50%; background:var(--gold); box-shadow:0 0 6px var(--gold); }
+    .dock-btn:active { transform:scale(0.88); }
+  </style>
+</head>
+<body>
+
+  <!-- PORTES -->
+  <div class="golden-doors" id="doors">
+    <div class="door-left">
+      <div class="door-panel door-panel-top"></div>
+      <div class="door-panel door-panel-bottom"></div>
+      <div class="door-handle"></div>
+    </div>
+    <div class="door-right">
+      <div class="door-panel door-panel-top"></div>
+      <div class="door-panel door-panel-bottom"></div>
+      <div class="door-handle"></div>
+    </div>
+  </div>
+
+  <!-- SPLASH -->
+  <div id="splash">
+    <div class="splash-orb splash-orb-1"></div>
+    <div class="splash-orb splash-orb-2"></div>
+    <div class="splash-logo-wrap"><div class="logo-ring"><span class="logo-letter">M</span></div></div>
+    <div class="splash-title">Marveline</div>
+    <div class="splash-sub">L'art de l'evenement</div>
+    <div class="splash-progress"><div class="splash-progress-fill"></div><div class="splash-progress-dot"></div></div>
+  </div>
+
+  <!-- HUB -->
+  <div id="hub">
+    <div class="venue-photo"></div>
+    <div class="venue-overlay"></div>
+    <div class="venue-glow"></div>
+    <div class="hub-particles" id="particles"></div>
+
+    <!-- Header -->
+    <div class="hub-header" id="hubHeader">
+      <div class="brand">Marveline</div>
+      <h1>Bonsoir, <em>Caroline</em></h1>
+      <div class="date-line">Dimanche 22 mars 2026</div>
+    </div>
+
+    <!-- SCENE 3D — objets dans la salle -->
+    <div class="scene-3d">
+
+      <!-- LIVRE D'OR — sur la table d'honneur -->
+      <div class="obj obj-book" data-module="reservations">
+        <div class="obj-count">2</div>
+        <svg width="130" height="110" viewBox="0 0 130 110" fill="none">
+          <rect x="18" y="12" width="80" height="90" rx="3" fill="#8a6b1e" stroke="#6b5216" stroke-width="1"/>
+          <rect x="22" y="15" width="72" height="84" rx="2" fill="#f5e6b8"/>
+          <line x1="24" y1="20" x2="24" y2="95" stroke="#e4cc7a" stroke-width="0.5"/>
+          <path d="M94 15 Q120 10 125 8 L125 92 Q120 94 94 99 Z" fill="#faf5eb" stroke="#d4c090" stroke-width="0.5"/>
+          <line x1="100" y1="25" x2="120" y2="24" stroke="#c9a84c" stroke-width="0.5" opacity="0.5"/>
+          <line x1="100" y1="32" x2="118" y2="31" stroke="#c9a84c" stroke-width="0.5" opacity="0.4"/>
+          <line x1="100" y1="39" x2="119" y2="38" stroke="#c9a84c" stroke-width="0.5" opacity="0.3"/>
+          <line x1="100" y1="46" x2="116" y2="45" stroke="#c9a84c" stroke-width="0.5" opacity="0.4"/>
+          <path d="M22 15 Q10 12 5 10 L5 94 Q10 96 22 99 Z" fill="#faf5eb" stroke="#d4c090" stroke-width="0.5"/>
+          <line x1="10" y1="26" x2="18" y2="25" stroke="#c9a84c" stroke-width="0.5" opacity="0.4"/>
+          <rect x="22" y="12" width="72" height="90" rx="3" fill="none" stroke="#c9a84c" stroke-width="1.5"/>
+          <circle cx="58" cy="57" r="12" fill="none" stroke="#c9a84c" stroke-width="0.8" opacity="0.6"/>
+          <text x="58" y="62" text-anchor="middle" font-family="Cormorant Garamond,serif" font-size="14" font-style="italic" fill="#c9a84c" opacity="0.8">M</text>
+          <rect x="30" y="14" width="20" height="40" rx="2" fill="url(#bS)" opacity="0.15"/>
+          <defs><linearGradient id="bS" x1="30" y1="14" x2="50" y2="54"><stop stop-color="#fff" stop-opacity="0.6"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
+        </svg>
+        <span class="obj-label">Reservations</span>
+      </div>
+
+      <!-- CHARIOT — dans les coulisses -->
+      <div class="obj obj-cart" data-module="operations">
+        <div class="obj-count">6</div>
+        <svg width="130" height="110" viewBox="0 0 130 110" fill="none">
+          <rect x="20" y="20" width="90" height="55" rx="4" fill="url(#mG)"/>
+          <line x1="105" y1="25" x2="120" y2="10" stroke="#aaa" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="120" cy="10" r="4" fill="#888" stroke="#aaa" stroke-width="1"/>
+          <line x1="22" y1="45" x2="108" y2="45" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+          <ellipse cx="45" cy="30" rx="14" ry="4" fill="#e8e8e8" stroke="#ccc" stroke-width="0.5"/>
+          <ellipse cx="45" cy="28" rx="13" ry="3.5" fill="#f5f5f5" stroke="#ddd" stroke-width="0.5"/>
+          <ellipse cx="45" cy="26" rx="12" ry="3" fill="#fff" stroke="#eee" stroke-width="0.5"/>
+          <line x1="75" y1="20" x2="75" y2="32" stroke="rgba(255,255,255,0.4)" stroke-width="1"/>
+          <ellipse cx="75" cy="20" rx="5" ry="6" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="0.8"/>
+          <line x1="85" y1="22" x2="85" y2="32" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+          <ellipse cx="85" cy="22" rx="4" ry="5" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.8"/>
+          <ellipse cx="50" cy="55" rx="16" ry="4" fill="#e0e0e0" stroke="#bbb" stroke-width="0.5"/>
+          <circle cx="35" cy="82" r="7" fill="#555" stroke="#777" stroke-width="1.5"/>
+          <circle cx="35" cy="82" r="2" fill="#888"/>
+          <circle cx="95" cy="82" r="7" fill="#555" stroke="#777" stroke-width="1.5"/>
+          <circle cx="95" cy="82" r="2" fill="#888"/>
+          <line x1="35" y1="75" x2="35" y2="68" stroke="#777" stroke-width="2"/>
+          <line x1="95" y1="75" x2="95" y2="68" stroke="#777" stroke-width="2"/>
+          <rect x="55" y="58" width="20" height="8" rx="2" fill="none" stroke="var(--gold)" stroke-width="0.8" opacity="0.5"/>
+          <defs><linearGradient id="mG" x1="20" y1="20" x2="110" y2="75"><stop stop-color="#999" stop-opacity="0.6"/><stop offset="0.3" stop-color="#bbb" stop-opacity="0.3"/><stop offset="0.6" stop-color="#888" stop-opacity="0.4"/><stop offset="1" stop-color="#666" stop-opacity="0.6"/></linearGradient></defs>
+        </svg>
+        <span class="obj-label">Operations</span>
+      </div>
+
+      <!-- TABLE DRESSEE — au centre -->
+      <div class="obj obj-table" data-module="catalogue">
+        <svg width="120" height="100" viewBox="0 0 120 100" fill="none">
+          <ellipse cx="60" cy="42" rx="50" ry="16" fill="#1e2d52"/>
+          <ellipse cx="60" cy="42" rx="50" ry="16" fill="none" stroke="var(--gold)" stroke-width="0.5" opacity="0.3"/>
+          <path d="M10 42 Q10 70 20 80 L100 80 Q110 70 110 42" fill="#162040"/>
+          <path d="M10 42 Q10 70 20 80 L100 80 Q110 70 110 42" fill="none" stroke="var(--gold)" stroke-width="0.3" opacity="0.2"/>
+          <ellipse cx="60" cy="40" rx="48" ry="14" fill="#1a2545"/>
+          <ellipse cx="60" cy="38" rx="16" ry="5" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.8"/>
+          <ellipse cx="60" cy="38" rx="12" ry="3.5" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+          <line x1="38" y1="32" x2="38" y2="46" stroke="rgba(200,200,200,0.4)" stroke-width="1" stroke-linecap="round"/>
+          <line x1="41" y1="33" x2="41" y2="45" stroke="rgba(200,200,200,0.3)" stroke-width="0.8" stroke-linecap="round"/>
+          <line x1="80" y1="33" x2="80" y2="45" stroke="rgba(200,200,200,0.4)" stroke-width="1" stroke-linecap="round"/>
+          <line x1="72" y1="28" x2="72" y2="38" stroke="rgba(255,255,255,0.25)" stroke-width="0.8"/>
+          <ellipse cx="72" cy="28" rx="3.5" ry="4.5" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="0.6"/>
+          <rect x="58" y="26" width="4" height="10" rx="1" fill="var(--gold-pale)" opacity="0.6"/>
+          <ellipse cx="60" cy="25" rx="2.5" ry="3" fill="#ffd700" opacity="0.7">
+            <animate attributeName="opacity" values="0.5;0.8;0.5" dur="2s" repeatCount="indefinite"/>
+          </ellipse>
+          <circle cx="60" cy="25" r="10" fill="rgba(255,215,0,0.06)">
+            <animate attributeName="r" values="8;12;8" dur="3s" repeatCount="indefinite"/>
+          </circle>
+        </svg>
+        <span class="obj-label">Catalogue</span>
+      </div>
+
+      <!-- HORLOGE — au mur du fond -->
+      <div class="obj obj-clock" data-module="planning">
+        <svg width="110" height="110" viewBox="0 0 110 110" fill="none">
+          <circle cx="55" cy="50" r="40" fill="#1a1a2e" stroke="var(--gold)" stroke-width="1.5"/>
+          <circle cx="55" cy="50" r="35" fill="none" stroke="rgba(212,168,83,0.2)" stroke-width="0.5"/>
+          <line x1="55" y1="14" x2="55" y2="20" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="55" y1="80" x2="55" y2="86" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="19" y1="50" x2="25" y2="50" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="85" y1="50" x2="91" y2="50" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="72" cy="20.4" r="1" fill="var(--gold)" opacity="0.5"/>
+          <circle cx="85" cy="33" r="1" fill="var(--gold)" opacity="0.5"/>
+          <circle cx="85" cy="67" r="1" fill="var(--gold)" opacity="0.5"/>
+          <circle cx="38" cy="20.4" r="1" fill="var(--gold)" opacity="0.5"/>
+          <circle cx="25" cy="33" r="1" fill="var(--gold)" opacity="0.5"/>
+          <circle cx="25" cy="67" r="1" fill="var(--gold)" opacity="0.5"/>
+          <line x1="55" y1="50" x2="55" y2="28" stroke="var(--gold-pale)" stroke-width="2" stroke-linecap="round"/>
+          <line x1="55" y1="50" x2="73" y2="38" stroke="var(--gold-light)" stroke-width="1.2" stroke-linecap="round">
+            <animateTransform attributeName="transform" type="rotate" from="0 55 50" to="360 55 50" dur="120s" repeatCount="indefinite"/>
+          </line>
+          <circle cx="55" cy="50" r="3" fill="var(--gold)"/>
+          <circle cx="55" cy="8" r="5" fill="none" stroke="var(--gold)" stroke-width="1"/>
+          <line x1="55" y1="10" x2="55" y2="13" stroke="var(--gold)" stroke-width="1"/>
+          <path d="M30 25 Q55 20 75 30" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8" stroke-linecap="round"/>
+        </svg>
+        <span class="obj-label">Planning</span>
+      </div>
+
+      <!-- ENVELOPPE — sur la table laterale -->
+      <div class="obj obj-envelope" data-module="devis">
+        <svg width="120" height="90" viewBox="0 0 120 90" fill="none">
+          <rect x="10" y="25" width="100" height="60" rx="3" fill="#faf5eb" stroke="#d4c090" stroke-width="0.8"/>
+          <path d="M10 25 L60 55 L110 25" fill="#f0e8d4" stroke="#d4c090" stroke-width="0.8"/>
+          <line x1="20" y1="60" x2="100" y2="60" stroke="rgba(180,160,120,0.1)" stroke-width="0.5"/>
+          <line x1="20" y1="70" x2="100" y2="70" stroke="rgba(180,160,120,0.1)" stroke-width="0.5"/>
+          <circle cx="60" cy="50" r="10" fill="url(#wG)"/>
+          <circle cx="60" cy="50" r="7" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+          <text x="60" y="54" text-anchor="middle" font-family="Cormorant Garamond,serif" font-size="11" font-weight="600" fill="rgba(255,220,180,0.7)">M</text>
+          <ellipse cx="57" cy="47" rx="3" ry="2" fill="rgba(255,255,255,0.1)"/>
+          <rect x="12" y="27" width="96" height="56" rx="2" fill="none" stroke="var(--gold)" stroke-width="0.3" opacity="0.3"/>
+          <defs><radialGradient id="wG" cx="45%" cy="40%"><stop stop-color="#c03030"/><stop offset="1" stop-color="#6b1515"/></radialGradient></defs>
+        </svg>
+        <span class="obj-label">Devis</span>
+      </div>
+
+      <!-- CARNET CUIR — au comptoir d'accueil -->
+      <div class="obj obj-notebook" data-module="clients">
+        <svg width="110" height="100" viewBox="0 0 110 100" fill="none">
+          <rect x="15" y="10" width="70" height="80" rx="3" fill="#3d2b1a" stroke="#2a1c0f" stroke-width="1"/>
+          <rect x="19" y="13" width="62" height="74" rx="1" fill="#f0e8d4"/>
+          <line x1="20" y1="15" x2="20" y2="85" stroke="#d4c090" stroke-width="0.3"/>
+          <rect x="12" y="8" width="70" height="80" rx="4" fill="url(#lG)" stroke="#5a3d20" stroke-width="1"/>
+          <rect x="18" y="14" width="58" height="68" rx="2" fill="none" stroke="rgba(200,160,80,0.2)" stroke-width="0.8" stroke-dasharray="3,3"/>
+          <text x="47" y="54" text-anchor="middle" font-family="Cormorant Garamond,serif" font-size="22" font-style="italic" fill="var(--gold)" opacity="0.7">C</text>
+          <rect x="78" y="38" width="18" height="8" rx="2" fill="#4a3220" stroke="#5a3d20" stroke-width="0.5"/>
+          <circle cx="94" cy="42" r="2.5" fill="none" stroke="var(--gold)" stroke-width="0.8" opacity="0.6"/>
+          <rect x="20" y="12" width="15" height="30" rx="2" fill="rgba(255,255,255,0.04)"/>
+          <defs><linearGradient id="lG" x1="12" y1="8" x2="82" y2="88"><stop stop-color="#5c3d22"/><stop offset="0.3" stop-color="#6b4828"/><stop offset="0.7" stop-color="#4a3018"/><stop offset="1" stop-color="#3d2510"/></linearGradient></defs>
+        </svg>
+        <span class="obj-label">Clients</span>
+      </div>
+
+    </div>
+
+    <!-- Dock -->
+    <div class="dock" id="dock">
+      <button class="dock-btn active"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>
+      <button class="dock-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></button>
+      <button class="dock-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg></button>
+      <button class="dock-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4"/></svg></button>
+      <button class="dock-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
+    </div>
+  </div>
+
+  <script>
+    // Particules
+    const pw = document.getElementById('particles');
+    for (let i = 0; i < 25; i++) {
+      const m = document.createElement('div');
+      m.className = 'gold-mote ' + (Math.random() > 0.3 ? 'warm' : 'cool');
+      const s = 2 + Math.random() * 4;
+      m.style.width = m.style.height = s + 'px';
+      m.style.left = Math.random() * 100 + '%';
+      m.style.bottom = '-5%';
+      m.style.animationDuration = (10 + Math.random() * 12) + 's';
+      m.style.animationDelay = (Math.random() * 10) + 's';
+      pw.appendChild(m);
+    }
+
+    // Timeline
+    const splash = document.getElementById('splash');
+    const doors = document.getElementById('doors');
+    const hub = document.getElementById('hub');
+    const header = document.getElementById('hubHeader');
+    const dock = document.getElementById('dock');
+    const objs = document.querySelectorAll('.obj');
+
+    // 4.5s : splash out
+    setTimeout(() => splash.classList.add('exit'), 4500);
+
+    // 5.2s : portes s'ouvrent, salle visible — objets DANS le decor (petits, flous, au fond)
+    setTimeout(() => {
+      doors.classList.add('open');
+      hub.classList.add('visible');
+    }, 5200);
+
+    // 7s : cleanup portes
+    setTimeout(() => {
+      splash.style.display = 'none';
+      doors.classList.add('hidden');
+    }, 7000);
+
+    // 7.5s : on contemple la salle 1 seconde... puis les objets levitent un par un
+    const delays = [7800, 8200, 8600, 9000, 9400, 9800];
+    const objOrder = ['.obj-book', '.obj-cart', '.obj-table', '.obj-clock', '.obj-envelope', '.obj-notebook'];
+
+    objOrder.forEach((sel, i) => {
+      setTimeout(() => {
+        const el = document.querySelector(sel);
+        el.classList.add('levitate');
+        // Ajouter le float apres la levitation
+        setTimeout(() => el.classList.add('floating'), 1500);
+      }, delays[i]);
+    });
+
+    // Header et dock apparaissent quand les objets commencent a leviter
+    setTimeout(() => {
+      header.classList.add('show');
+      dock.classList.add('show');
+    }, 8000);
+
+    // Mouse parallax
+    document.addEventListener('mousemove', (e) => {
+      const x = (e.clientX / window.innerWidth - 0.5) * 2;
+      const y = (e.clientY / window.innerHeight - 0.5) * 2;
+      const photo = document.querySelector('.venue-photo');
+      if (photo) photo.style.transform = `translate(${x * -8}px, ${y * -8}px) scale(1.06)`;
+    });
+
+    // Gyroscope
+    if (window.DeviceOrientationEvent) {
+      window.addEventListener('deviceorientation', (e) => {
+        const x = (e.gamma || 0) / 45;
+        const y = (e.beta || 0) / 90;
+        const photo = document.querySelector('.venue-photo');
+        if (photo) photo.style.transform = `translate(${x * -10}px, ${y * -10}px) scale(1.06)`;
+      });
+    }
+
+    // Tap sur objet = zoom
+    objs.forEach(obj => {
+      obj.addEventListener('click', () => {
+        obj.style.transition = 'all 0.8s cubic-bezier(0.16,1,0.3,1)';
+        obj.style.transform = 'scale(2) translateZ(100px)';
+        obj.style.zIndex = '100';
+        obj.style.filter = 'brightness(1.15) blur(0) drop-shadow(0 20px 50px rgba(212,168,83,0.4))';
+        objs.forEach(o => { if (o !== obj) { o.style.transition = 'opacity 0.5s ease'; o.style.opacity = '0.1'; } });
+        document.querySelector('.venue-photo').style.filter = 'brightness(0.12) blur(6px)';
+        // Reset demo
+        setTimeout(() => {
+          obj.style.transform = '';
+          obj.style.zIndex = '';
+          obj.style.filter = '';
+          obj.style.transition = '';
+          objs.forEach(o => { o.style.opacity = ''; o.style.transition = ''; });
+          document.querySelector('.venue-photo').style.filter = 'brightness(0.3) saturate(0.7)';
+        }, 2000);
+      });
+    });
+
+    // Dock
+    document.querySelectorAll('.dock-btn').forEach(b => {
+      b.addEventListener('click', () => {
+        document.querySelectorAll('.dock-btn').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>

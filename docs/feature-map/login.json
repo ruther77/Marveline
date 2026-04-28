@@ -1,0 +1,40 @@
+{
+  "id": "page:login",
+  "type": "page",
+  "name": "Connexion",
+  "description": "Page principale \"Connexion\". Contient : Connexion, Champ : vous@exemple.com, Champ : ••••••••. Paramètres : email, password.",
+  "route": "/login",
+  "attributes": {
+    "auth_required": false,
+    "roles": [
+      "*"
+    ],
+    "group": "Auth",
+    "dom_h1": "Gérez votre activité simplement"
+  },
+  "params": {
+    "email": "email",
+    "password": "password"
+  },
+  "features": [
+    "Connexion",
+    "Champ : vous@exemple.com",
+    "Champ : ••••••••"
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Mot de passe oublié ?",
+      "trigger": "click",
+      "target_id": "page:forgot-password",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Se connecter",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

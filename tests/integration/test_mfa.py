@@ -242,7 +242,7 @@ class TestMFALoginFlow:
         assert verify_resp.status_code == 200
         tokens = verify_resp.json()
         assert "access_token" in tokens
-        assert "refresh_token" in tokens
+        assert "refresh_token" in verify_resp.cookies  # httpOnly cookie
         assert tokens["token_type"] == "bearer"
         assert tokens["expires_in"] > 0
 
@@ -399,7 +399,7 @@ class TestMFALoginFlow:
         assert resp.status_code == 200
         data = resp.json()
         assert "access_token" in data
-        assert "refresh_token" in data
+        assert "refresh_token" in resp.cookies  # httpOnly cookie
         assert "mfa_required" not in data
 
 

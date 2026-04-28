@@ -1,6 +1,6 @@
 """Modèle Product - Catalogue de vaisselle et accessoires louables."""
 from typing import Optional
-from sqlalchemy import BigInteger, CheckConstraint, Integer, String, UniqueConstraint
+from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, TenantMixin, SoftDeleteMixin
 from app.constants import ProductCondition
@@ -47,13 +47,13 @@ class Product(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     )
 
     # Tarification (en centimes)
-    price_per_day: Mapped[int] = mapped_column(
+    price_per_day_cents: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
         comment="Prix location par jour en centimes (250 = 2.50€)"
     )
 
-    deposit_amount: Mapped[int] = mapped_column(
+    deposit_amount_cents: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
         default=0,
@@ -90,10 +90,95 @@ class Product(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
         comment="URL de l'image du produit"
     )
 
+    # Tarification complémentaire
+    cleaning_fee_cents: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        default=0,
+        comment="Frais de nettoyage en centimes (0 = inclus dans le prix, règle marveline.fr)"
+    )
+
+    # Poids / Volume
+    weight_grams: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Poids unitaire en grammes (NULL = non renseigné)"
+    )
+
+    volume_cm3: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Volume unitaire en cm³ (NULL = non renseigné)"
+    )
+
+    # Fournisseur (optionnel)
+    supplier_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("suppliers.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="FK optionnelle vers le fournisseur principal du produit"
+    )
+
+    # Descriptions
+    description: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Description longue du produit"
+    )
+
+    short_description: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Description courte (utilisée dans les bundles et listes)"
+    )
+
+    # TVA
+    tva_rate: Mapped[float] = mapped_column(
+        nullable=False,
+        default=0.20,
+        comment="Taux TVA appliqué à ce produit (ex: 0.20 = 20%)"
+    )
+
+    # Contraintes de réservation
+    requires_advance_booking_days: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        comment="Délai minimum de réservation en jours (90 pour nappages, 0 sinon)"
+    )
+
     # Relations
     reservation_lines: Mapped[list["ReservationLine"]] = relationship(
         "ReservationLine",
         back_populates="product"
+    )
+
+    variants: Mapped[list["ProductVariant"]] = relationship(
+        "ProductVariant",
+        back_populates="product",
+        cascade="all, delete-orphan",
+    )
+
+    stock_items: Mapped[list["StockItem"]] = relationship(
+        "StockItem",
+        back_populates="product",
+        cascade="all, delete-orphan",
+    )
+
+    maintenances: Mapped[list["ProductMaintenance"]] = relationship(
+        "ProductMaintenance",
+        back_populates="product",
+        cascade="all, delete-orphan",
+        lazy="select",
+    )
+
+    images: Mapped[list["ProductImage"]] = relationship(  # type: ignore[name-defined]
+        "ProductImage",
+        back_populates="product",
+        cascade="all, delete-orphan",
+        lazy="select",
+        order_by="ProductImage.sort_order",
     )
 
     # Contraintes
@@ -114,12 +199,12 @@ class Product(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
         ),
         # Prix positif
         CheckConstraint(
-            "price_per_day >= 0",
+            "price_per_day_cents >= 0",
             name="check_product_price_positive"
         ),
         # Caution positive
         CheckConstraint(
-            "deposit_amount >= 0",
+            "deposit_amount_cents >= 0",
             name="check_product_deposit_positive"
         ),
         # Stock cohérent
@@ -131,6 +216,26 @@ class Product(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
         CheckConstraint(
             "condition IN ('neuf', 'bon', 'use', 'hors_service')",
             name="check_product_condition_valid"
+        ),
+        # Frais nettoyage positif
+        CheckConstraint(
+            "cleaning_fee_cents >= 0",
+            name="check_product_cleaning_fee_positive"
+        ),
+        # Délai réservation positif
+        CheckConstraint(
+            "requires_advance_booking_days >= 0",
+            name="check_product_advance_booking_positive"
+        ),
+        # Poids positif
+        CheckConstraint(
+            "weight_grams IS NULL OR weight_grams >= 0",
+            name="check_product_weight_grams_positive"
+        ),
+        # Volume positif
+        CheckConstraint(
+            "volume_cm3 IS NULL OR volume_cm3 >= 0",
+            name="check_product_volume_cm3_positive"
         ),
     )
 

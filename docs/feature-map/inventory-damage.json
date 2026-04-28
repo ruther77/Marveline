@@ -1,0 +1,80 @@
+{
+  "id": "page:inventory-damage",
+  "type": "page",
+  "name": "Types de dommages",
+  "description": "Page principale \"Types de dommages\". Contenu non détecté automatiquement.",
+  "route": "/inventory/damage-types",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "manager",
+      "admin"
+    ],
+    "group": "Inventaire",
+    "dom_h1": "Types de dommages"
+  },
+  "params": {},
+  "features": [],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nouveau type",
+      "trigger": "click",
+      "target_id": "modal:nouveau-type",
+      "node": {
+        "id": "modal:nouveau-type",
+        "type": "modal",
+        "name": "Nouveau type",
+        "description": "Modal/panneau ouvert(e) par le bouton \"Nouveau type\" sur la page Types de dommages. Non extrait automatiquement.",
+        "attributes": {
+          "scan_status": "placeholder"
+        },
+        "params": {},
+        "features": [],
+        "children": []
+      }
+    }
+  ]
+}

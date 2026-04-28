@@ -30,7 +30,7 @@ def test_repository_get_by_id_cache_miss_then_hit(test_db, test_tenant):
         name="Assiette Cache Test",
         sku="CACHE-001",
         category="assiettes",
-        price_per_day=250,
+        price_per_day_cents=250,
         available_quantity=10,
         stock_quantity=10,
         is_active=True
@@ -66,7 +66,7 @@ def test_repository_cache_invalidation_on_update(test_db, test_tenant):
         name="Produit Original",
         sku="UPDATE-001",
         category="verres",
-        price_per_day=100,
+        price_per_day_cents=100,
         available_quantity=5,
         stock_quantity=5,
         is_active=True
@@ -106,7 +106,7 @@ def test_repository_cache_invalidation_on_soft_delete(test_db, test_tenant):
         name="Produit à Supprimer",
         sku="DELETE-001",
         category="couverts",
-        price_per_day=150,
+        price_per_day_cents=150,
         available_quantity=3,
         stock_quantity=3,
         is_active=True
@@ -138,7 +138,7 @@ def test_repository_cache_multi_tenant_isolation(test_db, test_tenant, test_tena
         name="Produit Tenant 1",
         sku="TENANT1-001",
         category="nappes",
-        price_per_day=200,
+        price_per_day_cents=200,
         available_quantity=8,
         stock_quantity=8,
         is_active=True
@@ -152,7 +152,7 @@ def test_repository_cache_multi_tenant_isolation(test_db, test_tenant, test_tena
         name="Produit Tenant 2",
         sku="TENANT2-001",
         category="decorations",
-        price_per_day=300,
+        price_per_day_cents=300,
         available_quantity=6,
         stock_quantity=6,
         is_active=True
@@ -191,7 +191,7 @@ def test_repository_serialization_datetime(test_db, test_tenant):
         name="Produit Datetime Test",
         sku="DATETIME-001",
         category="mobilier",
-        price_per_day=120,
+        price_per_day_cents=120,
         available_quantity=4,
         stock_quantity=4,
         is_active=True
@@ -233,7 +233,7 @@ def test_repository_cache_respects_include_inactive(test_db, test_tenant):
         name="Produit Actif",
         sku="ACTIVE-001",
         category="assiettes",
-        price_per_day=180,
+        price_per_day_cents=180,
         available_quantity=2,
         stock_quantity=2,
         is_active=True
@@ -246,7 +246,7 @@ def test_repository_cache_respects_include_inactive(test_db, test_tenant):
         name="Produit Inactif",
         sku="INACTIVE-001",
         category="verres",
-        price_per_day=150,
+        price_per_day_cents=150,
         available_quantity=3,
         stock_quantity=3,
         is_active=False  # ← Créé directement inactif
@@ -298,7 +298,7 @@ def test_repository_cache_preserves_dirty_session_state(test_db, test_tenant):
         name="Produit Identity Map",
         sku="IDENTITY-MAP-001",
         category="assiettes",
-        price_per_day=250,
+        price_per_day_cents=250,
         available_quantity=20,
         stock_quantity=20,
         is_active=True

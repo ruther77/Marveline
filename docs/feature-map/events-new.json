@@ -1,0 +1,139 @@
+{
+  "id": "page:events-new",
+  "type": "page",
+  "name": "Nouvelle réservation",
+  "description": "Page principale \"Nouvelle réservation\". Contient : Client, Dates, Détails événement, Produits, Récapitulatif, Champ : Rechercher un client…. Paramètres : rechercher-un-client, event-date, delivery-date, return-date, event-location, event-type, event-name, guest-count, notes.",
+  "route": "/events/new",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "staff",
+      "manager",
+      "admin"
+    ],
+    "group": "Événements",
+    "dom_h1": "Nouvelle réservation"
+  },
+  "params": {
+    "rechercher-un-client": "text",
+    "event-date": "date",
+    "delivery-date": "date",
+    "return-date": "date",
+    "event-location": "text",
+    "event-type": "select",
+    "event-name": "text",
+    "guest-count": "number",
+    "notes": "textarea"
+  },
+  "features": [
+    "Client",
+    "Dates",
+    "Détails événement",
+    "Produits",
+    "Récapitulatif",
+    "Champ : Rechercher un client…",
+    "Champ : event_date",
+    "Champ : delivery_date",
+    "Champ : return_date",
+    "Champ : Adresse ou nom du lieu",
+    "Champ : event_type"
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Annuler",
+      "trigger": "click",
+      "target_id": "page:events",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Ajouter du catalogue",
+      "trigger": "click",
+      "target_id": "modal:ajouter-du-catalogue",
+      "node": {
+        "id": "modal:selectionner-un-produit",
+        "type": "form",
+        "name": "Sélectionner un produit",
+        "description": "Formulaire \"Sélectionner un produit\". Contient : Chargement..., Champ : Rechercher un produit..., Fermer. Paramètres : rechercher-un-produit.",
+        "attributes": {
+          "depth": 1,
+          "opened_from_depth": 0
+        },
+        "params": {
+          "rechercher-un-produit": "text"
+        },
+        "features": [
+          "Chargement...",
+          "Champ : Rechercher un produit...",
+          "Fermer"
+        ],
+        "children": [
+          {
+            "link_type": "action",
+            "label": "Fermer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          }
+        ]
+      }
+    },
+    {
+      "link_type": "action",
+      "label": "Parcourir le catalogue",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Créer la réservation",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

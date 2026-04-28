@@ -3,15 +3,17 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import select, and_, or_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.core.database import get_db
-from app.core.deps import get_current_user
-from sqlalchemy import and_, or_
+from app.constants.errors import ErrorMessages
+from app.core.database import get_async_db
+from app.core.deps import get_current_user, require_scope, UserCompat
+from app.core.permissions import Scope
 from app.models.pricing import PricingRule, PricingTier
 from app.models.product import Product
-from app.models.user import User
+from app.schemas.common import PaginatedResponse, PaginationParams
 from app.schemas.pricing import (
     PricingRuleCreate,
     PricingRuleResponse,
@@ -25,40 +27,55 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/pricing", tags=["Pricing"])
 
 
-def _get_or_404(rule_id: int, tenant_id: int, db: Session) -> PricingRule:
-    rule = db.execute(
-        select(PricingRule).filter(
+async def _get_or_404(rule_id: int, tenant_id: int, db: AsyncSession) -> PricingRule:
+    result = await db.execute(
+        select(PricingRule)
+        .options(selectinload(PricingRule.tiers))
+        .filter(
             PricingRule.id == rule_id,
             PricingRule.tenant_id == tenant_id,
         )
-    ).scalar_one_or_none()
+    )
+    rule = result.scalar_one_or_none()
     if not rule:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Règle de pricing {rule_id} introuvable",
+            detail=ErrorMessages.PRICING_RULE_NOT_FOUND,
         )
     return rule
 
 
-@router.get("/rules", response_model=list[PricingRuleResponse])
-def list_pricing_rules(
+@router.get("/rules", response_model=PaginatedResponse[PricingRuleResponse])
+async def list_pricing_rules(
     active_only: bool = True,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> list[PricingRuleResponse]:
+    pagination: PaginationParams = Depends(),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.PRICING_READ)),
+) -> PaginatedResponse[PricingRuleResponse]:
     """Liste les règles de pricing du tenant."""
-    query = select(PricingRule).filter(PricingRule.tenant_id == current_user.tenant_id)
+    from sqlalchemy import func
+    base = select(PricingRule).filter(PricingRule.tenant_id == current_user.tenant_id)
     if active_only:
-        query = query.filter(PricingRule.active == True)  # noqa: E712
-    rules = db.execute(query.order_by(PricingRule.id)).scalars().all()
-    return [PricingRuleResponse.model_validate(r) for r in rules]
+        base = base.filter(PricingRule.active == True)  # noqa: E712
+    total = (await db.execute(
+        select(func.count()).select_from(base.subquery())
+    )).scalar() or 0
+    query = base.options(selectinload(PricingRule.tiers)).order_by(PricingRule.id)
+    query = query.offset(pagination.skip).limit(pagination.limit)
+    rules = (await db.execute(query)).scalars().all()
+    return PaginatedResponse(
+        items=[PricingRuleResponse.model_validate(r) for r in rules],
+        total=total,
+        skip=pagination.skip,
+        limit=pagination.limit,
+    )
 
 
 @router.post("/rules", response_model=PricingRuleResponse, status_code=status.HTTP_201_CREATED)
-def create_pricing_rule(
+async def create_pricing_rule(
     data: PricingRuleCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.PRICING_WRITE)),
 ) -> PricingRuleResponse:
     """Crée une règle de pricing."""
     now = datetime.now(tz=timezone.utc)
@@ -76,7 +93,7 @@ def create_pricing_rule(
         updated_at=now,
     )
     db.add(rule)
-    db.flush()
+    await db.flush()
 
     for tier_data in data.tiers:
         tier = PricingTier(
@@ -88,76 +105,81 @@ def create_pricing_rule(
         )
         db.add(tier)
 
-    db.commit()
-    db.refresh(rule)
-    return PricingRuleResponse.model_validate(rule)
+    await db.commit()
+    return PricingRuleResponse.model_validate(
+        await _get_or_404(rule.id, current_user.tenant_id, db)
+    )
 
 
 @router.get("/rules/{rule_id}", response_model=PricingRuleResponse)
-def get_pricing_rule(
+async def get_pricing_rule(
     rule_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.PRICING_READ)),
 ) -> PricingRuleResponse:
     """Récupère une règle par ID."""
-    rule = _get_or_404(rule_id, current_user.tenant_id, db)
+    rule = await _get_or_404(rule_id, current_user.tenant_id, db)
     return PricingRuleResponse.model_validate(rule)
 
 
 @router.patch("/rules/{rule_id}", response_model=PricingRuleResponse)
-def update_pricing_rule(
+async def update_pricing_rule(
     rule_id: int,
     data: PricingRuleUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.PRICING_WRITE)),
 ) -> PricingRuleResponse:
     """Met à jour une règle (PATCH partiel)."""
-    rule = _get_or_404(rule_id, current_user.tenant_id, db)
+    rule = await _get_or_404(rule_id, current_user.tenant_id, db)
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(rule, field, value)
     rule.updated_at = datetime.now(tz=timezone.utc)
-    db.commit()
-    db.refresh(rule)
-    return PricingRuleResponse.model_validate(rule)
+    await db.commit()
+    return PricingRuleResponse.model_validate(
+        await _get_or_404(rule.id, current_user.tenant_id, db)
+    )
 
 
 @router.delete("/rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_pricing_rule(
+async def delete_pricing_rule(
     rule_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.PRICING_WRITE)),
 ) -> None:
     """Soft-delete : désactive la règle (active=False)."""
-    rule = _get_or_404(rule_id, current_user.tenant_id, db)
+    rule = await _get_or_404(rule_id, current_user.tenant_id, db)
     rule.active = False
     rule.updated_at = datetime.now(tz=timezone.utc)
-    db.commit()
+    await db.commit()
 
 
-@router.get("/rules/product/{product_id}", response_model=list[PricingRuleResponse])
-def get_rules_for_product(
+@router.get("/rules/product/{product_id}", response_model=PaginatedResponse[PricingRuleResponse])
+async def get_rules_for_product(
     product_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> list[PricingRuleResponse]:
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.PRICING_READ)),
+) -> PaginatedResponse[PricingRuleResponse]:
     """Retourne les règles applicables à un produit (product direct + all)."""
-    rules = db.execute(
-        select(PricingRule).filter(
+    rules = (await db.execute(
+        select(PricingRule)
+        .options(selectinload(PricingRule.tiers))
+        .filter(
             PricingRule.tenant_id == current_user.tenant_id,
             PricingRule.active == True,  # noqa: E712
             PricingRule.applies_to.in_(["product", "all"]),
         ).filter(
             (PricingRule.target_id == product_id) | (PricingRule.applies_to == "all")
         ).order_by(PricingRule.id)
-    ).scalars().all()
-    return [PricingRuleResponse.model_validate(r) for r in rules]
+    )).scalars().all()
+    items = [PricingRuleResponse.model_validate(r) for r in rules]
+    return PaginatedResponse[PricingRuleResponse](items=items, total=len(items), skip=0, limit=max(len(items), 1))
 
 
 @router.post("/simulate", response_model=PricingSimulateResponse)
-def simulate_pricing(
+async def simulate_pricing(
     data: PricingSimulateRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.PRICING_WRITE)),
 ) -> PricingSimulateResponse:
     """Simule le prix final d'un produit selon les règles de pricing actives.
 
@@ -167,22 +189,22 @@ def simulate_pricing(
     simulation_date = data.simulation_date or datetime.now(tz=timezone.utc).date()
 
     # Récupérer le produit pour le prix de base
-    product = db.execute(
+    product = (await db.execute(
         select(Product).filter(
             Product.id == data.product_id,
             Product.tenant_id == current_user.tenant_id,
         )
-    ).scalar_one_or_none()
+    )).scalar_one_or_none()
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Produit {data.product_id} introuvable",
         )
 
-    base_price = getattr(product, "price_per_day", 0) or 0
+    base_price = getattr(product, "price_per_day_cents", 0) or 0
 
     # Chercher les règles actives applicables (product-specific d'abord, puis all)
-    rules_query = select(PricingRule).filter(
+    rules_query = select(PricingRule).options(selectinload(PricingRule.tiers)).filter(
         PricingRule.tenant_id == current_user.tenant_id,
         PricingRule.active == True,  # noqa: E712
         or_(
@@ -197,7 +219,7 @@ def simulate_pricing(
         (PricingRule.applies_to == "all").asc(),
         PricingRule.id.asc(),
     )
-    rules = db.execute(rules_query).scalars().all()
+    rules = (await db.execute(rules_query)).scalars().all()
 
     applied_rule = None
     final_price = base_price

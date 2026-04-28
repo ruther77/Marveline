@@ -1,0 +1,106 @@
+services:
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: futurproj_prometheus
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    networks:
+      - marveline_net
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: futurproj_grafana
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    networks:
+      - marveline_net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: futurproj_alertmanager
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager:/etc/alertmanager:ro
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+    networks:
+      - marveline_net
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: futurproj_node_exporter
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    networks:
+      - marveline_net
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: futurproj_postgres_exporter
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-marveline}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-marveline}?sslmode=disable"
+    networks:
+      - marveline_net
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  marveline_net:
+    external: true
+    name: futurproj_marveline_net

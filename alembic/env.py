@@ -8,9 +8,14 @@ from app.core.config import settings
 from app.models.base import Base
 # CRITIQUE: Importer tous les modèles pour autogenerate (fix B5)
 from app.models import (  # noqa: F401
+    # IAM v2
+    Account, AccountOAuthIdentity, TenantMembership, AccountSession,
+    # Core
     Customer, Product, Reservation, ReservationLine, Invoice,
-    User, AuditLog, MFADevice, Category, ProductBundle, BundleItem,
+    AuditLog, MFADevice, Category, ProductBundle, BundleItem,
     ApiKey, FeatureFlag, InventoryMovement, MovementItem,
+    AuthRole, AuthScope, AuthRoleScope, UserRole,
+    PasswordResetToken,
 )
 
 # Configuration Alembic

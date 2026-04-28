@@ -173,8 +173,8 @@ class TestProductModel:
             name="Assiette plate blanche 28cm",
             sku="ASS-PLATE-28-WHI",
             category=ProductCategory.ASSIETTES,
-            price_per_day=250,  # 2.50€
-            deposit_amount=500,  # 5€
+            price_per_day_cents=250,  # 2.50€
+            deposit_amount_cents=500,  # 5€
             stock_quantity=100,
             available_quantity=100,
             condition=ProductCondition.NEUF
@@ -183,8 +183,8 @@ class TestProductModel:
         test_db.commit()
 
         assert product.id is not None
-        assert product.price_per_day == 250
-        assert product.deposit_amount == 500
+        assert product.price_per_day_cents == 250
+        assert product.deposit_amount_cents == 500
 
     def test_product_category_invalid(self, test_db):
         """Test contrainte CHECK category valide."""
@@ -193,7 +193,7 @@ class TestProductModel:
             name="Test",
             sku="TEST-001",
             category="invalide",  # Invalide
-            price_per_day=100,
+            price_per_day_cents=100,
             stock_quantity=10,
             available_quantity=10
         )
@@ -209,7 +209,7 @@ class TestProductModel:
             name="Test Product",
             sku="TEST-002",
             category=ProductCategory.VERRES,
-            price_per_day=100,
+            price_per_day_cents=100,
             stock_quantity=50,
             available_quantity=60  # > stock_quantity → erreur
         )
@@ -225,7 +225,7 @@ class TestProductModel:
             name="Test",
             sku="TEST-003",
             category=ProductCategory.COUVERTS,
-            price_per_day=-100,  # Négatif → erreur
+            price_per_day_cents=-100,  # Négatif → erreur
             stock_quantity=10,
             available_quantity=10
         )
@@ -241,7 +241,7 @@ class TestProductModel:
             name="Produit 1",
             sku="UNIQUE-SKU",
             category=ProductCategory.NAPPES,
-            price_per_day=100,
+            price_per_day_cents=100,
             stock_quantity=10,
             available_quantity=10
         )
@@ -254,7 +254,7 @@ class TestProductModel:
             name="Produit 2",
             sku="UNIQUE-SKU",
             category=ProductCategory.DECORATIONS,
-            price_per_day=200,
+            price_per_day_cents=200,
             stock_quantity=5,
             available_quantity=5
         )
@@ -290,8 +290,8 @@ class TestReservationModel:
             delivery_date=today + timedelta(days=6),
             return_date=today + timedelta(days=8),
             event_location="Salle des Fêtes Paris",
-            total_amount=15000,  # 150€
-            deposit_amount=5000  # 50€
+            total_amount_cents=15000,  # 150€
+            deposit_amount_cents=5000  # 50€
         )
         test_db.add(reservation)
         test_db.commit()
@@ -374,7 +374,7 @@ class TestReservationLineModel:
             name="Verre à vin",
             sku="VERRE-VIN-001",
             category=ProductCategory.VERRES,
-            price_per_day=150,
+            price_per_day_cents=150,
             stock_quantity=200,
             available_quantity=200
         )
@@ -399,8 +399,8 @@ class TestReservationLineModel:
             reservation_id=reservation.id,
             product_id=product.id,
             quantity=50,
-            unit_price=150,
-            subtotal=7500  # 50 × 150
+            unit_price_cents=150,
+            subtotal_cents=7500  # 50 × 150
         )
         test_db.add(line)
         test_db.commit()
@@ -426,7 +426,7 @@ class TestReservationLineModel:
             name="Test Product",
             sku="QTY-001",
             category=ProductCategory.MOBILIER,
-            price_per_day=100,
+            price_per_day_cents=100,
             stock_quantity=10,
             available_quantity=10
         )
@@ -450,8 +450,8 @@ class TestReservationLineModel:
             reservation_id=reservation.id,
             product_id=product.id,
             quantity=0,  # Invalid
-            unit_price=100,
-            subtotal=0
+            unit_price_cents=100,
+            subtotal_cents=0
         )
         test_db.add(line)
 
@@ -481,7 +481,7 @@ class TestInvoiceModel:
             event_date=today + timedelta(days=14),
             delivery_date=today + timedelta(days=13),
             return_date=today + timedelta(days=15),
-            total_amount=25000
+            total_amount_cents=25000
         )
         test_db.add(reservation)
         test_db.flush()
@@ -492,7 +492,7 @@ class TestInvoiceModel:
             invoice_number="INV-2026-0001",
             issue_date=today,
             due_date=today + timedelta(days=30),
-            total_amount=25000
+            total_amount_cents=25000
         )
         test_db.add(invoice)
         test_db.commit()
@@ -531,8 +531,8 @@ class TestInvoiceModel:
             invoice_number="INV-PAID-001",
             issue_date=today,
             due_date=today + timedelta(days=15),
-            total_amount=10000,
-            paid_amount=10000  # Payé en totalité
+            total_amount_cents=10000,
+            paid_amount_cents=10000  # Payé en totalité
         )
         test_db.add(invoice)
         test_db.commit()
@@ -570,8 +570,8 @@ class TestInvoiceModel:
             invoice_number="INV-OVER-001",
             issue_date=today,
             due_date=today + timedelta(days=15),
-            total_amount=10000,
-            paid_amount=15000  # > total → erreur
+            total_amount_cents=10000,
+            paid_amount_cents=15000  # > total → erreur
         )
         test_db.add(invoice)
 
@@ -608,7 +608,7 @@ class TestInvoiceModel:
             invoice_number="INV-DATE-001",
             issue_date=today,
             due_date=today - timedelta(days=10),  # Avant issue → erreur
-            total_amount=5000
+            total_amount_cents=5000
         )
         test_db.add(invoice)
 

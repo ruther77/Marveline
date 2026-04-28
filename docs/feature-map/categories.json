@@ -1,0 +1,122 @@
+{
+  "id": "page:categories",
+  "type": "page",
+  "name": "Catégories",
+  "description": "Page principale \"Catégories\". Contenu non détecté automatiquement.",
+  "route": "/products/categories",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "staff",
+      "manager",
+      "admin"
+    ],
+    "group": "Catalogue",
+    "dom_h1": "Categories"
+  },
+  "params": {},
+  "features": [],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nouvelle categorie",
+      "trigger": "click",
+      "target_id": "modal:nouvelle-categorie",
+      "node": {
+        "id": "modal:nouvelle-categorie",
+        "type": "form",
+        "name": "Nouvelle catégorie",
+        "description": "Formulaire \"Nouvelle catégorie\". Contient : Les catégories avec un ordre plus petit apparaissent en premier, Champ : Mobilier, Champ : parent_id, Champ : Description de la catégorie..., Champ : https://example.com/image.jpg, Champ : 0. Paramètres : name, parent-id, description, image-url, display-order, is-active.",
+        "attributes": {
+          "depth": 1,
+          "opened_from_depth": 0
+        },
+        "params": {
+          "name": "text",
+          "parent-id": "select",
+          "description": "textarea",
+          "image-url": "text",
+          "display-order": "number",
+          "is-active": "checkbox"
+        },
+        "features": [
+          "Les catégories avec un ordre plus petit apparaissent en premier",
+          "Champ : Mobilier",
+          "Champ : parent_id",
+          "Champ : Description de la catégorie...",
+          "Champ : https://example.com/image.jpg",
+          "Champ : 0",
+          "Champ : is_active",
+          "Fermer",
+          "Annuler",
+          "Créer"
+        ],
+        "children": [
+          {
+            "link_type": "action",
+            "label": "Fermer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "action",
+            "label": "Annuler",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "form_submit",
+            "label": "Créer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          }
+        ]
+      }
+    }
+  ]
+}

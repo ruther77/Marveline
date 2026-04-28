@@ -25,8 +25,8 @@ def tenant1_product(test_db):
         name="Table tenant 1",
         sku="TABLE-T1-SECURITY",
         category=ProductCategory.NAPPES,
-        price_per_day=2000,
-        deposit_amount=5000,
+        price_per_day_cents=2000,
+        deposit_amount_cents=5000,
         stock_quantity=10,
         available_quantity=10,
         condition=ProductCondition.NEUF,
@@ -70,8 +70,8 @@ def tenant1_reservation(test_db, tenant1_customer, tenant1_product):
         return_date=date.today() + timedelta(days=11),
         event_location="Test Location",
         status=ReservationStatus.CONFIRMED,
-        total_amount=6000,
-        deposit_amount=5000,
+        total_amount_cents=6000,
+        deposit_amount_cents=5000,
         deposit_paid=False
     )
     test_db.add(reservation)
@@ -84,8 +84,8 @@ def tenant1_reservation(test_db, tenant1_customer, tenant1_product):
         reservation_id=reservation.id,
         product_id=tenant1_product.id,
         quantity=1,
-        unit_price=2000,
-        subtotal=6000
+        unit_price_cents=2000,
+        subtotal_cents=6000
     )
     test_db.add(line)
     test_db.commit()
@@ -102,8 +102,8 @@ def tenant1_invoice(test_db, tenant1_reservation):
         invoice_number="INV-T1-001",
         issue_date=date.today(),
         due_date=date.today() + timedelta(days=14),
-        total_amount=6000,
-        paid_amount=0,
+        total_amount_cents=6000,
+        paid_amount_cents=0,
         status=ReservationStatus.DRAFT
     )
     test_db.add(invoice)
@@ -181,9 +181,9 @@ def test_tenant2_cannot_update_tenant1_customer(client: TestClient, tenant1_cust
     assert response.status_code == 404
 
 
-def test_tenant2_cannot_delete_tenant1_customer(client: TestClient, tenant1_customer, auth_headers_tenant2):
-    """User tenant2 tente de supprimer client tenant1 → 404."""
-    response = client.delete(f"/api/v1/customers/{tenant1_customer.id}", headers=auth_headers_tenant2)
+def test_tenant2_cannot_delete_tenant1_customer(client: TestClient, tenant1_customer, auth_headers_admin_tenant2):
+    """Admin tenant2 tente de supprimer client tenant1 → 404 (isolation tenant)."""
+    response = client.delete(f"/api/v1/customers/{tenant1_customer.id}", headers=auth_headers_admin_tenant2)
 
     assert response.status_code == 404
 
@@ -328,7 +328,7 @@ def test_tenant2_cannot_list_tenant1_invoices(client: TestClient, tenant1_invoic
 def test_cannot_create_resource_for_another_tenant_via_payload(
     client: TestClient,
     test_db,
-    auth_headers_tenant2
+    auth_headers_admin_tenant2
 ):
     """
     User tenant2 tente de créer produit avec tenant_id=1 dans payload → ignoré.
@@ -347,30 +347,7 @@ def test_cannot_create_resource_for_another_tenant_via_payload(
         "condition": "bon"
     }
 
-    # Créer admin tenant2 pour avoir permission de créer produits
-    from app.models.user import User
-    from app.core.security import get_password_hash, create_access_token
-
-    admin_t2 = User(
-        tenant_id=2,
-        email="admin2@tenant2.com",
-        hashed_password=get_password_hash("admin123"),
-        first_name="Admin Tenant", last_name="2",
-        role="admin",
-        is_active=True
-    )
-    test_db.add(admin_t2)
-    test_db.commit()
-
-    admin_t2_token = create_access_token({
-        "sub": admin_t2.id,
-        "tenant_id": admin_t2.tenant_id,
-        "email": admin_t2.email,
-        "role": admin_t2.role
-    })
-    admin_t2_headers = {"Authorization": f"Bearer {admin_t2_token}"}
-
-    response = client.post("/api/v1/products", json=malicious_payload, headers=admin_t2_headers)
+    response = client.post("/api/v1/products", json=malicious_payload, headers=auth_headers_admin_tenant2)
 
     # Si création réussit, vérifier que tenant_id=2 (pas 1)
     if response.status_code == 201:

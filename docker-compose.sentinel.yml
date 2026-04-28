@@ -1,0 +1,94 @@
+# docker-compose.sentinel.yml — Redis Sentinel HA 3-AZ (§S-10.1)
+#
+# Usage (production-like locale) :
+#   docker compose -f docker-compose.yml -f docker-compose.sentinel.yml up
+#
+# Architecture : 1 master + 2 replicas + 3 sentinelles (quorum 2/3)
+# Ports sentinel : 26379, 26380, 26381
+
+services:
+
+  # ── Redis-SEC replicas ──────────────────────────────────────────────────────
+
+  redis_sec_replica1:
+    image: redis:7-alpine
+    container_name: futurproj_redis_sec_replica1
+    command: >
+      redis-server
+      --port 6382
+      --replicaof futurproj_redis_sec 6380
+      --replica-read-only yes
+      --loglevel warning
+    networks:
+      - futurproj_net
+    depends_on:
+      - redis_sec
+    restart: unless-stopped
+
+  redis_sec_replica2:
+    image: redis:7-alpine
+    container_name: futurproj_redis_sec_replica2
+    command: >
+      redis-server
+      --port 6383
+      --replicaof futurproj_redis_sec 6380
+      --replica-read-only yes
+      --loglevel warning
+    networks:
+      - futurproj_net
+    depends_on:
+      - redis_sec
+    restart: unless-stopped
+
+  # ── Sentinelles (quorum 2/3) ─────────────────────────────────────────────────
+
+  sentinel1:
+    image: redis:7-alpine
+    container_name: futurproj_sentinel1
+    command: >
+      redis-sentinel /etc/sentinel.conf
+    ports:
+      - "26379:26379"
+    volumes:
+      - ./redis/sentinel.conf:/etc/sentinel.conf:ro
+    networks:
+      - futurproj_net
+    depends_on:
+      - redis_sec
+      - redis_sec_replica1
+      - redis_sec_replica2
+    restart: unless-stopped
+
+  sentinel2:
+    image: redis:7-alpine
+    container_name: futurproj_sentinel2
+    command: >
+      redis-sentinel /etc/sentinel.conf
+    ports:
+      - "26380:26379"
+    volumes:
+      - ./redis/sentinel.conf:/etc/sentinel.conf:ro
+    networks:
+      - futurproj_net
+    depends_on:
+      - redis_sec
+    restart: unless-stopped
+
+  sentinel3:
+    image: redis:7-alpine
+    container_name: futurproj_sentinel3
+    command: >
+      redis-sentinel /etc/sentinel.conf
+    ports:
+      - "26381:26379"
+    volumes:
+      - ./redis/sentinel.conf:/etc/sentinel.conf:ro
+    networks:
+      - futurproj_net
+    depends_on:
+      - redis_sec
+    restart: unless-stopped
+
+networks:
+  futurproj_net:
+    external: true

@@ -36,10 +36,25 @@ Example usage :
 """
 import json
 import logging
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any, Optional, List, Callable
 from functools import wraps
 
-from app.core.redis import redis_client
+
+class _DateEncoder(json.JSONEncoder):
+    """Encodeur JSON qui gère date, datetime et Decimal."""
+
+    def default(self, obj: Any) -> Any:
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, date):
+            return obj.isoformat()
+        if isinstance(obj, Decimal):
+            return str(obj)
+        return super().default(obj)
+
+from app.core.redis import redis_cache
 from app.core.metrics import redis_commands_total, redis_command_duration_seconds
 
 logger = logging.getLogger(__name__)
@@ -65,9 +80,9 @@ class CacheService:
 
     def __init__(self):
         """Initialise CacheService avec client Redis."""
-        self.redis = redis_client
+        self.redis = redis_cache
 
-    def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Optional[Any]:
         """Récupère valeur depuis cache Redis.
 
         Args:
@@ -92,8 +107,8 @@ class CacheService:
             import time
             start_time = time.time()
 
-            # GET Redis
-            value = self.redis.client.get(key)
+            # GET Redis (via méthode async FAIL-OPEN de RedisCacheClient)
+            value = await self.redis.cache_get(key)
 
             # Métriques
             duration = time.time() - start_time
@@ -103,19 +118,18 @@ class CacheService:
             if value is None:
                 return None
 
-            # Désérialiser JSON
+            # Désérialiser JSON (decode_responses=True → toujours str)
             try:
                 return json.loads(value)
             except (json.JSONDecodeError, TypeError):
-                # Valeur non-JSON (string brut)
-                return value.decode('utf-8') if isinstance(value, bytes) else value
+                return value
 
         except Exception as e:
             # Fail-open : loguer et retourner None
             logger.warning(f"Cache GET failed for key {key}: {e}")
             return None
 
-    def set(self, key: str, value: Any, ttl: int = 300) -> bool:
+    async def set(self, key: str, value: Any, ttl: int = 300) -> bool:
         """Enregistre valeur dans cache Redis avec TTL.
 
         Args:
@@ -144,12 +158,12 @@ class CacheService:
 
             # Sérialiser JSON si dict/list
             if isinstance(value, (dict, list)):
-                serialized = json.dumps(value, ensure_ascii=False)
+                serialized = json.dumps(value, ensure_ascii=False, cls=_DateEncoder)
             else:
                 serialized = str(value)
 
-            # SET avec TTL
-            self.redis.client.setex(key, ttl, serialized)
+            # SET avec TTL (via méthode async FAIL-OPEN de RedisCacheClient)
+            await self.redis.cache_set(key, serialized, ttl)
 
             # Métriques
             duration = time.time() - start_time
@@ -163,7 +177,7 @@ class CacheService:
             logger.warning(f"Cache SET failed for key {key}: {e}")
             return False
 
-    def delete(self, key: str) -> bool:
+    async def delete(self, key: str) -> bool:
         """Supprime clé du cache Redis.
 
         Args:
@@ -184,22 +198,22 @@ class CacheService:
             import time
             start_time = time.time()
 
-            # DEL Redis
-            result = self.redis.client.delete(key)
+            # DEL Redis (via méthode async FAIL-OPEN de RedisCacheClient)
+            result = await self.redis.cache_delete(key)
 
             # Métriques
             duration = time.time() - start_time
             redis_commands_total.labels(command="del").inc()
             redis_command_duration_seconds.labels(command="del").observe(duration)
 
-            return result > 0  # Redis DEL retourne nombre de clés supprimées
+            return result
 
         except Exception as e:
             # Fail-open
             logger.warning(f"Cache DELETE failed for key {key}: {e}")
             return False
 
-    def invalidate_pattern(self, pattern: str) -> int:
+    async def invalidate_pattern(self, pattern: str) -> int:
         """Invalide toutes les clés matchant un pattern.
 
         Args:
@@ -233,11 +247,11 @@ class CacheService:
             # SCAN itératif (évite bloquer Redis)
             cursor = 0
             while True:
-                cursor, keys = self.redis.client.scan(cursor, match=pattern, count=100)
+                cursor, keys = await self.redis.client.scan(cursor, match=pattern, count=100)
 
                 if keys:
                     # Supprimer batch de clés
-                    deleted_count += self.redis.client.delete(*keys)
+                    deleted_count += await self.redis.client.delete(*keys)
 
                 if cursor == 0:
                     break
@@ -255,7 +269,7 @@ class CacheService:
             logger.warning(f"Cache INVALIDATE_PATTERN failed for pattern {pattern}: {e}")
             return 0
 
-    def flush_all(self) -> bool:
+    async def flush_all(self) -> bool:
         """Vide TOUT le cache Redis (DANGEREUX - usage tests uniquement).
 
         Returns:
@@ -271,7 +285,7 @@ class CacheService:
             True
         """
         try:
-            self.redis.client.flushdb()
+            await self.redis.client.flushdb()
             logger.warning("Cache FLUSHED - All keys deleted")
             return True
         except Exception as e:
@@ -279,87 +293,7 @@ class CacheService:
             return False
 
 
-# ===== Décorateurs Cache =====
-
-def cached(key_prefix: str, ttl: int = 300, tenant_aware: bool = True):
-    """Décorateur cache : retourne valeur cachée si existe, sinon exécute fonction.
-
-    Pattern cache-aside (lazy loading) :
-    1. Check cache Redis
-    2. Si cache hit → retourner valeur
-    3. Si cache miss → exécuter fonction → cacher résultat → retourner
-
-    Args:
-        key_prefix: Préfixe clé Redis (ex: "product", "customer")
-        ttl: Time-to-live en secondes (défaut 5min)
-        tenant_aware: Inclure tenant_id dans clé cache (défaut True)
-
-    Example:
-        @cached(key_prefix="product", ttl=300)
-        def get_product_by_id(product_id: int, tenant_id: int):
-            # Clé Redis générée : "product:1:123" (tenant_id:product_id)
-            return db.query(Product).filter_by(id=product_id, tenant_id=tenant_id).first()
-
-        # 1ère appel : cache miss → query DB → cache result
-        product = get_product_by_id(123, tenant_id=1)  # DB query
-
-        # 2ème appel : cache hit → retourne valeur cachée
-        product = get_product_by_id(123, tenant_id=1)  # Cache hit (pas de DB)
-
-    Notes:
-        - Génère clé cache depuis args fonction (1er arg = ID, 2ème arg = tenant_id si tenant_aware)
-        - Sérialisation JSON automatique
-        - Fail-open : si cache échoue, exécute fonction normalement
-    """
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            cache = CacheService()
-
-            # Générer clé cache depuis args/kwargs
-            # Format : "prefix:tenant_id:id" ou "prefix:id" si pas tenant_aware
-            if tenant_aware:
-                # Extraire id et tenant_id (args ou kwargs)
-                if len(args) >= 1:
-                    item_id = args[0]
-                else:
-                    # Pas d'args → pas de cache (fallback)
-                    return func(*args, **kwargs)
-
-                # Chercher tenant_id dans args ou kwargs
-                if len(args) >= 2:
-                    tenant_id = args[1]
-                elif "tenant_id" in kwargs:
-                    tenant_id = kwargs["tenant_id"]
-                else:
-                    # Pas de tenant_id → pas de cache (fallback)
-                    return func(*args, **kwargs)
-
-                cache_key = f"{key_prefix}:{tenant_id}:{item_id}"
-            elif len(args) >= 1:
-                cache_key = f"{key_prefix}:{args[0]}"  # id uniquement
-            else:
-                # Pas d'args → pas de cache (fallback)
-                return func(*args, **kwargs)
-
-            # Check cache
-            cached_value = cache.get(cache_key)
-            if cached_value is not None:
-                logger.debug(f"Cache HIT: {cache_key}")
-                return cached_value
-
-            # Cache miss → exécuter fonction
-            logger.debug(f"Cache MISS: {cache_key}")
-            result = func(*args, **kwargs)
-
-            # Cacher résultat (si non-None)
-            if result is not None:
-                cache.set(cache_key, result, ttl=ttl)
-
-            return result
-
-        return wrapper
-    return decorator
+# P1-03 : decorateur @cached() supprime (code mort — jamais appele dans le codebase)
 
 
 def cache_invalidate(patterns: List[str]):

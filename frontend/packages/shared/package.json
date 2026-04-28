@@ -1,0 +1,30 @@
+{
+  "name": "@carocorp/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./api": "./src/api/index.ts",
+    "./components/*": "./src/components/*",
+    "./errors/*": "./src/errors/*",
+    "./hooks/*": "./src/hooks/*",
+    "./layout/*": "./src/layout/*",
+    "./lib/*": "./src/lib/*",
+    "./pwa/*": "./src/pwa/*",
+    "./stores/*": "./src/stores/*",
+    "./styles/*": "./src/styles/*",
+    "./types/*": "./src/types/*"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "zustand": "^4.0.0 || ^5.0.0"
+  }
+}

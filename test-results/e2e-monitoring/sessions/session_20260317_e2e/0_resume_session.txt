@@ -1,0 +1,66 @@
+═══════════════════════════════════════════════════════════
+  RÉSUMÉ SESSION E2E — 2026-03-17
+═══════════════════════════════════════════════════════════
+
+PÉRIMÈTRE TESTÉ:
+  ✓ AppSelector (Marveline / MassaCorp)
+  ✓ Login Marveline (credentials pré-remplis)
+  ✓ Dashboard (6 API, toutes 200)
+  ✓ Planning (vue aujourd'hui, 2 retards)
+  ✓ Réservations (liste 12→13 items, filtres, stats)
+  ✓ Opérations (départs/retours)
+  ✓ Menu Plus (Catalogue, Clients, Finances, Stock)
+  ✓ Catalogue/Produits (grille, catégories, images)
+  ✓ Clients (liste, recherche, filtres type)
+  ✓ Finances/Factures (liste, filtres statut, gaps sequence)
+  ✓ Stock/Inventaire (summary, low-stock, mouvements)
+  ✓ Cycle réservation complet: Brouillon → Pre-check → Delivered → Returned → Completed
+  ✓ Restaurant login PIN
+  ✓ Épicerie login formulaire
+
+BUGS DÉTECTÉS:
+  [P1] GET /api/v1/operations/summary → 500
+       Cause: Reservation.is_active n'existe pas (c'est is_archived)
+       Fichier: app/api/v1/endpoints/operations.py:209
+  
+  [P2] Pre-check article-par-article ne persiste pas
+       Le compteur reste "0/1 articles chargés" après vérification
+       Impact: workflow pré-départ bloqué côté frontend
+
+PARASITAGES DÉTECTÉS:
+  [P2] Stock/Inventaire: 26 requêtes (N+1 — GET /products/{id}/stock ×20)
+       Fix: endpoint batch GET /products/stock?ids=...
+  
+  [P2] Notifications polling: 30s intervalle continue même après session expirée
+       Fix: clear interval au changement d'app / logout
+  
+  [P3] Doublon auth/me + users/me au login (appelé 2× chaque)
+  
+  [P3] Doublon reservations + stats au retour liste réservations
+
+PERFORMANCES:
+  Tous les endpoints < 500ms ✓
+  Transitions réservation: 158-163ms ✓
+  Health check: 44ms ✓
+  Aucune alerte performance
+
+SÉCURITÉ VALIDÉE:
+  ✓ CSRF obligatoire pour toutes les mutations (403 sans)
+  ✓ Token refresh silencieux (401 → refresh → 200 → retry)
+  ✓ Redirect post-login (?redirect=...) fonctionne
+  ✓ Cookies HTTP-only (pas de token en localStorage)
+  ✓ Auth guard sur toutes les pages protégées
+
+COHÉRENCE BACKEND/FRONTEND:
+  ✓ Machine à états: 5 transitions validées
+  ✓ Calcul prix: 80 × 0.30€/j × 4j = 96.00€
+  ✓ Caution auto: 288€ = 3× total à la confirmation
+  ✓ Compteurs: réservations, stock, factures cohérents
+  ✓ Return state API: can_return true/false correct
+
+FICHIERS GÉNÉRÉS:
+  1_trace_execution.txt       — Trace complète de chaque action
+  2_temps_execution.txt       — Temps de réponse par endpoint
+  3_parasitages_appels.txt    — Appels parasites et doublons
+  4_coherence_backend_frontend.txt — Vérifications données
+  5_logs_erreurs_activites.txt — Erreurs et activités tous services

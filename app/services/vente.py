@@ -1,12 +1,14 @@
 """Service métier pour les Ventes."""
 from datetime import date
 from typing import Optional
-from sqlalchemy.orm import Session
-from app.models.vente import Vente
-from app.repositories.vente import VenteRepository
-from app.schemas.vente import VenteCreate, VenteUpdate, VentePaymentCreate
-from app.core.exceptions import NotFound, BadRequest
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.constants import VenteStatus
+from app.core.exceptions import BadRequest, NotFound
+from app.models.vente import Vente
+from app.repositories.vente import AsyncVenteRepository
+from app.schemas.vente import VenteCreate, VentePaymentCreate, VenteUpdate
 
 # Machine d'état des transitions
 VENTE_TRANSITIONS: dict[str, list[str]] = {
@@ -20,79 +22,124 @@ VENTE_TRANSITIONS: dict[str, list[str]] = {
 }
 
 
-def _get_or_404(repo: VenteRepository, vente_id: int, tenant_id: int) -> Vente:
-    vente = repo.get_by_id_with_relations(vente_id, tenant_id)
+async def _get_or_404(repo: AsyncVenteRepository, vente_id: int, tenant_id: int) -> Vente:
+    vente = await repo.get_by_id_with_relations(vente_id, tenant_id)
     if not vente:
         raise NotFound(f"Vente {vente_id} introuvable")
     return vente
 
 
-def create_vente(db: Session, tenant_id: int, data: VenteCreate) -> Vente:
+async def _refresh_overdue_statuses(
+    db: AsyncSession, tenant_id: int, vente_id: Optional[int] = None
+) -> int:
+    """Active le statut `overdue` pour les ventes échues non soldées."""
+    from sqlalchemy import update
+    from app.models.vente import Vente
+
+    stmt = (
+        update(Vente)
+        .where(
+            Vente.tenant_id == tenant_id,
+            Vente.is_active.is_(True),
+            Vente.status.in_([VenteStatus.PENDING, VenteStatus.DEPOSIT_PAID]),
+            Vente.payment_due_date.is_not(None),
+            Vente.payment_due_date < date.today(),
+            Vente.paid_cents < Vente.total_cents,
+        )
+        .values(status=VenteStatus.OVERDUE)
+    )
+    if vente_id is not None:
+        stmt = stmt.where(Vente.id == vente_id)
+
+    result = await db.execute(stmt)
+    return result.rowcount or 0
+
+
+async def create_vente(db: AsyncSession, tenant_id: int, data: VenteCreate) -> Vente:
     """Crée une vente et génère la référence."""
-    repo = VenteRepository(db)
-    reference = repo.generate_reference(tenant_id)
-    vente = repo.create_vente(
+    repo = AsyncVenteRepository(db)
+    reference = await repo.generate_reference(tenant_id)
+    vente = await repo.create_vente(
         tenant_id=tenant_id,
         reference=reference,
         customer_id=data.customer_id,
-        lines_data=[l.model_dump() for l in data.lines],
+        lines_data=[line.model_dump() for line in data.lines],
         deposit_pct=data.deposit_pct,
         payment_due_date=data.payment_due_date,
         notes=data.notes,
         invoice_id=data.invoice_id,
         reservation_id=data.reservation_id,
     )
-    db.commit()
-    db.refresh(vente)
-    return vente
+    await db.commit()
+    return await _get_or_404(repo, vente.id, tenant_id)
 
 
-def get_vente(db: Session, tenant_id: int, vente_id: int) -> Vente:
-    repo = VenteRepository(db)
-    return _get_or_404(repo, vente_id, tenant_id)
+async def get_vente(db: AsyncSession, tenant_id: int, vente_id: int) -> Vente:
+    repo = AsyncVenteRepository(db)
+    updated = await _refresh_overdue_statuses(db, tenant_id, vente_id=vente_id)
+    if updated:
+        await db.commit()
+    return await _get_or_404(repo, vente_id, tenant_id)
 
 
-def list_ventes(
-    db: Session,
+async def list_ventes(
+    db: AsyncSession,
     tenant_id: int,
     status: Optional[str] = None,
     customer_id: Optional[int] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    search: Optional[str] = None,
     overdue_only: bool = False,
     skip: int = 0,
     limit: int = 50,
 ) -> tuple[list[Vente], int]:
-    repo = VenteRepository(db)
-    return repo.list_ventes(tenant_id, status, customer_id, overdue_only, skip, limit)
+    repo = AsyncVenteRepository(db)
+    updated = await _refresh_overdue_statuses(db, tenant_id)
+    if updated:
+        await db.commit()
+    return await repo.list_ventes(
+        tenant_id=tenant_id,
+        status=status,
+        customer_id=customer_id,
+        date_from=date_from,
+        date_to=date_to,
+        search=search,
+        overdue_only=overdue_only,
+        skip=skip,
+        limit=limit,
+    )
 
 
-def update_vente(db: Session, tenant_id: int, vente_id: int, data: VenteUpdate) -> Vente:
-    repo = VenteRepository(db)
-    vente = _get_or_404(repo, vente_id, tenant_id)
+async def update_vente(
+    db: AsyncSession, tenant_id: int, vente_id: int, data: VenteUpdate
+) -> Vente:
+    repo = AsyncVenteRepository(db)
+    vente = await _get_or_404(repo, vente_id, tenant_id)
     if vente.status not in (VenteStatus.DRAFT, VenteStatus.PENDING):
         raise BadRequest("Seules les ventes draft ou pending peuvent être modifiées")
     updates = data.model_dump(exclude_none=True)
     for field, value in updates.items():
         setattr(vente, field, value)
-    db.commit()
-    db.refresh(vente)
-    return vente
+    await db.commit()
+    return await _get_or_404(repo, vente_id, tenant_id)
 
 
-def add_payment(
-    db: Session,
+async def add_payment(
+    db: AsyncSession,
     tenant_id: int,
     vente_id: int,
     data: VentePaymentCreate,
     user_id: int,
 ):
     """Enregistre un paiement et met à jour le statut automatiquement."""
-    repo = VenteRepository(db)
-    vente = _get_or_404(repo, vente_id, tenant_id)
+    repo = AsyncVenteRepository(db)
+    vente = await _get_or_404(repo, vente_id, tenant_id)
 
     if vente.status == VenteStatus.REFUNDED:
         raise BadRequest("Impossible d'enregistrer un paiement sur une vente remboursée")
 
-    payment = repo.add_payment(
+    payment = await repo.add_payment(
         vente=vente,
         tenant_id=tenant_id,
         amount_cents=data.amount_cents,
@@ -111,44 +158,45 @@ def add_payment(
     elif vente.status == VenteStatus.DRAFT:
         vente.status = VenteStatus.PENDING
 
-    db.commit()
-    db.refresh(payment)
+    await db.commit()
+    await db.refresh(payment)
     return payment
 
 
-def get_payments(db: Session, tenant_id: int, vente_id: int):
-    repo = VenteRepository(db)
-    _get_or_404(repo, vente_id, tenant_id)  # vérification existence + tenant
-    return repo.get_payments(vente_id, tenant_id)
+async def get_payments(db: AsyncSession, tenant_id: int, vente_id: int):
+    repo = AsyncVenteRepository(db)
+    await _get_or_404(repo, vente_id, tenant_id)  # vérification existence + tenant
+    return await repo.get_payments(vente_id, tenant_id)
 
 
-def refund_vente(db: Session, tenant_id: int, vente_id: int) -> Vente:
+async def refund_vente(db: AsyncSession, tenant_id: int, vente_id: int) -> Vente:
     """Transition vers REFUNDED."""
-    repo = VenteRepository(db)
-    vente = _get_or_404(repo, vente_id, tenant_id)
+    repo = AsyncVenteRepository(db)
+    vente = await _get_or_404(repo, vente_id, tenant_id)
     allowed = VENTE_TRANSITIONS.get(vente.status, [])
     if VenteStatus.REFUNDED not in allowed:
         raise BadRequest(f"Transition {vente.status} → refunded invalide")
     vente.status = VenteStatus.REFUNDED
-    db.commit()
-    db.refresh(vente)
-    return vente
+    await db.commit()
+    return await _get_or_404(repo, vente_id, tenant_id)
 
 
-def cancel_vente(db: Session, tenant_id: int, vente_id: int) -> Vente:
+async def cancel_vente(db: AsyncSession, tenant_id: int, vente_id: int) -> Vente:
     """Transition vers CANCELLED."""
-    repo = VenteRepository(db)
-    vente = _get_or_404(repo, vente_id, tenant_id)
+    repo = AsyncVenteRepository(db)
+    vente = await _get_or_404(repo, vente_id, tenant_id)
     allowed = VENTE_TRANSITIONS.get(vente.status, [])
     if VenteStatus.CANCELLED not in allowed:
         raise BadRequest(f"Transition {vente.status} → cancelled invalide")
     vente.status = VenteStatus.CANCELLED
-    db.commit()
-    db.refresh(vente)
-    return vente
+    await db.commit()
+    return await _get_or_404(repo, vente_id, tenant_id)
 
 
-def get_overdue(db: Session, tenant_id: int, skip: int = 0, limit: int = 50):
-    repo = VenteRepository(db)
-    items, total = repo.list_ventes(tenant_id, overdue_only=True, skip=skip, limit=limit)
+async def get_overdue(db: AsyncSession, tenant_id: int, skip: int = 0, limit: int = 50):
+    repo = AsyncVenteRepository(db)
+    updated = await _refresh_overdue_statuses(db, tenant_id)
+    if updated:
+        await db.commit()
+    items, total = await repo.list_ventes(tenant_id, overdue_only=True, skip=skip, limit=limit)
     return items, total

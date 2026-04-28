@@ -1,0 +1,1497 @@
+# OpenAPI 3.1 — Nouveaux endpoints DEVUP (refactor 2026)
+#
+# Source de vérité pour les nouveaux endpoints introduits par les Blocs 1-7.
+# Endpoints existants non listés ici = inchangés (cf. doc OpenAPI principale `/docs`).
+# Format : OpenAPI 3.1 (compatible FastAPI auto-generation).
+#
+# Convention : chaque opération a operationId = `<verb><Resource>` PascalCase.
+# Tous les endpoints sauf /health/* et /metrics requièrent require_scope().
+#
+# ─────────────────────────────────────────────────────────────────────────
+# Vague 1+2+4 — Endpoints ajoutés à formaliser (sprints livrent la spec) :
+# ─────────────────────────────────────────────────────────────────────────
+# - PUT  /admin/tenant-settings/rfm-thresholds      (B4.S4.T5 — Q27=B Vague 1)
+# - DEL  /admin/accounts/{id}/oauth-identities/{provider} (B2.S4.T8 — Q11=A Vague 1)
+# - POST /webhooks/postmark/delivery                (B6.S1.T8 — notification_log Vague 2)
+# - GET  /admin/notification-log                    (B6.S1.T8 — notification_log Vague 2)
+# - POST /admin/degraded/set-level                  (B1.S4.T2 — cache LRU Vague 2)
+#
+# La spec inline OpenAPI complète est dans le sprint correspondant ; ce header sert
+# de checklist pour la mise à jour du fichier consolidé avant le merge final.
+
+openapi: 3.1.0
+info:
+  title: DEVUP API — Refactor endpoints
+  version: "1.0.0-refactor"
+  description: |
+    Nouveaux endpoints introduits par le refactor 2026-04-27.
+    Référence architecture : `docs/architecture-audit-2026-04-26/architecture-cible.md`.
+
+servers:
+  - url: https://api.devup.fr/api/v1
+    description: Production
+  - url: https://staging-api.devup.fr/api/v1
+    description: Staging
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: admin-devup
+    description: Endpoints DEVUP (superadmin opérateur SaaS)
+  - name: tenant-provisioning
+    description: Provisioning automatique tenants (Bloc 7 §7.5)
+  - name: me
+    description: Self-service utilisateur (export RGPD, etc.)
+  - name: transfer-requests
+    description: Workflow transfer resto → épicerie (Bloc 5 §5.2.13)
+  - name: etl
+    description: Pipeline ETL alimentaire (Bloc 5)
+  - name: customers-import
+    description: Import CSV bulk Celery (Bloc 4 §4.2.12)
+  - name: access-reviews
+    description: SOC2 §10 compliance (Sprint 1 T4 + B6.S1)
+  - name: invoices-credit-notes
+    description: Rectification facture émise (Bloc 3 §3.2.8)
+  - name: reservations
+    description: Conversion atomique Devis→Résa, cancel cascade
+  - name: restaurant
+    description: Marmites + commandes restaurant
+  - name: epicerie
+    description: Ventes + cancel + transferts épicerie
+  - name: print
+    description: ESC/POS thermique
+  - name: health
+    description: Health checks (mTLS pour /metrics)
+
+paths:
+
+  # ═══════════════════════════════════════════════════════════════════
+  # SPRINT 1 — PROD FIRE-DRILL
+  # ═══════════════════════════════════════════════════════════════════
+
+  /restaurant/instances:
+    post:
+      operationId: createRestaurantInstance
+      tags: [restaurant]
+      summary: Lance une marmite (instance de TypePreparation) avec consommation atomique recette.
+      description: |
+        F906 fix Sprint 1 T1 — formule consommation correcte :
+        ```
+        qte_requise = quantite_par_batch × (nb_portions / portions_par_batch)
+        ```
+        Atomique : SELECT FOR UPDATE sur ingrédients + INSERT mouvement consommation
+        + UPDATE stock_actuel + INSERT instance, le tout dans 1 TX.
+      security:
+        - bearerAuth: ["instances:launch"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInstanceRequest"
+      responses:
+        "200":
+          description: Marmite lancée + ingrédients consommés.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstanceResponse"
+        "404":
+          description: TypePreparation ou Ingredient introuvable.
+        "409":
+          description: Stock ingrédient insuffisant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error_code: STOCK_REQUIS_INSUFFISANT
+                detail: "Ingrédient Poulet : 2.500 kg dispo, 3.750 kg requis"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  # ═══════════════════════════════════════════════════════════════════
+  # BLOC 7 — Provisioning DEVUP (B7.S4)
+  # ═══════════════════════════════════════════════════════════════════
+
+  /admin/devup/tenants/provision:
+    post:
+      operationId: provisionTenant
+      tags: [admin-devup, tenant-provisioning]
+      summary: Provisionne un nouveau tenant client (atomique).
+      description: |
+        Bloc 7 §7.5 — workflow de provisioning DEVUP :
+        1. Insert tenants (vertical, app_code, brand_*, country='FR')
+        2. Insert tenant_settings (rfm_thresholds, deposit_policy, devis_default_expiry_days, …)
+        3. Seed defaults vertical-specific (Categories, types_preparation, …)
+        4. CREATE Account admin + TenantMembership(role='admin')
+        5. Generate password reset token + welcome email Postmark
+        6. Outbox event 'TenantProvisioned' → notification ops DEVUP
+        Time-to-onboard : ~10 minutes.
+      security:
+        - bearerAuth: ["tenants:provision"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProvisionTenantRequest"
+      responses:
+        "201":
+          description: Tenant provisionné, email setup envoyé à l'admin.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvisionTenantResponse"
+        "409":
+          description: app_code déjà utilisé.
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+  /admin/devup/tenants/{tenant_id}/suspend:
+    post:
+      operationId: suspendTenant
+      tags: [admin-devup]
+      summary: Suspend un tenant (cascade revoke sessions, désactivation membres).
+      security:
+        - bearerAuth: ["tenants:provision"]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  minLength: 10
+                  maxLength: 500
+      responses:
+        "200":
+          description: Tenant suspendu.
+
+  # ═══════════════════════════════════════════════════════════════════
+  # BLOC 6 — RGPD Article 15 export (B6.S6)
+  # ═══════════════════════════════════════════════════════════════════
+
+  /me/export:
+    post:
+      operationId: requestPersonalDataExport
+      tags: [me]
+      summary: Demande export RGPD Article 15 (asynchrone).
+      description: |
+        Bloc 6 §6.2.7 — RGPD compliance.
+        Enqueue Celery task `export_personal_data_task` qui :
+        1. Aggrège : Customer + Reservations + Invoices + AuditLog + LoyaltyMember
+        2. Export ZIP signed S3 URL (24h TTL)
+        3. Email user avec lien download
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [format]
+              properties:
+                format:
+                  type: string
+                  enum: [csv, json]
+                include_audit_logs:
+                  type: boolean
+                  default: true
+      responses:
+        "202":
+          description: Tâche enqueued.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [task_id, status, estimated_duration_seconds]
+                properties:
+                  task_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [queued]
+                  estimated_duration_seconds:
+                    type: integer
+                    description: Estimation d'exécution (typ. 30-300s selon volume).
+
+  /me/exports/{task_id}/status:
+    get:
+      operationId: getPersonalDataExportStatus
+      tags: [me]
+      summary: Statut tâche export RGPD.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Statut.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [task_id, status]
+                properties:
+                  task_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [queued, processing, completed, failed]
+                  download_url:
+                    type: string
+                    format: uri
+                    description: Présent si status=completed. URL S3 signed 24h TTL.
+                  download_expires_at:
+                    type: string
+                    format: date-time
+                  error_message:
+                    type: string
+                    description: Si status=failed.
+
+  # ═══════════════════════════════════════════════════════════════════
+  # BLOC 5 — TransferRequest workflow (B5.S6)
+  # ═══════════════════════════════════════════════════════════════════
+
+  /transfer-requests/{id}/approve:
+    post:
+      operationId: approveTransferRequest
+      tags: [transfer-requests]
+      summary: Approve une TransferRequest (épicerie admin).
+      description: |
+        Bloc 5 §5.2.13 — Q32=A approval automatique par stock check.
+        Vérifie : `epicerie_stock.quantite >= qty demandée` pour chaque ligne.
+        Si OK → status='APPROVED'. Sinon → 409 STOCK_INSUFFISANT.
+        Lock : `pg_advisory_xact_lock(produit_id)` pour éviter double-approval concurrent.
+      security:
+        - bearerAuth: ["stock:transfer"]
+      parameters:
+        - $ref: "#/components/parameters/TransferRequestIdPath"
+      responses:
+        "200":
+          description: Request approved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferRequestResponse"
+        "409":
+          description: Stock insuffisant ou statut invalide pour transition.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /transfer-requests/{id}/reject:
+    post:
+      operationId: rejectTransferRequest
+      tags: [transfer-requests]
+      summary: Reject une TransferRequest avec raison.
+      security:
+        - bearerAuth: ["stock:transfer"]
+      parameters:
+        - $ref: "#/components/parameters/TransferRequestIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  minLength: 5
+                  maxLength: 500
+      responses:
+        "200":
+          description: Request rejected.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransferRequestResponse"
+
+  /transfer-requests/{id}/fulfill:
+    post:
+      operationId: fulfillTransferRequest
+      tags: [transfer-requests]
+      summary: Fulfill une TransferRequest approved (crée InternalTransfer).
+      description: |
+        Bloc 5 §5.2.13 — étape finale du workflow.
+        1. Vérifie statut == APPROVED
+        2. Crée InternalTransfer correspondant (épicerie → restaurant, FSM=PENDING)
+        3. transfer_request.fulfilled_transfer_id = internal_transfer.id
+        4. FSM transit FULFILLED + Outbox audit
+      security:
+        - bearerAuth: ["stock:transfer"]
+      parameters:
+        - $ref: "#/components/parameters/TransferRequestIdPath"
+      responses:
+        "200":
+          description: Fulfilled, InternalTransfer créé.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/TransferRequestResponse"
+                  - type: object
+                    properties:
+                      fulfilled_transfer_id:
+                        type: integer
+                        description: ID InternalTransfer créé.
+        "409":
+          description: Request pas en statut APPROVED.
+
+  /transfer-requests/{id}/cancel:
+    post:
+      operationId: cancelTransferRequest
+      tags: [transfer-requests]
+      summary: Cancel une TransferRequest (demandeur restaurant).
+      security:
+        - bearerAuth: ["stock:transfer"]
+      parameters:
+        - $ref: "#/components/parameters/TransferRequestIdPath"
+      responses:
+        "200":
+          description: Cancelled.
+
+  # ═══════════════════════════════════════════════════════════════════
+  # BLOC 5 — ETL vendor matching (B5.S4)
+  # ═══════════════════════════════════════════════════════════════════
+
+  /etl/imports/{import_id}/resolve-vendor:
+    post:
+      operationId: resolveEtlVendor
+      tags: [etl]
+      summary: Résout vendor inconnu pour un EtlImport en statut AWAITING_VENDOR_MATCH.
+      description: |
+        Bloc 5 §5.2.10 — Q33=B vendor matching strict.
+        Si vendor_code parsé n'est pas dans `finance_vendors` → import bloqué AWAITING_VENDOR_MATCH.
+        Admin résout via cet endpoint :
+          - link_to_existing : link_vendor_id (existing vendor)
+          - create_new : create vendor explicitement
+      security:
+        - bearerAuth: ["admin:read"]
+      parameters:
+        - name: import_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolution]
+              oneOf:
+                - properties:
+                    resolution:
+                      type: string
+                      enum: [link_to_existing]
+                    link_vendor_id:
+                      type: integer
+                      format: int64
+                  required: [resolution, link_vendor_id]
+                - properties:
+                    resolution:
+                      type: string
+                      enum: [create_new]
+                    vendor_code:
+                      type: string
+                      maxLength: 100
+                    vendor_name:
+                      type: string
+                      maxLength: 255
+                    vendor_address:
+                      type: string
+                  required: [resolution, vendor_code, vendor_name]
+      responses:
+        "200":
+          description: Vendor résolu, EtlImport repasse en statut PENDING (resume processing).
+        "404":
+          description: EtlImport ou vendor introuvable.
+        "409":
+          description: EtlImport pas en statut AWAITING_VENDOR_MATCH.
+
+  # ═══════════════════════════════════════════════════════════════════
+  # BLOC 6 — Health/metrics (B6.S6)
+  # ═══════════════════════════════════════════════════════════════════
+
+  /health/live:
+    get:
+      operationId: healthLive
+      tags: [health]
+      summary: Liveness probe Kubernetes (yield test event loop).
+      description: |
+        Bloc 6 §6.2.16 — async + asyncio.sleep(0) pour détecter event loop bloqué.
+        Toujours 200 si event loop répond. K8s redémarre le pod si timeout.
+      security: []
+      responses:
+        "200":
+          description: Service alive.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, enum: [ok] }
+
+  /health/ready:
+    get:
+      operationId: healthReady
+      tags: [health]
+      summary: Readiness probe (PostgreSQL + Redis + Celery + KMS check).
+      description: |
+        Bloc 6 §6.2.16 — async-native, timeout 1s par dépendance.
+        503 si une dépendance fail (K8s arrête le routing trafic vers ce pod).
+      security: []
+      responses:
+        "200":
+          description: Toutes dépendances OK.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, checks]
+                properties:
+                  status: { type: string, enum: [ok] }
+                  checks:
+                    type: object
+                    properties:
+                      postgres:
+                        type: object
+                        properties:
+                          ok: { type: boolean }
+                          latency_ms: { type: number }
+                          pool_used: { type: integer }
+                          pool_size: { type: integer }
+                      redis:
+                        type: object
+                        properties:
+                          ok: { type: boolean }
+                          latency_ms: { type: number }
+                      celery:
+                        type: object
+                        properties:
+                          ok: { type: boolean }
+                          beat_alive_seconds: { type: integer }
+                      kms:
+                        type: object
+                        properties:
+                          ok: { type: boolean }
+                          latency_ms: { type: number }
+        "503":
+          description: Dépendance KO.
+
+  /health/status:
+    get:
+      operationId: healthStatusPublic
+      tags: [health]
+      summary: Status publique sanitized (pas d'info sensible).
+      description: |
+        Bloc 6 §6.2.16 — F1123 fix : ne révèle pas degradation_level interne.
+        Retourne uniquement `operational | degraded | down`.
+        Détails complets : voir /admin/health/status (auth requise).
+      security: []
+      responses:
+        "200":
+          description: Statut public.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [operational, degraded, down]
+                  message:
+                    type: string
+                    description: Message générique optionnel.
+
+  /admin/health/status:
+    get:
+      operationId: healthStatusAdmin
+      tags: [admin-devup, health]
+      summary: Status admin complet (degradation_level, components, incidents).
+      security:
+        - bearerAuth: ["admin:read"]
+      responses:
+        "200":
+          description: Status complet admin.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, degradation_level]
+                properties:
+                  status:
+                    type: string
+                    enum: [operational, degraded, down]
+                  degradation_level:
+                    type: string
+                    enum: [NOMINAL, READ_ONLY, AUTH_DOWN, EMERGENCY_BYPASS]
+                  components:
+                    type: object
+                  incidents:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Incident"
+
+  /metrics:
+    get:
+      operationId: metricsPrometheus
+      tags: [health]
+      summary: Prometheus scrape endpoint (mTLS Q40=B).
+      description: |
+        Bloc 6 §6.2.15 — mTLS pur via service mesh (Istio) ou nginx-ingress.
+        Pas de Basic auth ni IP whitelist. Le client doit présenter un cert X.509 valide
+        (SPIFFE ID dans whitelist `PROMETHEUS_ALLOWED_SPIFFE_IDS` env).
+      security:
+        - mTLS: []
+      responses:
+        "200":
+          description: Métriques format Prometheus text.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  # HELP http_requests_total Total HTTP requests
+                  # TYPE http_requests_total counter
+                  http_requests_total{method="POST",path="/api/v1/auth/login",status="200",tenant_id="2"} 1234
+        "401":
+          description: Cert client manquant.
+        "403":
+          description: Cert client présent mais SPIFFE ID non whitelisté.
+
+  # ═══════════════════════════════════════════════════════════════════
+  # SPRINT 1 T4 + B6.S1 — Access reviews SOC2 §10
+  # ═══════════════════════════════════════════════════════════════════
+
+  /admin/access-reviews/pending:
+    get:
+      operationId: listPendingAccessReviews
+      tags: [admin-devup, access-reviews]
+      summary: Liste les reviews en attente de certification.
+      security:
+        - bearerAuth: ["admin:read"]
+      parameters:
+        - name: tenant_id
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: review_type
+          in: query
+          schema: { type: string, enum: [privileged, tenant_admin, recertification] }
+        - name: deadline_before
+          in: query
+          schema: { type: string, format: date-time }
+        - $ref: "#/components/parameters/PaginationLimit"
+        - $ref: "#/components/parameters/PaginationOffset"
+      responses:
+        "200":
+          description: Liste reviews pending.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/AccessReview" }
+                  total: { type: integer }
+
+  /admin/access-reviews/{review_id}/certify:
+    post:
+      operationId: certifyAccessReview
+      tags: [admin-devup, access-reviews]
+      summary: Certifie un user (review.decision='certified').
+      security:
+        - bearerAuth: ["admin:read"]
+      parameters:
+        - name: review_id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notes: { type: string, maxLength: 1000 }
+      responses:
+        "200":
+          description: Certified. Account reste actif.
+
+  /admin/access-reviews/{review_id}/reject:
+    post:
+      operationId: rejectAccessReview
+      tags: [admin-devup, access-reviews]
+      summary: Rejette un user (review.decision='rejected', account suspended).
+      security:
+        - bearerAuth: ["admin:read"]
+      parameters:
+        - name: review_id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 10, maxLength: 1000 }
+      responses:
+        "200":
+          description: Rejected. Account suspended immédiatement + sessions revoked + audit logged.
+
+  # ═══════════════════════════════════════════════════════════════════
+  # BLOC 4 — CSV import bulk (B4.S6)
+  # ═══════════════════════════════════════════════════════════════════
+
+  /customers/import:
+    post:
+      operationId: importCustomersCsv
+      tags: [customers-import]
+      summary: Import CSV bulk asynchrone (Celery + on_conflict).
+      description: |
+        Bloc 4 §4.2.12 — F446 fix.
+        CSV UTF-8, columns : customer_type,email,first_name,last_name,company_name,
+        siret,vat_number,phone,address,city,postal_code,country_code,notes.
+        Retourne immédiatement task_id, traitement async (10k lignes <30s).
+      security:
+        - bearerAuth: ["customers:import"]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: CSV UTF-8 (max 50MB, ~500k lignes).
+                on_conflict:
+                  type: string
+                  enum: [skip, update, fail]
+                  default: skip
+      responses:
+        "202":
+          description: Tâche enqueued.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [task_id, status]
+                properties:
+                  task_id: { type: string, format: uuid }
+                  status: { type: string, enum: [queued] }
+                  estimated_lines: { type: integer }
+        "400":
+          description: CSV malformé.
+        "413":
+          description: File trop grand.
+
+  /imports/{task_id}/status:
+    get:
+      operationId: getImportStatus
+      tags: [customers-import]
+      summary: Statut tâche import bulk.
+      security:
+        - bearerAuth: ["customers:import"]
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Statut.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [task_id, status]
+                properties:
+                  task_id: { type: string, format: uuid }
+                  status: { type: string, enum: [queued, processing, completed, failed] }
+                  progress_pct: { type: integer, minimum: 0, maximum: 100 }
+                  created_count: { type: integer }
+                  updated_count: { type: integer }
+                  skipped_count: { type: integer }
+                  error_count: { type: integer }
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        line: { type: integer }
+                        error: { type: string }
+
+  # ═══════════════════════════════════════════════════════════════════
+  # BLOC 3 — Conversion Devis → Réservation atomique (B3.S4)
+  # ═══════════════════════════════════════════════════════════════════
+
+  /devis/{devis_id}/convert:
+    post:
+      operationId: convertDevisToReservation
+      tags: [reservations]
+      summary: Convertit Devis accepté en Réservation atomique avec émission Invoice.
+      description: |
+        Bloc 3 §3.2.6 + Q12=A.
+        Atomique : reserve_stock + créer Reservation(status='confirmed') + Invoice(status='emitted')
+        + DevisFSM transit 'converted' + Outbox audit, le tout dans 1 TX avec FOR UPDATE sur devis.
+      security:
+        - bearerAuth: ["devis:write"]
+      parameters:
+        - name: devis_id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event_date:
+                  type: string
+                  format: date
+                  description: Override date événement si différente du devis.
+                deposit_pct:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 1
+                  description: Override deposit policy customer (admin only).
+      responses:
+        "200":
+          description: Devis converti, Reservation + Invoice créés.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [reservation_id, invoice_id]
+                properties:
+                  reservation_id: { type: integer, format: int64 }
+                  reservation_reference: { type: string }
+                  invoice_id: { type: integer, format: int64 }
+                  invoice_number: { type: string }
+                  total_ttc_cents: { type: integer, format: int64 }
+                  deposit_required_cents: { type: integer, format: int64 }
+        "404":
+          description: Devis introuvable.
+        "409":
+          description: Devis pas en status 'accepted' OR stock insuffisant pour reserve.
+
+  /reservations/{reservation_id}/cancel:
+    post:
+      operationId: cancelReservation
+      tags: [reservations]
+      summary: Cancel cascade — release stock + refund deposit + credit_note + outbox.
+      description: |
+        Bloc 3 §3.2.7 + TR-5.
+        Orchestré dans 1 TX :
+        1. ReservationFSM.transit('cancelled')
+        2. stock_service.release(resa_id) (par reservation_id, cf. STOCK-RELEASE-BLIND-01)
+        3. deposit_service.refund_or_retain(resa_id, policy)
+        4. invoice_service.create_credit_note(invoice_id, full=True) si invoice émise
+        5. Outbox event 'ReservationCancelled' → relance email auto si acompte payé
+      security:
+        - bearerAuth: ["reservations:cancel"]
+      parameters:
+        - name: reservation_id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 5, maxLength: 500 }
+                deposit_action:
+                  type: string
+                  enum: [refund, retain]
+                  default: refund
+      responses:
+        "200":
+          description: Cancellation completed.
+
+  /invoices/{invoice_id}/credit-note:
+    post:
+      operationId: createInvoiceCreditNote
+      tags: [invoices-credit-notes]
+      summary: Crée un avoir (credit note) sur facture émise.
+      description: |
+        Bloc 3 §3.2.8 — invoice immutable post-emission.
+        L'ancien `POST /invoices/{id}/charges` est SUPPRIMÉ (F697).
+        Modification facture émise = créer credit note + nouvelle facture.
+      security:
+        - bearerAuth: ["invoices:write"]
+      parameters:
+        - name: invoice_id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason, full_or_partial]
+              properties:
+                reason: { type: string, minLength: 10, maxLength: 1000 }
+                full_or_partial:
+                  type: string
+                  enum: [full, partial]
+                amount_cents:
+                  type: integer
+                  format: int64
+                  description: Requis si full_or_partial='partial'.
+      responses:
+        "201":
+          description: Credit note créée.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  credit_note_id: { type: integer, format: int64 }
+                  credit_note_number: { type: string }
+                  amount_cents: { type: integer, format: int64 }
+
+  # ═══════════════════════════════════════════════════════════════════
+  # BLOC 5 — Restaurant cancellations
+  # ═══════════════════════════════════════════════════════════════════
+
+  /restaurant/commandes/{commande_id}/payer:
+    post:
+      operationId: payerCommandeRestaurant
+      tags: [restaurant]
+      summary: Payer commande restaurant (crée Invoice CLIENT_RESTAURANT).
+      description: |
+        Bloc 5 §5.2.5 — F1058 fix.
+        Validation : somme fractions == total_ttc + pourboire.
+        Crée FinanceInvoice(type='CLIENT_RESTAURANT', reference=CMD-RESTO-{id}).
+        FSM transit 'PAYEE' + Outbox audit.
+      security:
+        - bearerAuth: ["commandes:pay"]
+      parameters:
+        - name: commande_id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fractions]
+              properties:
+                pourboire_cts:
+                  type: integer
+                  minimum: 0
+                  default: 0
+                fractions:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [montant_cts, mode]
+                    properties:
+                      montant_cts: { type: integer, minimum: 0 }
+                      mode:
+                        type: string
+                        enum: [especes, cb, virement, cheque, cadeau]
+                      transaction_reference: { type: string }
+      responses:
+        "200":
+          description: Commande payée + invoice créée.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  commande_id: { type: integer, format: int64 }
+                  invoice_id: { type: integer, format: int64 }
+                  invoice_reference: { type: string, example: "CMD-RESTO-1234" }
+        "409":
+          description: Sum fractions != total OR commande pas en SERVIE.
+
+  /restaurant/commandes/{commande_id}/annuler:
+    post:
+      operationId: annulerCommandeRestaurant
+      tags: [restaurant]
+      summary: Cancel commande restaurant (cascade réintégration stock + credit note si payée).
+      description: |
+        Bloc 5 §5.2.4 — F908+F909 fix.
+        Itère lignes ENVOYEE/LANCEE/PRETE → réintègre portions marmite + protéine + side ingredient.
+        Si commande déjà PAYEE → credit_note Invoice.
+      security:
+        - bearerAuth: ["commandes:write"]
+      parameters:
+        - name: commande_id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        "200":
+          description: Annulation cascade complétée.
+
+  # ═══════════════════════════════════════════════════════════════════
+  # BLOC 5 — Épicerie cancellations
+  # ═══════════════════════════════════════════════════════════════════
+
+  /epicerie/ventes/encaisser:
+    post:
+      operationId: encaisserVenteEpicerie
+      tags: [epicerie]
+      summary: Encaisser vente épicerie (check_stock=True default Sprint 1).
+      description: |
+        F870 fix Sprint 1 T3 : check_stock=True par défaut.
+        Atomique : vente + lignes + mvts stock + invoice CLIENT_EPICERIE.
+      security:
+        - bearerAuth: ["ventes:write"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EncaissementRequest"
+      responses:
+        "200":
+          description: Vente encaissée.
+        "409":
+          description: STOCK_INSUFFISANT (propre, pas IntegrityError 500).
+
+  /epicerie/ventes/{vente_id}/annuler-vente:
+    post:
+      operationId: annulerVenteEpicerie
+      tags: [epicerie]
+      summary: Cancel vente épicerie (cascade stock + credit_note).
+      description: |
+        Bloc 5 §5.2.4 — F872 fix.
+        FSM transit ANNULEE + reverse mouvements stock (AJUSTEMENT +)
+        + génère FinanceInvoice type='CREDIT_NOTE' + Outbox audit.
+      security:
+        - bearerAuth: ["ventes:refund"]
+      parameters:
+        - name: vente_id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 5, maxLength: 500 }
+      responses:
+        "200":
+          description: Annulation completed avec credit note.
+
+  # ═══════════════════════════════════════════════════════════════════
+  # BLOC 6 — Print ticket (B6.S5)
+  # ═══════════════════════════════════════════════════════════════════
+
+  /print/ticket:
+    post:
+      operationId: printTicket
+      tags: [print]
+      summary: Imprime un ticket ESC/POS thermique (audit + circuit breaker).
+      description: |
+        Bloc 6 §6.2.13 — F1089/F1090 fix + Q41=B FR strict.
+        - require_scope(PRINTER_PRINT)
+        - Audit log enqueue + résultat
+        - Circuit breaker Redis : N=3 fails consécutifs → ouvert 60s
+        - EUR + cp858 + virgule décimale FR hardcoded
+        - Ventilation paiement si mode='mix' (conformité arrêté 28 mai 2019)
+      security:
+        - bearerAuth: ["printer:print"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrintTicketRequest"
+      responses:
+        "202":
+          description: Tâche d'impression enqueued.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  task_id: { type: string, format: uuid }
+        "503":
+          description: Circuit breaker imprimante ouvert.
+
+# ═══════════════════════════════════════════════════════════════════
+# COMPONENTS — Schemas
+# ═══════════════════════════════════════════════════════════════════
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT RS256 signé par DEVUP KMS.
+        Claims requis : sub (account_id), aud (vertical-tenant), exp, iat, jti, scopes.
+    mTLS:
+      type: mutualTLS
+      description: |
+        Client certificate X.509 (mTLS via service mesh ou nginx-ingress).
+        SPIFFE ID dans whitelist `PROMETHEUS_ALLOWED_SPIFFE_IDS` env.
+
+  parameters:
+    TenantIdPath:
+      name: tenant_id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    TransferRequestIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    PaginationLimit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    PaginationOffset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+
+  responses:
+    ValidationError:
+      description: Payload invalide (Pydantic validation).
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              detail:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    loc:
+                      type: array
+                      items: { type: string }
+                    msg: { type: string }
+                    type: { type: string }
+
+  schemas:
+
+    ErrorResponse:
+      type: object
+      required: [error_code, detail]
+      properties:
+        error_code:
+          type: string
+          example: STOCK_INSUFFISANT
+        detail:
+          type: string
+          example: "Ingrédient Poulet : 2.500 kg dispo, 3.750 kg requis"
+
+    Incident:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        severity: { type: string, enum: [info, warning, critical] }
+        started_at: { type: string, format: date-time }
+        resolved_at: { type: string, format: date-time }
+
+    # ─── Sprint 1 ────────────────────────────────────────────────
+
+    CreateInstanceRequest:
+      type: object
+      required: [type_preparation_id, portions_initiales, date_cuisine]
+      properties:
+        type_preparation_id:
+          type: integer
+          format: int64
+        portions_initiales:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        date_cuisine:
+          type: string
+          format: date
+        notes:
+          type: string
+          maxLength: 1000
+
+    InstanceResponse:
+      type: object
+      required: [id, type_preparation_id, portions_initiales, portions_restantes, statut_badge]
+      properties:
+        id: { type: integer, format: int64 }
+        type_preparation_id: { type: integer, format: int64 }
+        type_preparation_nom: { type: string }
+        portions_initiales: { type: integer }
+        portions_restantes: { type: integer }
+        date_cuisine: { type: string, format: date }
+        statut_badge:
+          type: string
+          enum: [dispo, faible, epuise]
+        est_fraiche: { type: boolean }
+        proteines_disponibles:
+          type: array
+          items: { $ref: "#/components/schemas/ProteineDisponible" }
+        heure_lancement: { type: string, format: date-time }
+        created_by_nom: { type: string }
+
+    ProteineDisponible:
+      type: object
+      properties:
+        ingredient_id: { type: integer, format: int64 }
+        nom: { type: string }
+        stock_actuel:
+          type: number
+          format: double
+        unite_stock: { type: string }
+        stock_badge:
+          type: string
+          enum: [dispo, faible, epuise]
+
+    # ─── Bloc 7 — Provisioning ───────────────────────────────────
+
+    ProvisionTenantRequest:
+      type: object
+      required:
+        - app_code
+        - vertical
+        - legal_name
+        - country_code
+        - brand_display_name
+        - brand_email_from
+        - brand_dkim_domain
+        - admin_account_email
+      properties:
+        app_code:
+          type: string
+          pattern: "^[a-z][a-z0-9_]+$"
+          minLength: 3
+          maxLength: 50
+          example: client_x_resto
+        vertical:
+          type: string
+          enum: [location, epicerie, restaurant, autour_de_table]
+        legal_name:
+          type: string
+          minLength: 2
+          maxLength: 255
+        country_code:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          default: FR
+        siret:
+          type: string
+          pattern: "^[0-9]{14}$"
+        vat_number:
+          type: string
+        brand_display_name:
+          type: string
+          maxLength: 100
+        brand_logo_url:
+          type: string
+          format: uri
+        brand_email_from:
+          type: string
+          format: email
+        brand_dkim_domain:
+          type: string
+          format: hostname
+        brand_primary_color:
+          type: string
+          pattern: "^#[0-9A-Fa-f]{6}$"
+          example: "#A52A2A"
+        admin_account_email:
+          type: string
+          format: email
+        deposit_policy:
+          type: object
+          properties:
+            default_pct:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 1
+              default: 0.30
+            requires_deposit:
+              type: boolean
+              default: true
+        devis_default_expiry_days:
+          type: integer
+          minimum: 1
+          maximum: 365
+          default: 30
+        rfm_thresholds:
+          $ref: "#/components/schemas/RFMThresholds"
+        postmark_server_token:
+          type: string
+          description: Sera chiffré KMS au stockage.
+
+    ProvisionTenantResponse:
+      type: object
+      required: [tenant_id, app_code, vertical, admin_account_id]
+      properties:
+        tenant_id: { type: integer, format: int64 }
+        app_code: { type: string }
+        vertical: { type: string }
+        admin_account_id: { type: integer, format: int64 }
+        password_setup_url:
+          type: string
+          format: uri
+          description: URL pour que l'admin configure son password (TTL 24h).
+        seed_summary:
+          type: object
+          description: Résumé des entités seedées.
+          properties:
+            categories_seeded: { type: integer }
+            tenant_settings_keys: { type: array, items: { type: string } }
+
+    RFMThresholds:
+      type: object
+      description: Seuils RFM per-tenant — Q27=B.
+      properties:
+        champion_recency_days:
+          type: integer
+          default: 30
+        champion_frequency:
+          type: integer
+          default: 5
+        loyal_recency_days:
+          type: integer
+          default: 90
+        loyal_frequency:
+          type: integer
+          default: 3
+        potential_recency_days:
+          type: integer
+          default: 180
+        at_risk_recency_days:
+          type: integer
+          default: 365
+        monetary_high_cents:
+          type: integer
+          format: int64
+          default: 100000
+
+    # ─── Access reviews ──────────────────────────────────────────
+
+    AccessReview:
+      type: object
+      required: [id, account_id, tenant_id, review_type, deadline, decision]
+      properties:
+        id: { type: integer, format: int64 }
+        account_id: { type: integer, format: int64 }
+        account_email: { type: string, format: email }
+        tenant_id: { type: integer, format: int64 }
+        tenant_app_code: { type: string }
+        membership_id: { type: integer, format: int64 }
+        membership_role: { type: string }
+        review_type:
+          type: string
+          enum: [privileged, tenant_admin, recertification]
+        review_campaign_id: { type: string }
+        initiated_at: { type: string, format: date-time }
+        deadline: { type: string, format: date-time }
+        reviewed_at: { type: string, format: date-time, nullable: true }
+        reviewer_id: { type: integer, format: int64, nullable: true }
+        decision:
+          type: string
+          enum: [pending, certified, rejected]
+        notes: { type: string }
+
+    # ─── TransferRequest ─────────────────────────────────────────
+
+    TransferRequestResponse:
+      type: object
+      required: [id, status, source_tenant_id, target_tenant_id, lines]
+      properties:
+        id: { type: integer, format: int64 }
+        status:
+          type: string
+          enum: [PENDING, APPROVED, FULFILLED, REJECTED, CANCELLED]
+        source_tenant_id:
+          type: integer
+          format: int64
+          description: Tenant restaurant qui demande.
+        target_tenant_id:
+          type: integer
+          format: int64
+          description: Tenant épicerie cible.
+        requested_by:
+          type: integer
+          format: int64
+        approved_by:
+          type: integer
+          format: int64
+          nullable: true
+        rejected_reason:
+          type: string
+          nullable: true
+        fulfilled_transfer_id:
+          type: integer
+          format: int64
+          nullable: true
+          description: ID InternalTransfer créé par fulfill().
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/TransferRequestLine" }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    TransferRequestLine:
+      type: object
+      required: [produit_id, quantite, unite]
+      properties:
+        produit_id: { type: integer, format: int64 }
+        designation: { type: string }
+        quantite:
+          type: number
+          format: double
+        unite:
+          type: string
+          enum: [kg, L, piece, colis]
+        notes: { type: string }
+
+    # ─── Encaissement épicerie ───────────────────────────────────
+
+    EncaissementRequest:
+      type: object
+      required: [lignes, mode_paiement]
+      properties:
+        lignes:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [produit_id, quantite, prix_unitaire_cts]
+            properties:
+              produit_id: { type: integer, format: int64 }
+              quantite: { type: number, format: double, minimum: 0 }
+              prix_unitaire_cts: { type: integer, format: int64, minimum: 0 }
+              remise_cts: { type: integer, minimum: 0, default: 0 }
+        mode_paiement:
+          type: string
+          enum: [ESPECES, CB, VIREMENT, MIX]
+        montant_especes:
+          type: integer
+          minimum: 0
+          default: 0
+        montant_cb:
+          type: integer
+          minimum: 0
+          default: 0
+        montant_virement:
+          type: integer
+          minimum: 0
+          default: 0
+        remise_centimes:
+          type: integer
+          minimum: 0
+          default: 0
+        remise_motif: { type: string, maxLength: 200 }
+        client_nom: { type: string, maxLength: 200 }
+        check_stock:
+          type: boolean
+          default: true
+          description: Q-Sprint1 T3 — default True (F870 fix). Override admin uniquement.
+
+    # ─── Print ticket ────────────────────────────────────────────
+
+    PrintTicketRequest:
+      type: object
+      required: [numero_ticket, lignes, total_ttc_cts, mode_paiement]
+      properties:
+        numero_ticket: { type: string, maxLength: 50 }
+        date_vente: { type: string, format: date-time }
+        lignes:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [designation, quantite, prix_unitaire_cts, montant_total_cts]
+            properties:
+              designation: { type: string, maxLength: 200 }
+              quantite: { type: number, format: double }
+              prix_unitaire_cts: { type: integer, format: int64 }
+              montant_total_cts: { type: integer, format: int64 }
+              tva_rate_snapshot: { type: number, format: double }
+        sous_total_ht_cts: { type: integer, format: int64 }
+        tva_total_cts: { type: integer, format: int64 }
+        total_ttc_cts: { type: integer, format: int64 }
+        mode_paiement:
+          type: string
+          enum: [especes, cb, virement, mix]
+        fractions_paiement:
+          type: array
+          description: Si mode_paiement='mix' (Bloc 6 §6.2.13 conformité arrêté 28 mai 2019).
+          items:
+            type: object
+            properties:
+              mode: { type: string }
+              montant_cts: { type: integer, format: int64 }
+        ouvrir_tiroir:
+          type: boolean
+          default: false
+        qr_url: { type: string, format: uri }
+        client_nom: { type: string }

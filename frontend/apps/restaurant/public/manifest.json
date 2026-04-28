@@ -1,0 +1,16 @@
+{
+  "name": "Restaurant MassaCorp",
+  "short_name": "Restaurant",
+  "description": "Service en salle, cuisine et gestion — Restaurant MassaCorp",
+  "start_url": "/restaurant/",
+  "scope": "/restaurant/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#d97706",
+  "background_color": "#1c1917",
+  "icons": [
+    { "src": "/restaurant/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/restaurant/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/restaurant/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

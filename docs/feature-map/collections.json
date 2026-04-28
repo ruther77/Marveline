@@ -1,0 +1,81 @@
+{
+  "id": "page:collections",
+  "type": "page",
+  "name": "Collections",
+  "description": "Page principale \"Collections\". Contenu non détecté automatiquement.",
+  "route": "/products/collections",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "staff",
+      "manager",
+      "admin"
+    ],
+    "group": "Catalogue",
+    "dom_h1": "Collections"
+  },
+  "params": {},
+  "features": [],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nouvelle",
+      "trigger": "click",
+      "target_id": "modal:nouvelle",
+      "node": {
+        "id": "modal:nouvelle",
+        "type": "modal",
+        "name": "Nouvelle",
+        "description": "Modal/panneau ouvert(e) par le bouton \"Nouvelle\" sur la page Collections. Non extrait automatiquement.",
+        "attributes": {
+          "scan_status": "placeholder"
+        },
+        "params": {},
+        "features": [],
+        "children": []
+      }
+    }
+  ]
+}

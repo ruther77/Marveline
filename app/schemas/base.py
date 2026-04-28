@@ -1,5 +1,6 @@
 """Schemas de base Pydantic pour les DTOs de l'API."""
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -19,6 +20,7 @@ class BaseSchema(BaseModel):
         populate_by_name=True,
         str_strip_whitespace=True,
         validate_assignment=True,
+        json_encoders={Decimal: float},
         # JSON schema customization
         json_schema_extra={
             "examples": []

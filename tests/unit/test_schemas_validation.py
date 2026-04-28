@@ -322,8 +322,8 @@ def test_product_response_computed_field_euros(test_db):
         name="Test Product",
         sku="COMPUTED-TEST",
         category=ProductCategory.MOBILIER,
-        price_per_day=2500,  # 2500 centimes
-        deposit_amount=5000,
+        price_per_day_cents=2500,  # 2500 centimes
+        deposit_amount_cents=5000,
         stock_quantity=10,
         available_quantity=10,
         condition=ProductCondition.BON,
@@ -369,8 +369,8 @@ def test_invoice_response_computed_is_paid(test_db):
         return_date=date.today() + timedelta(days=11),
         event_location="Test",
         status=ReservationStatus.CONFIRMED,
-        total_amount=10000,
-        deposit_amount=5000,
+        total_amount_cents=10000,
+        deposit_amount_cents=5000,
         deposit_paid=False
     )
     test_db.add(reservation)
@@ -382,8 +382,8 @@ def test_invoice_response_computed_is_paid(test_db):
         invoice_number="INV-COMPUTED",
         issue_date=date.today(),
         due_date=date.today() + timedelta(days=14),
-        total_amount=10000,
-        paid_amount=10000,  # Payé complet
+        total_amount_cents=10000,
+        paid_amount_cents=10000,  # Payé complet
         status=InvoiceStatus.PAID
     )
     test_db.add(invoice)
@@ -425,8 +425,8 @@ def test_reservation_response_computed_rental_days(test_db):
         return_date=date.today() + timedelta(days=11),  # 3 jours
         event_location="Test",
         status=ReservationStatus.DRAFT,
-        total_amount=10000,
-        deposit_amount=5000,
+        total_amount_cents=10000,
+        deposit_amount_cents=5000,
         deposit_paid=False
     )
     test_db.add(reservation)

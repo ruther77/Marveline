@@ -1,0 +1,155 @@
+# Docker Compose overrides pour le développement local
+# Usage : docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# Ou via Makefile : make dev-up
+
+services:
+  api:
+    build:
+      context: .
+      target: builder             # Stage complet avec devdeps (pytest, lint, etc.)
+    volumes:
+      - .:/app                    # Mount source → uvicorn --reload actif
+    command: >
+      bash -lc "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    deploy:
+      resources:
+        limits:
+          memory: 4G              # ETL PDF parsing (pdfplumber keeps full PDF in memory)
+
+  # Marveline — monorepo pnpm (migration legacy terminee 2026-03-16)
+  frontend-marveline:
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev.monorepo
+      args:
+        APP_NAME: marveline
+    working_dir: /app/apps/marveline
+    volumes:
+      - ./frontend/tsconfig.base.json:/app/tsconfig.base.json:ro
+      - ./frontend/packages/shared:/app/packages/shared
+      - ./frontend/apps/marveline:/app/apps/marveline
+      - marveline_node_modules:/app/apps/marveline/node_modules
+      - shared_node_modules:/app/packages/shared/node_modules
+    environment:
+      - VITE_API_URL=/api/v1
+      - VITE_TENANT_ID=1
+      - DOCKER=true
+      - PORT=80
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend/apps/marveline/src
+          target: /app/apps/marveline/src
+        - action: sync
+          path: ./frontend/packages/shared/src
+          target: /app/packages/shared/src
+
+  # ── Frontend Épicerie (dev — monorepo pnpm) ─────────────────────────────
+  frontend-epicerie:
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev.monorepo
+      args:
+        APP_NAME: epicerie
+    working_dir: /app/apps/epicerie
+    volumes:
+      - ./frontend/tsconfig.base.json:/app/tsconfig.base.json:ro
+      - ./frontend/packages/shared:/app/packages/shared
+      - ./frontend/apps/epicerie:/app/apps/epicerie
+      - epicerie_node_modules:/app/apps/epicerie/node_modules
+      - shared_node_modules:/app/packages/shared/node_modules
+    environment:
+      - VITE_API_URL=/api/v1
+      - VITE_TENANT_ID=2
+      - DOCKER=true
+      - PORT=80
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend/apps/epicerie/src
+          target: /app/apps/epicerie/src
+        - action: sync
+          path: ./frontend/packages/shared/src
+          target: /app/packages/shared/src
+
+  # ── Frontend Restaurant (dev — monorepo pnpm) ──────────────────────────
+  frontend-restaurant:
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev.monorepo
+      args:
+        APP_NAME: restaurant
+    working_dir: /app/apps/restaurant
+    volumes:
+      - ./frontend/tsconfig.base.json:/app/tsconfig.base.json:ro
+      - ./frontend/packages/shared:/app/packages/shared
+      - ./frontend/apps/restaurant:/app/apps/restaurant
+      - restaurant_node_modules:/app/apps/restaurant/node_modules
+      - shared_node_modules:/app/packages/shared/node_modules
+    environment:
+      - VITE_API_URL=/api/v1
+      - VITE_TENANT_ID=3
+      - DOCKER=true
+      - PORT=80
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend/apps/restaurant/src
+          target: /app/apps/restaurant/src
+        - action: sync
+          path: ./frontend/packages/shared/src
+          target: /app/packages/shared/src
+
+  celery-worker:
+    build:
+      context: .
+      target: builder             # Avec devdeps pour inspection
+
+  # Wireguard : mount source pour dev hot-reload
+  wireguard-service:
+    volumes:
+      - ./wireguard-service:/app
+
+  # Mailpit — catch-all SMTP (dev uniquement)
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: futurproj_mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - marveline_net
+
+  # Flower — monitoring Celery (dev uniquement)
+  flower:
+    image: mher/flower:2.0
+    container_name: marveline_flower
+    depends_on:
+      - redis-cache
+    environment:
+      CELERY_BROKER_URL: redis://:${REDIS_CACHE_PASSWORD}@redis-cache:6379/1
+      FLOWER_PORT: "5555"
+      FLOWER_BASIC_AUTH: ${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-admin}
+    ports:
+      - "5555:5555"
+    networks:
+      - marveline_net
+
+volumes:
+  marveline_node_modules:
+  epicerie_node_modules:
+  restaurant_node_modules:
+  shared_node_modules:

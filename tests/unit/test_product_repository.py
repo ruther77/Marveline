@@ -17,7 +17,7 @@ def test_product_assiette(test_db):
         name="Assiette Blanche 27cm",
         sku="ASS-WHITE-27",
         category=ProductCategory.ASSIETTES,
-        price_per_day=50,
+        price_per_day_cents=50,
         stock_quantity=100,
         available_quantity=80,
         is_active=True
@@ -36,7 +36,7 @@ def test_product_verre(test_db):
         name="Verre à Vin 35cl",
         sku="VER-WINE-35",
         category=ProductCategory.VERRES,
-        price_per_day=30,
+        price_per_day_cents=30,
         stock_quantity=200,
         available_quantity=150,
         is_active=True
@@ -55,7 +55,7 @@ def test_product_unavailable(test_db):
         name="Assiette Rupture",
         sku="ASS-OUT-STOCK",
         category=ProductCategory.ASSIETTES,
-        price_per_day=50,
+        price_per_day_cents=50,
         stock_quantity=50,
         available_quantity=0,  # Rupture de stock
         is_active=True
@@ -74,7 +74,7 @@ def test_product_inactive(test_db):
         name="Assiette Obsolète",
         sku="ASS-OBSOLETE",
         category=ProductCategory.ASSIETTES,
-        price_per_day=50,
+        price_per_day_cents=50,
         stock_quantity=20,
         available_quantity=20,
         is_active=False  # Soft-deleted
@@ -360,7 +360,7 @@ def test_list_by_category_cross_tenant_isolation(test_db, test_product_assiette)
         name="Assiette Tenant 2",
         sku="ASS-T2",
         category=ProductCategory.ASSIETTES,
-        price_per_day=50,
+        price_per_day_cents=50,
         stock_quantity=50,
         available_quantity=50,
         is_active=True

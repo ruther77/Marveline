@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Facture {{ invoice_number }}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 2cm 2cm 2.5cm 2cm;
+      @bottom-center {
+        content: "{{ brand.legal_name }} — " string(invoice_number) " — Page " counter(page) " / " counter(pages);
+        font-size: 9pt;
+        color: #718096;
+      }
+    }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10pt;
+      color: #2d3748;
+      margin: 0;
+      padding: 0;
+    }
+    string-set: invoice_number content(text);
+
+    /* En-tête */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 32px;
+      border-bottom: 3px solid #2d3748;
+      padding-bottom: 16px;
+    }
+    .brand { flex: 1; }
+    .brand h1 {
+      font-size: 22pt;
+      font-weight: bold;
+      color: #2d3748;
+      margin: 0 0 4px 0;
+    }
+    .brand p {
+      font-size: 9pt;
+      color: #718096;
+      margin: 0;
+    }
+    .invoice-meta { text-align: right; }
+    .invoice-meta h2 {
+      font-size: 16pt;
+      color: #2d3748;
+      margin: 0 0 6px 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .invoice-meta .number {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #4a90d9;
+    }
+    .invoice-meta .dates {
+      font-size: 9pt;
+      color: #718096;
+      margin-top: 6px;
+      line-height: 1.6;
+    }
+
+    /* Badges statut */
+    .status-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-size: 9pt;
+      font-weight: bold;
+      margin-top: 8px;
+    }
+    .status-draft    { background: #e2e8f0; color: #4a5568; }
+    .status-sent     { background: #bee3f8; color: #2b6cb0; }
+    .status-paid     { background: #c6f6d5; color: #276749; }
+    .status-overdue  { background: #fed7d7; color: #9b2c2c; }
+    .status-cancelled{ background: #e2e8f0; color: #718096; }
+
+    /* Bloc adresses */
+    .addresses {
+      display: flex;
+      gap: 40px;
+      margin-bottom: 28px;
+    }
+    .address-block { flex: 1; }
+    .address-block h3 {
+      font-size: 9pt;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #718096;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 4px;
+      margin: 0 0 8px 0;
+    }
+    .address-block p {
+      margin: 0;
+      line-height: 1.6;
+      font-size: 10pt;
+    }
+    .address-block .name { font-weight: bold; }
+
+    /* Infos réservation */
+    .reservation-info {
+      background: #f7fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 24px;
+      font-size: 9pt;
+      color: #4a5568;
+    }
+    .reservation-info span { margin-right: 24px; }
+    .reservation-info strong { color: #2d3748; }
+
+    /* Tableau des lignes */
+    table.lines {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+    }
+    table.lines thead tr {
+      background: #2d3748;
+      color: #ffffff;
+    }
+    table.lines thead th {
+      padding: 8px 10px;
+      font-size: 9pt;
+      font-weight: bold;
+      text-align: left;
+    }
+    table.lines thead th.right { text-align: right; }
+    table.lines tbody tr:nth-child(even) { background: #f7fafc; }
+    table.lines tbody td {
+      padding: 7px 10px;
+      font-size: 9.5pt;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    table.lines tbody td.right { text-align: right; }
+    table.lines tfoot td {
+      padding: 5px 10px;
+      font-size: 9.5pt;
+    }
+    table.lines tfoot tr.subtotal td { border-top: 1px solid #e2e8f0; }
+    table.lines tfoot tr.tva td     { color: #718096; font-size: 9pt; }
+    table.lines tfoot tr.total td   {
+      border-top: 2px solid #2d3748;
+      font-weight: bold;
+      font-size: 11pt;
+      padding-top: 8px;
+    }
+
+    /* Bloc acompte / solde */
+    .payment-summary {
+      background: #ebf8ff;
+      border: 1px solid #bee3f8;
+      border-radius: 6px;
+      padding: 14px 16px;
+      margin-bottom: 24px;
+    }
+    .payment-summary h4 {
+      margin: 0 0 10px 0;
+      font-size: 10pt;
+      color: #2b6cb0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .payment-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9.5pt;
+      margin-bottom: 4px;
+    }
+    .payment-row.highlight {
+      font-weight: bold;
+      font-size: 10.5pt;
+      color: #2b6cb0;
+      margin-top: 6px;
+      border-top: 1px solid #bee3f8;
+      padding-top: 6px;
+    }
+    .payment-row .label { color: #4a5568; }
+
+    /* Conditions */
+    .conditions {
+      font-size: 8pt;
+      color: #718096;
+      line-height: 1.6;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 12px;
+      margin-top: 8px;
+    }
+    .conditions strong { color: #4a5568; }
+  </style>
+</head>
+<body>
+
+  <!-- EN-TÊTE -->
+  <div class="header">
+    <div class="brand">
+      <h1>{{ brand.name }}</h1>
+      <p>Location événementielle</p>
+    </div>
+    <div class="invoice-meta">
+      <h2>Facture</h2>
+      <div class="number">{{ invoice_number }}</div>
+      <div class="dates">
+        Émise le : <strong>{{ issue_date }}</strong><br>
+        Échéance : <strong>{{ due_date }}</strong>
+      </div>
+      <span class="status-badge status-{{ status }}">{{ status_label }}</span>
+    </div>
+  </div>
+
+  <!-- ADRESSES -->
+  <div class="addresses">
+    <div class="address-block">
+      <h3>Émetteur</h3>
+      <p>
+        <span class="name">{{ brand.legal_name }}</span><br>
+        Location événementielle<br>
+        {{ brand.email }}{% if brand.phone %}<br>{{ brand.phone }}{% endif %}
+      </p>
+    </div>
+    <div class="address-block">
+      <h3>Client</h3>
+      <p>
+        <span class="name">{{ customer_name }}</span><br>
+        {% if customer_address %}{{ customer_address }}<br>{% endif %}
+        {% if customer_city %}{{ customer_city }}{% if customer_postal_code %} ({{ customer_postal_code }}){% endif %}<br>{% endif %}
+        {% if customer_email %}{{ customer_email }}<br>{% endif %}
+        {% if customer_phone %}{{ customer_phone }}{% endif %}
+      </p>
+    </div>
+  </div>
+
+  <!-- INFOS RÉSERVATION -->
+  <div class="reservation-info">
+    <span>Réservation : <strong>{{ reservation_reference }}</strong></span>
+    <span>Événement : <strong>{{ event_date }}</strong></span>
+    {% if event_location %}<span>Lieu : <strong>{{ event_location }}</strong></span>{% endif %}
+  </div>
+
+  <!-- LIGNES -->
+  <table class="lines">
+    <thead>
+      <tr>
+        <th>Désignation</th>
+        <th>Réf.</th>
+        <th class="right">Qté</th>
+        <th class="right">Prix unit. TTC</th>
+        <th class="right">Sous-total TTC</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td>{{ line.product_name }}</td>
+        <td>{{ line.product_sku }}</td>
+        <td class="right">{{ line.quantity }}</td>
+        <td class="right">{{ line.unit_price_eur }}</td>
+        <td class="right">{{ line.subtotal_eur }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="subtotal">
+        <td colspan="4" class="right">Montant HT</td>
+        <td class="right">{{ total_ht_eur }}</td>
+      </tr>
+      <tr class="tva">
+        <td colspan="4" class="right">TVA (20%)</td>
+        <td class="right">{{ tva_eur }}</td>
+      </tr>
+      <tr class="total">
+        <td colspan="4" class="right">Total TTC</td>
+        <td class="right">{{ total_ttc_eur }}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <!-- ACOMPTE / SOLDE -->
+  <div class="payment-summary">
+    <h4>Échéancier de paiement</h4>
+    <div class="payment-row">
+      <span class="label">Acompte à la réservation (40%)</span>
+      <span>{{ advance_amount_eur }}</span>
+    </div>
+    <div class="payment-row">
+      <span class="label">Solde dû au plus tard le {{ balance_due_date }}</span>
+      <span>{{ balance_amount_eur }}</span>
+    </div>
+    {% if paid_amount_cents > 0 %}
+    <div class="payment-row">
+      <span class="label">Montant déjà réglé</span>
+      <span>{{ paid_amount_eur }}</span>
+    </div>
+    {% endif %}
+    <div class="payment-row highlight">
+      <span class="label">Reste à payer</span>
+      <span>{{ remaining_amount_eur }}</span>
+    </div>
+  </div>
+
+  <!-- CONDITIONS -->
+  <div class="conditions">
+    <strong>Conditions de paiement :</strong>
+    Acompte de 40% exigible à la confirmation de la réservation.
+    Solde exigible 7 jours avant la date de l'événement.
+    En cas de retard : majoration de 20% par jour de retard.
+    Caution : {{ deposit_amount_eur }} (restituée après retour du matériel en bon état).
+    <br><br>
+    <strong>Règlement :</strong> Virement bancaire, chèque, espèces ou carte.
+    Toute réclamation doit être adressée dans les 48h suivant la livraison.
+  </div>
+
+</body>
+</html>

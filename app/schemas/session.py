@@ -1,6 +1,6 @@
 """Schemas Pydantic pour la gestion des sessions utilisateur."""
 from typing import Optional
-from pydantic import Field
+from pydantic import Field, computed_field
 from app.schemas.base import BaseSchema
 
 
@@ -20,6 +20,21 @@ class SessionResponse(BaseSchema):
     session_id: str = Field(
         ...,
         description="Identifiant unique de la session"
+    )
+
+    account_id: Optional[int] = Field(
+        default=None,
+        description="ID du compte (visible en mode admin)"
+    )
+
+    email: Optional[str] = Field(
+        default=None,
+        description="Email du compte (visible en mode admin)"
+    )
+
+    device_id: Optional[str] = Field(
+        default=None,
+        description="Identifiant du device (fingerprint)"
     )
 
     ip_address: str = Field(
@@ -42,15 +57,26 @@ class SessionResponse(BaseSchema):
         description="Date de derniere activite (ISO 8601)"
     )
 
+    is_current: bool = Field(
+        default=False,
+        description="True si c'est la session courante de l'utilisateur"
+    )
+
 
 class SessionListResponse(BaseSchema):
     """Schema pour la liste des sessions actives.
 
+    Expose `sessions` (champ natif) et `items` (alias computed) pour
+    compatibilité avec le contrat PaginatedResponse standard.
+
     Example:
         {
             "sessions": [...],
+            "items": [...],
             "total": 3,
-            "active_count": 3
+            "active_count": 3,
+            "skip": 0,
+            "limit": 50
         }
     """
 
@@ -70,6 +96,24 @@ class SessionListResponse(BaseSchema):
         ge=0,
         description="Nombre de sessions actives"
     )
+
+    skip: int = Field(
+        default=0,
+        ge=0,
+        description="Offset de pagination"
+    )
+
+    limit: int = Field(
+        default=0,
+        ge=0,
+        description="Nombre max retourné (0 = pas de limite appliquée)"
+    )
+
+    @computed_field  # type: ignore[misc]
+    @property
+    def items(self) -> list[SessionResponse]:
+        """Alias de `sessions` pour compatibilité PaginatedResponse."""
+        return self.sessions
 
 
 class SessionRevokeResponse(BaseSchema):

@@ -36,8 +36,8 @@ def test_product_inv(test_db):
         name="Chaise Napoléon",
         sku="CHAISE-INV-001",
         category=ProductCategory.MOBILIER,
-        price_per_day=500,  # 5€/jour
-        deposit_amount=1000,  # 10€ caution
+        price_per_day_cents=500,  # 5€/jour
+        deposit_amount_cents=1000,  # 10€ caution
         stock_quantity=50,
         available_quantity=50,
         condition=ProductCondition.NEUF,
@@ -61,8 +61,8 @@ def test_reservation_inv(test_db, test_customer_inv, test_product_inv):
         return_date=date.today() + timedelta(days=11),
         event_location="Test Event",
         status=ReservationStatus.CONFIRMED,
-        total_amount=3000,  # 30€ (20 chaises × 5€ × 3 jours)
-        deposit_amount=20000,  # 200€ (20 chaises × 10€)
+        total_amount_cents=3000,  # 30€ (20 chaises × 5€ × 3 jours)
+        deposit_amount_cents=20000,  # 200€ (20 chaises × 10€)
         deposit_paid=False
     )
     test_db.add(reservation)
@@ -75,8 +75,8 @@ def test_reservation_inv(test_db, test_customer_inv, test_product_inv):
         reservation_id=reservation.id,
         product_id=test_product_inv.id,
         quantity=20,
-        unit_price=500,
-        subtotal=3000  # 20 × 5€ × 3 jours
+        unit_price_cents=500,
+        subtotal_cents=3000  # 20 × 5€ × 3 jours
     )
     test_db.add(line)
     test_db.commit()
@@ -256,6 +256,42 @@ def test_add_payment_full(client: TestClient, test_reservation_inv, auth_headers
     assert data["status"] == "paid"  # Auto-changé
 
 
+def test_add_payment_on_paid_invoice_returns_400(client: TestClient, test_reservation_inv, auth_headers_real):
+    """Facture déjà payée via add-payment → 400."""
+    invoice_data = {
+        "reservation_id": test_reservation_inv.id,
+        "issue_date": str(date.today()),
+        "due_date": str(date.today() + timedelta(days=14))
+    }
+    create_response = client.post("/api/v1/invoices", json=invoice_data, headers=auth_headers_real)
+    invoice_id = create_response.json()["id"]
+
+    full_payment = {
+        "amount_cents": 3000,
+        "payment_method": "card",
+        "payment_date": str(date.today())
+    }
+    paid_response = client.post(
+        f"/api/v1/invoices/{invoice_id}/add-payment",
+        json=full_payment,
+        headers=auth_headers_real
+    )
+    assert paid_response.status_code == 200
+
+    second_payment = {
+        "amount_cents": 100,
+        "payment_method": "card",
+        "payment_date": str(date.today())
+    }
+    response = client.post(
+        f"/api/v1/invoices/{invoice_id}/add-payment",
+        json=second_payment,
+        headers=auth_headers_real
+    )
+    assert response.status_code == 400
+    assert "paid" in response.json()["detail"].lower()
+
+
 def test_add_payment_exceeds_total(client: TestClient, test_reservation_inv, auth_headers_real):
     """Test ajouter paiement qui dépasse le total → 400."""
     # Créer facture (total: 3000 centimes = 30€)
@@ -380,12 +416,14 @@ def test_list_overdue_invoices(client: TestClient, test_db, test_reservation_inv
 
     assert response.status_code == 200
     data = response.json()
-    assert len(data) >= 1
+    assert "items" in data and "total" in data
+    items = data["items"]
+    assert len(items) >= 1
     # Vérifier que facture créée est dans la liste
-    invoice_ids = [item["id"] for item in data]
+    invoice_ids = [item["id"] for item in items]
     assert invoice_id in invoice_ids
     # Vérifier que status est 'overdue'
-    for item in data:
+    for item in items:
         if item["id"] == invoice_id:
             assert item["status"] == "overdue"
 
@@ -407,3 +445,27 @@ def test_filter_invoices_by_status(client: TestClient, test_reservation_inv, aut
     data = response.json()
     for item in data["items"]:
         assert item["status"] == "draft"
+
+
+def test_get_invoice_audit(client: TestClient, test_reservation_inv, auth_headers_real):
+    """GET /invoices/{id}/audit retourne une liste typée (P2-23)."""
+    invoice_data = {
+        "reservation_id": test_reservation_inv.id,
+        "issue_date": str(date.today()),
+        "due_date": str(date.today() + timedelta(days=14))
+    }
+    r = client.post("/api/v1/invoices", json=invoice_data, headers=auth_headers_real)
+    assert r.status_code == 201
+    invoice_id = r.json()["id"]
+
+    r2 = client.get(f"/api/v1/invoices/{invoice_id}/audit", headers=auth_headers_real)
+    assert r2.status_code == 200
+    data = r2.json()
+    assert "items" in data and "total" in data
+    assert isinstance(data["items"], list)
+
+
+def test_get_invoice_audit_not_found(client: TestClient, auth_headers_real):
+    """GET /invoices/999999/audit retourne 404."""
+    r = client.get("/api/v1/invoices/999999/audit", headers=auth_headers_real)
+    assert r.status_code == 404

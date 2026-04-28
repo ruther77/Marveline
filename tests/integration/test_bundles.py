@@ -12,14 +12,14 @@ from app.utils.slug import slugify
 # ─────────────────────────────────────────────────────────────────────
 
 def _create_bundle(db, tenant_id=1, name="Pack Test", slug=None,
-                   bundle_price=50000, cleaning_fee=0, featured=False, display_order=0):
+                   bundle_price_cents=50000, cleaning_fee_cents=0, featured=False, display_order=0):
     """Cree un bundle dans la DB de test."""
     bundle = ProductBundle(
         tenant_id=tenant_id,
         name=name,
         slug=slug or slugify(name),
-        bundle_price=bundle_price,
-        cleaning_fee=cleaning_fee,
+        bundle_price_cents=bundle_price_cents,
+        cleaning_fee_cents=cleaning_fee_cents,
         featured=featured,
         display_order=display_order,
     )
@@ -30,15 +30,15 @@ def _create_bundle(db, tenant_id=1, name="Pack Test", slug=None,
 
 
 def _create_product(db, tenant_id=1, name="Produit", sku="PRD-001",
-                    category="assiettes", price_per_day=250):
+                    category="assiettes", price_per_day_cents=250):
     """Cree un produit de test."""
     prod = Product(
         tenant_id=tenant_id,
         name=name,
         sku=sku,
         category=category,
-        price_per_day=price_per_day,
-        deposit_amount=0,
+        price_per_day_cents=price_per_day_cents,
+        deposit_amount_cents=0,
         stock_quantity=10,
         available_quantity=10,
         condition="bon",
@@ -81,8 +81,8 @@ class TestListBundles:
 
     def test_list_returns_bundles(self, client: TestClient, auth_headers_real, test_db):
         """Liste retourne les bundles du tenant."""
-        _create_bundle(test_db, name="Pack A", bundle_price=30000)
-        _create_bundle(test_db, name="Pack B", bundle_price=50000)
+        _create_bundle(test_db, name="Pack A", bundle_price_cents=30000)
+        _create_bundle(test_db, name="Pack B", bundle_price_cents=50000)
 
         resp = client.get("/api/v1/bundles", headers=auth_headers_real)
         assert resp.status_code == 200
@@ -114,8 +114,8 @@ class TestGetBundle:
 
     def test_get_with_items(self, client: TestClient, auth_headers_real, test_db):
         """Retourne bundle avec ses items et produits."""
-        bundle = _create_bundle(test_db, name="Pack Detail", bundle_price=40000)
-        product = _create_product(test_db, name="Assiette", sku="ASS-001", price_per_day=250)
+        bundle = _create_bundle(test_db, name="Pack Detail", bundle_price_cents=40000)
+        product = _create_product(test_db, name="Assiette", sku="ASS-001", price_per_day_cents=250)
         _create_bundle_item(test_db, bundle.id, product.id, quantity=10)
 
         resp = client.get(f"/api/v1/bundles/{bundle.id}", headers=auth_headers_real)
@@ -330,8 +330,8 @@ class TestCalculatePrice:
 
     def test_calculate_ok(self, client: TestClient, auth_headers_real, test_db):
         """Calcul de prix correct."""
-        bundle = _create_bundle(test_db, name="Pack Calc", bundle_price=3000)
-        prod = _create_product(test_db, name="Prod Calc", sku="CALC-001", price_per_day=250)
+        bundle = _create_bundle(test_db, name="Pack Calc", bundle_price_cents=3000)
+        prod = _create_product(test_db, name="Prod Calc", sku="CALC-001", price_per_day_cents=250)
         _create_bundle_item(test_db, bundle.id, prod.id, quantity=20)
 
         resp = client.get(

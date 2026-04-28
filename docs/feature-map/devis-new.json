@@ -1,0 +1,70 @@
+{
+  "id": "page:devis-new",
+  "type": "page",
+  "name": "Nouveau devis",
+  "description": "Page principale \"Nouveau devis\". Contient : Informations générales, Champ : Adresse, salle…, Champ : Remarques, conditions particulières…. Paramètres : adresse-salle, remarques-conditions-particulieres.",
+  "route": "/devis/new",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "staff",
+      "manager",
+      "admin"
+    ],
+    "group": "Ventes",
+    "dom_h1": "Nouveau devis"
+  },
+  "params": {
+    "adresse-salle": "text",
+    "remarques-conditions-particulieres": "textarea"
+  },
+  "features": [
+    "Informations générales",
+    "Champ : Adresse, salle…",
+    "Champ : Remarques, conditions particulières…"
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

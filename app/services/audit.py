@@ -1,8 +1,26 @@
 """Service AuditLog pour traçabilité complète et conformité RGPD/SOC2."""
-from sqlalchemy.orm import Session
-from app.models.audit_log import AuditLog
-from typing import Optional, Any
+import hashlib
+import hmac as _hmac
+import json
 import uuid
+from typing import Optional, Any
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
+from app.models.audit_log import AuditLog
+
+
+def _compute_audit_hmac(payload: dict) -> str:
+    """Signature HMAC-SHA256 sur payload canonique JSON (spec §01 §1.8).
+
+    KEK = HMAC-SHA256(AUDIT_HMAC_KEY, b'audit-hmac-v1')  [dev]
+    Canonical = json.dumps(payload, sort_keys=True, separators=(',',':'))
+    """
+    key_raw = settings.AUDIT_HMAC_KEY.encode("utf-8")
+    kek = _hmac.new(key_raw, b"audit-hmac-v1", hashlib.sha256).digest()
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return _hmac.new(kek, canonical, hashlib.sha256).hexdigest()
 
 
 class AuditService:
@@ -40,15 +58,15 @@ class AuditService:
         >>> db.commit()  # Transaction gérée par appelant
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         """Initialise le service avec session DB.
 
         Args:
-            db: Session SQLAlchemy (transaction gérée par appelant)
+            db: AsyncSession SQLAlchemy (transaction gérée par appelant)
         """
         self.db = db
 
-    def log_action(
+    async def log_action(
         self,
         action: str,
         tenant_id: int,
@@ -99,8 +117,10 @@ class AuditService:
             ...     request_id="550e8400-e29b-41d4-a716-446655440000"
             ... )
         """
+        request_id_final = request_id or str(uuid.uuid4())
+
         audit_log = AuditLog(
-            user_id=user_id,
+            account_id=user_id,
             api_key_id=api_key_id,
             tenant_id=tenant_id,
             action=action,
@@ -110,15 +130,26 @@ class AuditService:
             description=description,
             ip_address=ip_address,
             user_agent=user_agent,
-            request_id=request_id or str(uuid.uuid4())  # Auto-generate si absent
+            request_id=request_id_final,
         )
+
+        # Signature HMAC-SHA256 sur payload canonique (spec §01 §1.8)
+        hmac_payload = {
+            "action": action,
+            "entity_type": entity_type or "",
+            "entity_id": str(entity_id or ""),
+            "user_id": str(user_id or ""),
+            "tenant_id": str(tenant_id),
+            "request_id": request_id_final,
+        }
+        audit_log.hmac_signature = _compute_audit_hmac(hmac_payload)
 
         self.db.add(audit_log)
         # Pas de commit ici (transaction gérée par endpoint/service appelant)
 
         return audit_log
 
-    def log_create(
+    async def log_create(
         self,
         entity_type: str,
         entity_id: int,
@@ -161,7 +192,7 @@ class AuditService:
             ...     request_id="550e8400-..."
             ... )
         """
-        return self.log_action(
+        return await self.log_action(
             action="CREATE",
             tenant_id=tenant_id,
             user_id=user_id,
@@ -174,7 +205,7 @@ class AuditService:
             request_id=request_id
         )
 
-    def log_update(
+    async def log_update(
         self,
         entity_type: str,
         entity_id: int,
@@ -227,7 +258,7 @@ class AuditService:
             if key in before and before[key] != after[key]:
                 changes[key] = {"before": before[key], "after": after[key]}
 
-        return self.log_action(
+        return await self.log_action(
             action="UPDATE",
             tenant_id=tenant_id,
             user_id=user_id,
@@ -240,7 +271,7 @@ class AuditService:
             request_id=request_id
         )
 
-    def log_delete(
+    async def log_delete(
         self,
         entity_type: str,
         entity_id: int,
@@ -282,7 +313,7 @@ class AuditService:
             ... )
         """
         action = "SOFT_DELETE" if soft_delete else "HARD_DELETE"
-        return self.log_action(
+        return await self.log_action(
             action=action,
             tenant_id=tenant_id,
             user_id=user_id,
@@ -295,7 +326,7 @@ class AuditService:
             request_id=request_id
         )
 
-    def log_read_sensitive(
+    async def log_read_sensitive(
         self,
         entity_type: str,
         entity_id: int,
@@ -335,7 +366,7 @@ class AuditService:
             ...     request_id="550e8400-..."
             ... )
         """
-        return self.log_action(
+        return await self.log_action(
             action="READ_SENSITIVE",
             tenant_id=tenant_id,
             user_id=user_id,
@@ -348,7 +379,7 @@ class AuditService:
             request_id=request_id
         )
 
-    def log_login(
+    async def log_login(
         self,
         user_id: int,
         tenant_id: int,
@@ -400,7 +431,7 @@ class AuditService:
         if email:
             description += f" for {email}"
 
-        return self.log_action(
+        return await self.log_action(
             action=action,
             tenant_id=tenant_id,
             user_id=user_id if success else None,  # NULL si échec (user non trouvé)
@@ -410,7 +441,7 @@ class AuditService:
             request_id=request_id
         )
 
-    def log_logout(
+    async def log_logout(
         self,
         user_id: int,
         tenant_id: int,
@@ -439,7 +470,7 @@ class AuditService:
             ...     request_id="550e8400-..."
             ... )
         """
-        return self.log_action(
+        return await self.log_action(
             action="LOGOUT",
             tenant_id=tenant_id,
             user_id=user_id,

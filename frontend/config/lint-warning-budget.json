@@ -1,0 +1,9 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-03-05",
+  "policy": "No increase in lint warnings. New warning rules are forbidden unless explicitly budgeted.",
+  "max_total_warnings": 0,
+  "max_by_rule": {
+    "no-restricted-syntax": 0
+  }
+}

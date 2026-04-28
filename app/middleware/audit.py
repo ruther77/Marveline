@@ -8,7 +8,7 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.constants import AuthEndpoints, HTTPMethods, PublicEndpoints
-from app.core.database import get_db_context
+from app.core.database import get_async_db_context
 from app.services.audit import AuditService
 
 logger = logging.getLogger(__name__)
@@ -126,7 +126,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
             # Auditer mutations (POST, PUT, PATCH, DELETE)
             if method in HTTPMethods.UNSAFE_METHODS:
-                self._audit_mutation(
+                await self._audit_mutation(
                     method=method,
                     path=path,
                     tenant_id=tenant_id,
@@ -139,7 +139,18 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
             # Auditer lectures sensibles (GET données personnelles)
             elif method == HTTPMethods.GET and self._is_sensitive_read(path):
-                self._audit_sensitive_read(
+                await self._audit_sensitive_read(
+                    path=path,
+                    tenant_id=tenant_id,
+                    user_id=user_id,
+                    api_key_id=api_key_id,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    request_id=request_id
+                )
+            # P2-13 : auditer lectures en liste de donnees sensibles
+            elif method == HTTPMethods.GET and self._is_sensitive_list(path):
+                await self._audit_sensitive_list(
                     path=path,
                     tenant_id=tenant_id,
                     user_id=user_id,
@@ -151,7 +162,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
         return response
 
-    def _audit_mutation(
+    async def _audit_mutation(
         self,
         method: str,
         path: str,
@@ -173,22 +184,11 @@ class AuditMiddleware(BaseHTTPMiddleware):
             ip_address: IP client
             user_agent: User-Agent
             request_id: UUID corrélation
-
-        Example:
-            >>> # POST /api/v1/customers
-            >>> _audit_mutation("POST", "/api/v1/customers", ...)
-            >>> # → action=CREATE, entity_type=Customer, entity_id=None (pas encore créé)
-
-            >>> # PUT /api/v1/reservations/123
-            >>> _audit_mutation("PUT", "/api/v1/reservations/123", ...)
-            >>> # → action=UPDATE, entity_type=Reservation, entity_id=123
         """
         try:
-            # Ouvrir nouvelle session DB avec context manager (fix B1)
-            with get_db_context() as db:
+            async with get_async_db_context() as db:
                 audit_service = AuditService(db)
 
-                # Mapper HTTP method → action
                 action_map = {
                     HTTPMethods.POST: "CREATE",
                     HTTPMethods.PUT: "UPDATE",
@@ -197,11 +197,9 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 }
                 action = action_map[method]
 
-                # Parser entity_type et entity_id depuis path
                 entity_type, entity_id = self._parse_entity_from_path(path)
 
-                # Enregistrer audit log
-                audit_service.log_action(
+                await audit_service.log_action(
                     action=action,
                     tenant_id=tenant_id,
                     user_id=user_id,
@@ -214,14 +212,12 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     request_id=request_id
                 )
 
-                # Commit séparé (pas de rollback si audit échoue)
-                db.commit()
+                await db.commit()
 
         except Exception:
-            # Fail-safe : ne pas crasher requete si audit echoue (fix M1)
             logger.exception("Erreur audit mutation %s %s", method, path)
 
-    def _audit_sensitive_read(
+    async def _audit_sensitive_read(
         self,
         path: str,
         tenant_id: int,
@@ -241,22 +237,18 @@ class AuditMiddleware(BaseHTTPMiddleware):
             ip_address: IP client
             user_agent: User-Agent
             request_id: UUID corrélation
-
-        Example:
-            >>> # GET /api/v1/customers/456
-            >>> _audit_sensitive_read("/api/v1/customers/456", ...")
-            >>> # → action=READ_SENSITIVE, entity_type=Customer, entity_id=456
         """
         try:
-            # Ouvrir nouvelle session DB avec context manager (fix B1)
-            with get_db_context() as db:
+            async with get_async_db_context() as db:
                 audit_service = AuditService(db)
 
-                # Parser entity_type et entity_id
                 entity_type, entity_id = self._parse_entity_from_path(path)
 
-                # Enregistrer lecture sensible
-                audit_service.log_read_sensitive(
+                # Ne pas logger les lectures de liste (pas d'entity_id)
+                if entity_id is None:
+                    return
+
+                await audit_service.log_read_sensitive(
                     entity_type=entity_type,
                     entity_id=entity_id,
                     tenant_id=tenant_id,
@@ -267,12 +259,44 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     request_id=request_id
                 )
 
-                # Commit séparé
-                db.commit()
+                await db.commit()
 
         except Exception:
-            # Fail-safe (fix M1)
             logger.exception("Erreur audit lecture sensible %s", path)
+
+    async def _audit_sensitive_list(
+        self,
+        path: str,
+        tenant_id: int,
+        user_id: int | None,
+        api_key_id: int | None,
+        ip_address: str | None,
+        user_agent: str | None,
+        request_id: str
+    ) -> None:
+        """Audite lecture en liste de données sensibles (RGPD bulk read)."""
+        try:
+            async with get_async_db_context() as db:
+                audit_service = AuditService(db)
+                entity_type, _ = self._parse_entity_from_path(path)
+
+                await audit_service.log_action(
+                    action="READ_SENSITIVE",
+                    tenant_id=tenant_id,
+                    user_id=user_id,
+                    api_key_id=api_key_id,
+                    entity_type=entity_type,
+                    entity_id=None,
+                    description=f"Listed sensitive data {entity_type}",
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    request_id=request_id
+                )
+
+                await db.commit()
+
+        except Exception:
+            logger.exception("Erreur audit liste sensible %s", path)
 
     def _parse_entity_from_path(self, path: str) -> tuple[str | None, int | None]:
         """Extrait entity_type et entity_id depuis path API.
@@ -386,3 +410,17 @@ class AuditMiddleware(BaseHTTPMiddleware):
             if re.match(pattern, path):
                 return True
         return False
+
+    # P2-13 : paths de listes sensibles (sans ID — bulk reads)
+    SENSITIVE_LIST_PATHS = frozenset({
+        "/api/v1/customers",
+        "/api/v1/invoices",
+        "/api/v1/audit",
+        "/api/v1/users",
+        "/api/v1/deposits",
+    })
+
+    def _is_sensitive_list(self, path: str) -> bool:
+        """Verifie si path correspond a une lecture en liste de donnees sensibles."""
+        clean = path.rstrip("/")
+        return clean in self.SENSITIVE_LIST_PATHS

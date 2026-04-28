@@ -1,0 +1,64 @@
+{
+  "id": "page:invoices-rapprochement",
+  "type": "page",
+  "name": "Rapprochement",
+  "description": "Page principale \"Rapprochement\". Contient : Aucune facture en attente.",
+  "route": "/invoices/rapprochement",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "manager",
+      "admin"
+    ],
+    "group": "Facturation",
+    "dom_h1": "Rapprochement factures"
+  },
+  "params": {},
+  "features": [
+    "Aucune facture en attente"
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

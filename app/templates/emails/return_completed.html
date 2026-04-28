@@ -8,6 +8,6 @@
   Le retour de matériel pour votre réservation <strong>{{ reservation_reference }}</strong> a été enregistré le {{ return_date }}.
 </p>
 <p style="color:#4a5568; font-size:15px; line-height:1.6;">
-  Merci d'avoir fait confiance à Marveline pour votre événement. Nous espérons vous revoir bientôt !
+  Merci d'avoir fait confiance à {{ brand.name if brand else "Marveline" }} pour votre événement. Nous espérons vous revoir bientôt !
 </p>
 {% endblock %}

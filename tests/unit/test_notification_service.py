@@ -237,8 +237,8 @@ class TestBestEffortHooks:
         reservation.delivery_date = date(2026, 6, 14)
         reservation.return_date = date(2026, 6, 16)
         reservation.event_location = "Salle des Fêtes"
-        reservation.total_amount = 25000
-        reservation.deposit_amount = 10000
+        reservation.total_amount_cents = 25000
+        reservation.deposit_amount_cents = 10000
         return reservation
 
     @patch("app.tasks.notifications.send_reservation_confirmed_email")

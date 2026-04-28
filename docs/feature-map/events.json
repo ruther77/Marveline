@@ -1,0 +1,226 @@
+{
+  "id": "page:events",
+  "type": "page",
+  "name": "Réservations",
+  "description": "Page principale \"Réservations\". Contenu non détecté automatiquement.",
+  "route": "/events",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "staff",
+      "manager",
+      "admin"
+    ],
+    "group": "Événements",
+    "dom_h1": "Reservations"
+  },
+  "params": {},
+  "features": [],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Clients",
+      "trigger": "click",
+      "target_id": "page:customers",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Mode catalogue",
+      "trigger": "click",
+      "target_id": "page:events",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nouvelle reservation",
+      "trigger": "click",
+      "target_id": "modal:nouvelle-reservation",
+      "node": {
+        "id": "modal:nouvelle-reservation",
+        "type": "form",
+        "name": "Nouvelle reservation",
+        "description": "Formulaire \"Nouvelle reservation\". Contient : Champ : Rechercher un client..., Champ : event_date, Champ : delivery_date, Champ : return_date, Champ : Adresse ou nom du lieu, Champ : event_type. Paramètres : rechercher-un-client, event-date, delivery-date, return-date, event-location, event-type, event-name, guest-count, notes.",
+        "attributes": {
+          "depth": 1,
+          "opened_from_depth": 0
+        },
+        "params": {
+          "rechercher-un-client": "text",
+          "event-date": "date",
+          "delivery-date": "date",
+          "return-date": "date",
+          "event-location": "text",
+          "event-type": "select",
+          "event-name": "text",
+          "guest-count": "number",
+          "notes": "textarea"
+        },
+        "features": [
+          "Champ : Rechercher un client...",
+          "Champ : event_date",
+          "Champ : delivery_date",
+          "Champ : return_date",
+          "Champ : Adresse ou nom du lieu",
+          "Champ : event_type",
+          "Champ : ex: Mariage Dupont",
+          "Champ : ex: 120",
+          "Fermer",
+          "Ajouter",
+          "Annuler",
+          "Creer"
+        ],
+        "children": [
+          {
+            "link_type": "action",
+            "label": "Fermer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "modal_open",
+            "label": "Ajouter",
+            "trigger": "click",
+            "target_id": "modal:ajouter",
+            "node": {
+              "id": "modal:nouvelle-reservation",
+              "type": "form",
+              "name": "Nouvelle reservation",
+              "description": "Formulaire \"Nouvelle reservation\". Contient : Champ : Rechercher un client..., Champ : event_date, Champ : delivery_date, Champ : return_date, Champ : Adresse ou nom du lieu, Champ : event_type. Paramètres : rechercher-un-client, event-date, delivery-date, return-date, event-location, event-type, event-name, guest-count, notes.",
+              "attributes": {
+                "depth": 2,
+                "opened_from_depth": 1
+              },
+              "params": {
+                "rechercher-un-client": "text",
+                "event-date": "date",
+                "delivery-date": "date",
+                "return-date": "date",
+                "event-location": "text",
+                "event-type": "select",
+                "event-name": "text",
+                "guest-count": "number",
+                "notes": "textarea"
+              },
+              "features": [
+                "Champ : Rechercher un client...",
+                "Champ : event_date",
+                "Champ : delivery_date",
+                "Champ : return_date",
+                "Champ : Adresse ou nom du lieu",
+                "Champ : event_type",
+                "Champ : ex: Mariage Dupont",
+                "Champ : ex: 120",
+                "Fermer",
+                "Ajouter",
+                "Annuler",
+                "Creer"
+              ],
+              "children": [
+                {
+                  "link_type": "action",
+                  "label": "Fermer",
+                  "trigger": "click",
+                  "target_id": null,
+                  "node": null
+                },
+                {
+                  "link_type": "modal_open",
+                  "label": "Ajouter",
+                  "trigger": "click",
+                  "target_id": "modal:ajouter",
+                  "node": null
+                },
+                {
+                  "link_type": "action",
+                  "label": "Annuler",
+                  "trigger": "click",
+                  "target_id": null,
+                  "node": null
+                },
+                {
+                  "link_type": "form_submit",
+                  "label": "Creer",
+                  "trigger": "click",
+                  "target_id": null,
+                  "node": null
+                }
+              ]
+            }
+          },
+          {
+            "link_type": "action",
+            "label": "Annuler",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "form_submit",
+            "label": "Creer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          }
+        ]
+      }
+    },
+    {
+      "link_type": "action",
+      "label": "Actives",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Archives",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

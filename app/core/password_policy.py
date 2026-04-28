@@ -98,7 +98,7 @@ def validate_password(
     """
     # ── Longueur max ──
     if len(password) > PasswordPolicy.MAX_LENGTH:
-        return False, f"Password must be at most {PasswordPolicy.MAX_LENGTH} characters long"
+        return False, f"Le mot de passe ne doit pas depasser {PasswordPolicy.MAX_LENGTH} caracteres"
 
     # ── Longueur min (dépend du rôle) ──
     min_length = PasswordPolicy.MIN_LENGTH
@@ -106,42 +106,42 @@ def validate_password(
         min_length = PasswordPolicy.ADMIN_MIN_LENGTH
 
     if len(password) < min_length:
-        return False, f"Password must be at least {min_length} characters long"
+        return False, f"Le mot de passe doit contenir au moins {min_length} caracteres"
 
     # ── Complexité : majuscule, minuscule, chiffre, spécial ──
     if not any(c.isupper() for c in password):
-        return False, "Password must contain at least one uppercase letter"
+        return False, "Le mot de passe doit contenir au moins une majuscule"
 
     if not any(c.islower() for c in password):
-        return False, "Password must contain at least one lowercase letter"
+        return False, "Le mot de passe doit contenir au moins une minuscule"
 
     if not any(c.isdigit() for c in password):
-        return False, "Password must contain at least one digit"
+        return False, "Le mot de passe doit contenir au moins un chiffre"
 
     if not any(not c.isalnum() for c in password):
-        return False, "Password must contain at least one special character"
+        return False, "Le mot de passe doit contenir au moins un caractere special"
 
     # ── Common passwords ──
     if password.lower() in COMMON_PASSWORDS:
-        return False, "This password is too common and easily guessable"
+        return False, "Ce mot de passe est trop courant et facilement devinable"
 
     # ── Contexte : username dans le password ──
     if username and len(username) >= 3:
         if username.lower() in password.lower():
-            return False, "Password must not contain your username"
+            return False, "Le mot de passe ne doit pas contenir votre nom d'utilisateur"
 
     # ── Contexte : partie locale de l'email dans le password ──
     if email and "@" in email:
         local_part = email.split("@")[0].lower()
         if len(local_part) >= 3 and local_part in password.lower():
-            return False, "Password must not contain your email address"
+            return False, "Le mot de passe ne doit pas contenir votre adresse email"
 
     # ── Séquences répétitives (aaa, 111) ──
     if _REPEATING_PATTERN.search(password):
-        return False, "Password must not contain repeating characters (e.g., aaa, 111)"
+        return False, "Le mot de passe ne doit pas contenir de caracteres repetitifs (ex: aaa, 111)"
 
     # ── Séquences consécutives (1234, abcd) ──
     if _has_sequential_chars(password):
-        return False, "Password must not contain sequential characters (e.g., 1234, abcd)"
+        return False, "Le mot de passe ne doit pas contenir de sequences (ex: 1234, abcd)"
 
     return True, None

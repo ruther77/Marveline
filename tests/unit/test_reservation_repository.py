@@ -40,7 +40,7 @@ def test_product(test_db):
         name="Test Product Reservation",
         sku="TEST-PROD-RES",
         category=ProductCategory.ASSIETTES,
-        price_per_day=100,
+        price_per_day_cents=100,
         stock_quantity=100,
         available_quantity=80,
         is_active=True
@@ -63,8 +63,8 @@ def test_reservation_draft(test_db, test_customer):
         return_date=date.today() + timedelta(days=11),
         event_location="Test Location",
         status=ReservationStatus.DRAFT,
-        total_amount=10000,
-        deposit_amount=5000,
+        total_amount_cents=10000,
+        deposit_amount_cents=5000,
         deposit_paid=False
     )
     test_db.add(reservation)
@@ -85,8 +85,8 @@ def test_reservation_confirmed(test_db, test_customer):
         return_date=date.today() + timedelta(days=21),
         event_location="Conference Hall",
         status=ReservationStatus.CONFIRMED,
-        total_amount=20000,
-        deposit_amount=10000,
+        total_amount_cents=20000,
+        deposit_amount_cents=10000,
         deposit_paid=True
     )
     test_db.add(reservation)
@@ -107,8 +107,8 @@ def test_reservation_past(test_db, test_customer):
         return_date=date.today() - timedelta(days=9),
         event_location="Past Event",
         status="returned",  # Réservation terminée (vaisselle retournée)
-        total_amount=5000,
-        deposit_amount=2500,
+        total_amount_cents=5000,
+        deposit_amount_cents=2500,
         deposit_paid=True
     )
     test_db.add(reservation)
@@ -374,8 +374,8 @@ def test_reference_exists_cross_tenant_isolation(test_db, test_reservation_draft
         return_date=date.today() + timedelta(days=11),
         event_location="Tenant 2",
         status=ReservationStatus.DRAFT,
-        total_amount=10000,
-        deposit_amount=5000,
+        total_amount_cents=10000,
+        deposit_amount_cents=5000,
         deposit_paid=False
     )
     test_db.add(reservation_tenant2)
@@ -414,8 +414,8 @@ def test_list_by_status_cross_tenant_isolation(test_db, test_reservation_draft):
         return_date=date.today() + timedelta(days=11),
         event_location="Tenant 2",
         status=ReservationStatus.DRAFT,
-        total_amount=10000,
-        deposit_amount=5000,
+        total_amount_cents=10000,
+        deposit_amount_cents=5000,
         deposit_paid=False
     )
     test_db.add(reservation_tenant2)
@@ -483,8 +483,8 @@ def test_list_upcoming_days_ahead(test_db, test_customer):
         return_date=date.today() + timedelta(days=2),
         event_location="Tomorrow",
         status=ReservationStatus.CONFIRMED,
-        total_amount=10000,
-        deposit_amount=5000,
+        total_amount_cents=10000,
+        deposit_amount_cents=5000,
         deposit_paid=True
     )
 
@@ -497,8 +497,8 @@ def test_list_upcoming_days_ahead(test_db, test_customer):
         return_date=date.today() + timedelta(days=8),
         event_location="Next Week",
         status=ReservationStatus.DRAFT,
-        total_amount=15000,
-        deposit_amount=7500,
+        total_amount_cents=15000,
+        deposit_amount_cents=7500,
         deposit_paid=False
     )
 
@@ -511,8 +511,8 @@ def test_list_upcoming_days_ahead(test_db, test_customer):
         return_date=date.today() + timedelta(days=31),
         event_location="Next Month",
         status=ReservationStatus.CONFIRMED,
-        total_amount=20000,
-        deposit_amount=10000,
+        total_amount_cents=20000,
+        deposit_amount_cents=10000,
         deposit_paid=True
     )
 
@@ -542,8 +542,8 @@ def test_list_upcoming_excludes_cancelled_returned(test_db, test_customer):
         return_date=date.today() + timedelta(days=6),
         event_location="Cancelled",
         status="cancelled",  # Valide selon contrainte DB
-        total_amount=10000,
-        deposit_amount=5000,
+        total_amount_cents=10000,
+        deposit_amount_cents=5000,
         deposit_paid=False
     )
 
@@ -557,8 +557,8 @@ def test_list_upcoming_excludes_cancelled_returned(test_db, test_customer):
         return_date=date.today() + timedelta(days=6),
         event_location="Returned",
         status="returned",  # Réservation terminée (vaisselle retournée)
-        total_amount=10000,
-        deposit_amount=5000,
+        total_amount_cents=10000,
+        deposit_amount_cents=5000,
         deposit_paid=True
     )
 
@@ -596,7 +596,7 @@ def test_list_by_reservation_with_lines(test_db, test_reservation_draft, test_pr
         name="Test Product 2 Reservation",
         sku="TEST-PROD-RES-2",
         category=ProductCategory.VERRES,
-        price_per_day=150,
+        price_per_day_cents=150,
         stock_quantity=50,
         available_quantity=40,
         is_active=True
@@ -610,16 +610,16 @@ def test_list_by_reservation_with_lines(test_db, test_reservation_draft, test_pr
         reservation_id=test_reservation_draft.id,
         product_id=test_product.id,
         quantity=5,
-        unit_price=100,
-        subtotal=500
+        unit_price_cents=100,
+        subtotal_cents=500
     )
     line2 = ReservationLine(
         tenant_id=1,
         reservation_id=test_reservation_draft.id,
         product_id=product2.id,  # Produit différent
         quantity=3,
-        unit_price=150,
-        subtotal=450
+        unit_price_cents=150,
+        subtotal_cents=450
     )
     test_db.add_all([line1, line2])
     test_db.commit()
@@ -658,8 +658,8 @@ def test_list_by_product_with_lines(test_db, test_reservation_draft, test_produc
         reservation_id=test_reservation_draft.id,
         product_id=test_product.id,
         quantity=10,
-        unit_price=100,
-        subtotal=1000
+        unit_price_cents=100,
+        subtotal_cents=1000
     )
     test_db.add(line)
     test_db.commit()

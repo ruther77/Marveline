@@ -1,0 +1,245 @@
+import { PageHeader } from '@/components/PageHeader'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { useAuthStore } from '@/stores/authStore'
+import { Loader2, Check, AlertCircle } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { normalizeError } from '@shared/errors/normalizer'
+import { useMyProfile, useUpdateMyProfile } from '@/api/queries/useUsers'
+
+const profileSchema = z.object({
+  first_name: z.string().min(2, 'Prénom trop court'),
+  last_name: z.string().min(2, 'Nom trop court'),
+  email: z.string().email('Email invalide'),
+})
+
+type ProfileForm = z.infer<typeof profileSchema>
+
+export default function ProfilePage() {
+  const { user: storeUser, setUser } = useAuthStore()
+  const { data: profile, isLoading: isProfileLoading, error: profileError } = useMyProfile()
+  const updateProfile = useUpdateMyProfile()
+  const [success, setSuccess] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const currentUser = profile ?? storeUser
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting, isDirty },
+  } = useForm<ProfileForm>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      first_name: '',
+      last_name: '',
+      email: '',
+    },
+  })
+
+  useEffect(() => {
+    if (!currentUser) return
+    reset({
+      first_name: currentUser.first_name ?? '',
+      last_name: currentUser.last_name ?? '',
+      email: currentUser.email ?? '',
+    })
+  }, [currentUser, reset])
+
+  const onSubmit = async (data: ProfileForm) => {
+    setError(null)
+    try {
+      const updatedUser = await updateProfile.mutateAsync(data)
+      if (storeUser) {
+        setUser({
+          ...storeUser,
+          ...updatedUser,
+          full_name:
+            updatedUser.full_name ||
+            `${updatedUser.first_name ?? ''} ${updatedUser.last_name ?? ''}`.trim(),
+        })
+      }
+      reset({
+        first_name: updatedUser.first_name ?? data.first_name,
+        last_name: updatedUser.last_name ?? data.last_name,
+        email: updatedUser.email ?? data.email,
+      })
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
+    } catch (err: unknown) {
+      setError(normalizeError(err).message || 'Erreur lors de la mise à jour du profil')
+    }
+  }
+
+  if (isProfileLoading && !currentUser) {
+    return (
+      <div className="max-w-2xl space-y-6 animate-pulse">
+        <div>
+          <div className="h-7 bg-dark-800 rounded w-36" />
+          <div className="h-3 bg-dark-800 rounded w-48 mt-2" />
+        </div>
+        {/* Avatar + name */}
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 bg-dark-800 rounded-full" />
+          <div className="space-y-2">
+            <div className="h-5 bg-dark-800 rounded w-36" />
+            <div className="h-3 bg-dark-800 rounded w-24" />
+          </div>
+        </div>
+        {/* Form fields */}
+        <div className="card p-4 space-y-4">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="space-y-1">
+              <div className="h-3 bg-dark-800 rounded w-20" />
+              <div className="h-10 bg-dark-800 rounded-lg w-full" />
+            </div>
+          ))}
+        </div>
+        <div className="h-10 bg-dark-800 rounded-lg w-32" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      {/* Header */}
+      <PageHeader title="Mon profil" subtitle="Gérez vos informations personnelles" />
+
+      {/* Profile Card */}
+      <div className="card">
+        {profileError && !currentUser && (
+          <div className="mb-4 flex items-center gap-2 p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+            <AlertCircle className="w-4 h-4" />
+            {normalizeError(profileError).message || 'Impossible de charger le profil'}
+          </div>
+        )}
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-20 h-20 rounded-full bg-primary-600 flex items-center justify-center text-2xl font-bold">
+            {currentUser?.first_name?.[0]}
+            {currentUser?.last_name?.[0]}
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold">
+              {currentUser?.first_name} {currentUser?.last_name}
+            </h2>
+            <p className="text-dark-400">{currentUser?.email}</p>
+            <div className="flex items-center gap-2 mt-2">
+              {currentUser?.role === 'admin' && (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-500/10 text-purple-500">
+                  Administrateur
+                </span>
+              )}
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-dark-900 text-dark-300">
+                {{ tenant_admin: 'Administrateur', staff: 'Employé', manager: 'Gérant', viewer: 'Lecteur' }[currentUser?.role ?? ''] ?? currentUser?.role}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {success && (
+            <div className="flex items-center gap-2 p-4 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 text-sm">
+              <Check className="w-4 h-4" />
+              Profil mis à jour avec succès
+            </div>
+          )}
+          {error && (
+            <div className="flex items-center gap-2 p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+              <AlertCircle className="w-4 h-4" />
+              {error}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="first_name" className="block text-sm text-dark-400 mb-1">
+                Prénom
+              </label>
+              <input
+                id="first_name"
+                type="text"
+                className={cn('input', errors.first_name && 'input-error')}
+                {...register('first_name')}
+              />
+              {errors.first_name && (
+                <p className="mt-1 text-sm text-red-400">
+                  {errors.first_name.message}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="last_name" className="block text-sm text-dark-400 mb-1">
+                Nom
+              </label>
+              <input
+                id="last_name"
+                type="text"
+                className={cn('input', errors.last_name && 'input-error')}
+                {...register('last_name')}
+              />
+              {errors.last_name && (
+                <p className="mt-1 text-sm text-red-400">
+                  {errors.last_name.message}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="email" className="block text-sm text-dark-400 mb-1">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              className={cn('input', errors.email && 'input-error')}
+              {...register('email')}
+            />
+            {errors.email && (
+              <p className="mt-1 text-sm text-red-400">{errors.email.message}</p>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <button
+              type="submit"
+              disabled={isSubmitting || updateProfile.isPending || !isDirty}
+              className="btn-primary"
+            >
+              {isSubmitting || updateProfile.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Enregistrement...
+                </>
+              ) : (
+                'Enregistrer les modifications'
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Account Info */}
+      <div className="card">
+        <h3 className="font-semibold mb-4">Informations du compte</h3>
+        <div className="space-y-4 text-sm">
+          <div className="flex justify-between">
+            <span className="text-dark-400">ID utilisateur</span>
+            <span className="font-mono">{currentUser?.id}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-dark-400">Tenant ID</span>
+            <span className="font-mono">{currentUser?.tenant_id}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-dark-400">Rôle</span>
+            <span>{{ tenant_admin: 'Administrateur', staff: 'Employé', manager: 'Gérant', viewer: 'Lecteur' }[currentUser?.role ?? ''] ?? currentUser?.role}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

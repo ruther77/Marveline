@@ -13,12 +13,12 @@ def test_logout_success(client: TestClient, test_user):
     assert login_response.status_code == 200
     tokens = login_response.json()
     access_token = tokens["access_token"]
-    refresh_token = tokens["refresh_token"]
+    refresh_token = login_response.cookies["refresh_token"]
 
-    # Logout avec refresh token
+    # Logout avec refresh token (via cookie)
     response = client.post(
         "/api/v1/auth/logout",
-        json={"refresh_token": refresh_token},
+        cookies={"refresh_token": refresh_token},
         headers={"Authorization": f"Bearer {access_token}"},
     )
 
@@ -61,19 +61,19 @@ def test_refresh_after_logout_returns_401(client: TestClient, test_user):
     )
     tokens = login_response.json()
     access_token = tokens["access_token"]
-    refresh_token = tokens["refresh_token"]
+    refresh_token = login_response.cookies["refresh_token"]
 
-    # Logout avec refresh token
+    # Logout avec refresh token (via cookie)
     client.post(
         "/api/v1/auth/logout",
-        json={"refresh_token": refresh_token},
+        cookies={"refresh_token": refresh_token},
         headers={"Authorization": f"Bearer {access_token}"},
     )
 
     # Tenter refresh → 401 (refresh token révoqué)
     refresh_response = client.post(
         "/api/v1/auth/refresh",
-        json={"refresh_token": refresh_token},
+        cookies={"refresh_token": refresh_token},
     )
     assert refresh_response.status_code == 401
 
@@ -103,8 +103,9 @@ def test_access_token_blacklisted_after_logout(client: TestClient, test_user):
 
 
 def test_csrf_tokens_revoked_after_logout(client: TestClient, test_user):
-    """Test que les tokens CSRF sont révoqués après logout."""
+    """Test que les tokens CSRF sont révoqués après logout (§04 §4.3)."""
     from app.core.redis import redis_client
+    from app.core.security import decode_token
 
     # Login
     login_response = client.post(
@@ -112,6 +113,8 @@ def test_csrf_tokens_revoked_after_logout(client: TestClient, test_user):
         data={"username": "test@carocorp.com", "password": "testpass123"},
     )
     access_token = login_response.json()["access_token"]
+    # Extraire session_id depuis le claim "sid" du JWT (spec §04 §4.3)
+    sid = decode_token(access_token).get("sid")
 
     # Obtenir un token CSRF
     csrf_response = client.get(
@@ -121,8 +124,8 @@ def test_csrf_tokens_revoked_after_logout(client: TestClient, test_user):
     assert csrf_response.status_code == 200
     csrf_token = csrf_response.json()["csrf_token"]
 
-    # Vérifier que CSRF existe dans Redis
-    assert redis_client.validate_csrf_token(test_user.id, csrf_token) is True
+    # Vérifier que CSRF existe dans Redis (clé csrf:{session_id})
+    assert redis_client.validate_csrf_token(sid, csrf_token) is True
 
     # Logout
     client.post(
@@ -131,7 +134,7 @@ def test_csrf_tokens_revoked_after_logout(client: TestClient, test_user):
     )
 
     # CSRF doit être révoqué
-    assert redis_client.validate_csrf_token(test_user.id, csrf_token) is False
+    assert redis_client.validate_csrf_token(sid, csrf_token) is False
 
 
 def test_logout_creates_audit_log(client: TestClient, test_user, test_db):
@@ -154,7 +157,7 @@ def test_logout_creates_audit_log(client: TestClient, test_user, test_db):
     # Vérifier audit log LOGOUT
     audit_log = (
         test_db.query(AuditLog)
-        .filter(AuditLog.action == "LOGOUT", AuditLog.user_id == test_user.id)
+        .filter(AuditLog.action == "LOGOUT", AuditLog.account_id == test_user.id)
         .order_by(AuditLog.id.desc())
         .first()
     )
@@ -172,12 +175,12 @@ def test_double_logout_is_safe(client: TestClient, test_user):
     )
     tokens = login_response.json()
     access_token = tokens["access_token"]
-    refresh_token = tokens["refresh_token"]
+    refresh_token = login_response.cookies["refresh_token"]
 
     # Premier logout
     response1 = client.post(
         "/api/v1/auth/logout",
-        json={"refresh_token": refresh_token},
+        cookies={"refresh_token": refresh_token},
         headers={"Authorization": f"Bearer {access_token}"},
     )
     assert response1.status_code == 200
@@ -192,7 +195,7 @@ def test_double_logout_is_safe(client: TestClient, test_user):
     # Deuxième logout (avec nouveau token mais ancien refresh) — doit être safe
     response2 = client.post(
         "/api/v1/auth/logout",
-        json={"refresh_token": refresh_token},
+        cookies={"refresh_token": refresh_token},
         headers={"Authorization": f"Bearer {access_token2}"},
     )
     assert response2.status_code == 200

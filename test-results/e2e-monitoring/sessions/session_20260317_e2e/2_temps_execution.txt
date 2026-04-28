@@ -1,0 +1,38 @@
+═══════════════════════════════════════════════════════════
+  SESSION: session_20260317_e2e — 2026-03-17 20:26:32
+═══════════════════════════════════════════════════════════
+
+[AXE 2] TEMPS D'EXECUTION (ms)
+
+Endpoint                          | Status | Temps (ms)
+----------------------------------|--------|----------
+/api/v1/health                      | 200    | 44
+/api/v1/dashboard/stats             | 401    | 47
+/api/v1/reservations?page=1&per_page=10 | 401    | 45
+/api/v1/products?page=1&per_page=10 | 401    | 51
+/api/v1/customers?page=1&per_page=10 | 401    | 59
+/api/v1/invoices?page=1&per_page=10 | 401    | 56
+/api/v1/planning/today              | 401    | 62
+/api/v1/categories                  | 401    | 54
+
+[20:28:01] Navigation Dashboard
+  6 requêtes API — toutes répondues < 500ms
+  Aucune alerte performance
+
+[21:42:55] Cycle réservation — Temps de réponse
+  POST /api/v1/reservations (création)       → 201 < 500ms
+  POST /api/v1/reservations/14/confirm        → 200 < 500ms
+  GET  /api/v1/operations/departure/14        → 200 < 500ms
+  GET  /api/v1/reservations/14                → 200 < 500ms
+  GET  /api/v1/reservations/14/deposits       → 200 < 500ms
+  GET  /api/v1/reservations/14/pre-check      → 200 < 500ms
+  GET  /api/v1/reservations/14/risks          → 200 < 500ms
+  Aucune alerte performance
+
+[22:17:56] Cycle complet RES-2026-0013 (API)
+  POST /reservations              → 201 | <500ms
+  POST /reservations/14/confirm   → 200 | <500ms
+  POST /reservations/14/deliver   → 200 | 158ms
+  POST /operations/return/14      → 200 | 162ms  
+  POST /reservations/14/complete  → 200 | 163ms
+  Toutes les transitions < 200ms ✓

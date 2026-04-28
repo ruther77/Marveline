@@ -1,0 +1,120 @@
+{
+  "id": "page:ventes",
+  "type": "page",
+  "name": "Ventes",
+  "description": "Page principale \"Ventes\". Contient : Champ : Rechercher une vente…. Paramètres : rechercher-une-vente.",
+  "route": "/ventes",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "staff",
+      "manager",
+      "admin"
+    ],
+    "group": "Ventes",
+    "dom_h1": "Ventes"
+  },
+  "params": {
+    "rechercher-une-vente": "text"
+  },
+  "features": [
+    "Champ : Rechercher une vente…"
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Réservations",
+      "trigger": "click",
+      "target_id": "page:events",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Clients",
+      "trigger": "click",
+      "target_id": "page:customers",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nouvelle vente",
+      "trigger": "click",
+      "target_id": "modal:nouvelle-vente",
+      "node": {
+        "id": "modal:nouvelle-vente",
+        "type": "modal",
+        "name": "Nouvelle vente",
+        "description": "Modal/panneau ouvert(e) par le bouton \"Nouvelle vente\" sur la page Ventes. Non extrait automatiquement.",
+        "attributes": {
+          "scan_status": "placeholder"
+        },
+        "params": {},
+        "features": [],
+        "children": []
+      }
+    },
+    {
+      "link_type": "action",
+      "label": "Aujourd'hui",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Cette semaine",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Ce mois",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

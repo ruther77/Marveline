@@ -189,10 +189,41 @@ class TestVenteRefund:
 # ---------------------------------------------------------------------------
 
 class TestVenteOverdue:
+    def _create_overdue_candidate(self, client, headers, customer_id):
+        payload = _vente_payload(customer_id)
+        payload["payment_due_date"] = (date.today() - timedelta(days=1)).isoformat()
+        vente = client.post("/api/v1/ventes", json=payload, headers=headers).json()
+        client.post(
+            f"/api/v1/ventes/{vente['id']}/payments",
+            json={
+                "amount_cents": 500,
+                "payment_method": "cash",
+                "payment_date": date.today().isoformat(),
+                "is_deposit": False,
+            },
+            headers=headers,
+        )
+        return vente
+
     def test_list_overdue(self, client: TestClient, auth_headers_real):
         resp = client.get("/api/v1/ventes/overdue", headers=auth_headers_real)
         assert resp.status_code == 200
         assert "items" in resp.json()
+
+    def test_get_marks_vente_overdue(self, client: TestClient, auth_headers_real, customer_vte):
+        vente = self._create_overdue_candidate(client, auth_headers_real, customer_vte.id)
+        detail = client.get(f"/api/v1/ventes/{vente['id']}", headers=auth_headers_real)
+        assert detail.status_code == 200
+        assert detail.json()["status"] == "overdue"
+
+    def test_overdue_endpoint_includes_auto_transitioned_sales(
+        self, client: TestClient, auth_headers_real, customer_vte
+    ):
+        vente = self._create_overdue_candidate(client, auth_headers_real, customer_vte.id)
+        resp = client.get("/api/v1/ventes/overdue", headers=auth_headers_real)
+        assert resp.status_code == 200
+        ids = [item["id"] for item in resp.json()["items"]]
+        assert vente["id"] in ids
 
 
 # ---------------------------------------------------------------------------

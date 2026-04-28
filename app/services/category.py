@@ -1,9 +1,10 @@
 """Service metier pour les categories."""
 from typing import Optional
-from sqlalchemy.orm import Session
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 from app.models.category import Category
-from app.repositories.category import CategoryRepository
+from app.repositories.category import AsyncCategoryRepository
 from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryTreeNode
 from app.constants import ErrorMessages
 from app.utils import slugify
@@ -12,11 +13,11 @@ from app.utils import slugify
 class CategoryService:
     """Service metier pour gestion des categories hierarchiques."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
-        self.repo = CategoryRepository(db)
+        self.repo = AsyncCategoryRepository(db)
 
-    def list_categories(
+    async def list_categories(
         self,
         tenant_id: int,
         skip: int = 0,
@@ -24,44 +25,27 @@ class CategoryService:
         parent_id: Optional[int] = None,
         include_inactive: bool = False,
     ) -> tuple[list[Category], int]:
-        """Liste les categories avec filtres et pagination.
-
-        Args:
-            tenant_id: ID du tenant
-            skip: Offset pagination
-            limit: Limite pagination
-            parent_id: Filtre par categorie parente (None = tous)
-            include_inactive: Inclure categories soft-deleted
-
-        Returns:
-            Tuple (items, total) où items est la liste paginée
-        """
-        filters = {}
+        """Liste les categories avec filtres et pagination."""
+        q = select(Category).filter(Category.tenant_id == tenant_id)
+        if not include_inactive:
+            q = q.filter(Category.is_active == True)  # noqa: E712
         if parent_id is not None:
-            filters["parent_id"] = parent_id
+            q = q.filter(Category.parent_id == parent_id)
 
-        return self.repo.list(
-            tenant_id=tenant_id,
-            skip=skip,
-            limit=limit,
-            filters=filters if filters else None,
-            include_inactive=include_inactive,
-        )
+        count_result = await self.db.execute(select(func.count()).select_from(q.subquery()))
+        total = count_result.scalar() or 0
 
-    def get_category(self, category_id: int, tenant_id: int) -> Category:
+        q = q.order_by(Category.display_order, Category.name).offset(skip).limit(limit)
+        result = await self.db.execute(q)
+        return list(result.scalars().all()), total
+
+    async def get_category(self, category_id: int, tenant_id: int) -> Category:
         """Récupère une categorie par ID.
 
-        Args:
-            category_id: ID de la categorie
-            tenant_id: ID du tenant
-
-        Returns:
-            Categorie trouvée
-
         Raises:
-            HTTPException 404: Si categorie non trouvée
+            HTTPException 404: Si categorie non trouvée.
         """
-        category = self.repo.get_by_id(category_id, tenant_id)
+        category = await self.repo.get_by_id(category_id, tenant_id)
         if not category:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -69,54 +53,49 @@ class CategoryService:
             )
         return category
 
-    def create_category(self, data: CategoryCreate, tenant_id: int) -> Category:
+    async def create_category(self, data: CategoryCreate, tenant_id: int) -> Category:
         """Cree une nouvelle categorie.
 
         Auto-genere le slug depuis le name si pas fourni.
         Valide parent_id existe et meme tenant.
         """
-        # Auto-generer slug si absent
         slug = data.slug if data.slug else slugify(data.name)
 
-        # Verifier unicite slug
-        if self.repo.slug_exists(slug, tenant_id):
+        if await self.repo.slug_exists(slug, tenant_id):
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_409_CONFLICT,
                 detail=ErrorMessages.CATEGORY_SLUG_EXISTS,
             )
 
-        # Verifier unicite nom
-        if self.repo.name_exists(data.name, tenant_id):
+        if await self.repo.name_exists(data.name, tenant_id):
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=status.HTTP_409_CONFLICT,
                 detail=ErrorMessages.CATEGORY_NAME_EXISTS,
             )
 
-        # Verifier parent_id si fourni
         if data.parent_id is not None:
-            parent = self.repo.get_by_id(data.parent_id, tenant_id)
+            parent = await self.repo.get_by_id(data.parent_id, tenant_id)
             if not parent:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=ErrorMessages.CATEGORY_PARENT_NOT_FOUND,
                 )
 
-        category = Category(
-            tenant_id=tenant_id,
-            name=data.name,
-            slug=slug,
-            description=data.description,
-            parent_id=data.parent_id,
-            image_url=data.image_url,
-            display_order=data.display_order,
-        )
-        return self.repo.create(category)
+        return await self.repo.create({
+            "tenant_id": tenant_id,
+            "name": data.name,
+            "slug": slug,
+            "description": data.description,
+            "parent_id": data.parent_id,
+            "image_url": data.image_url,
+            "display_order": data.display_order,
+        })
 
-    def update_category(
+    async def update_category(
         self, category_id: int, data: CategoryUpdate, tenant_id: int
     ) -> Category:
         """Met a jour une categorie (PATCH partiel)."""
-        category = self.repo.get_by_id(category_id, tenant_id)
+        category = await self.repo.get_by_id(category_id, tenant_id)
         if not category:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -125,23 +104,20 @@ class CategoryService:
 
         update_data = data.model_dump(exclude_unset=True)
 
-        # Verifier unicite slug si change
         if "slug" in update_data and update_data["slug"] != category.slug:
-            if self.repo.slug_exists(update_data["slug"], tenant_id, exclude_id=category_id):
+            if await self.repo.slug_exists(update_data["slug"], tenant_id, exclude_id=category_id):
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
+                    status_code=status.HTTP_409_CONFLICT,
                     detail=ErrorMessages.CATEGORY_SLUG_EXISTS,
                 )
 
-        # Verifier unicite nom si change
         if "name" in update_data and update_data["name"] != category.name:
-            if self.repo.name_exists(update_data["name"], tenant_id, exclude_id=category_id):
+            if await self.repo.name_exists(update_data["name"], tenant_id, exclude_id=category_id):
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
+                    status_code=status.HTTP_409_CONFLICT,
                     detail=ErrorMessages.CATEGORY_NAME_EXISTS,
                 )
 
-        # Verifier parent_id pas = self (cycle)
         if "parent_id" in update_data:
             new_parent_id = update_data["parent_id"]
             if new_parent_id is not None:
@@ -150,50 +126,44 @@ class CategoryService:
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=ErrorMessages.CATEGORY_PARENT_CYCLE,
                     )
-                parent = self.repo.get_by_id(new_parent_id, tenant_id)
+                parent = await self.repo.get_by_id(new_parent_id, tenant_id)
                 if not parent:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=ErrorMessages.CATEGORY_PARENT_NOT_FOUND,
                     )
 
-        for field, value in update_data.items():
-            setattr(category, field, value)
+        return await self.repo.update(category, update_data)
 
-        return self.repo.update(category)
-
-    def delete_category(
-        self, category_id: int, tenant_id: int
-    ) -> bool:
+    async def delete_category(self, category_id: int, tenant_id: int) -> bool:
         """Soft delete une categorie. Bloque si enfants actifs."""
-        category = self.repo.get_by_id(category_id, tenant_id)
+        category = await self.repo.get_by_id(category_id, tenant_id)
         if not category:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=ErrorMessages.CATEGORY_NOT_FOUND,
             )
 
-        if self.repo.has_active_children(category_id, tenant_id):
+        if await self.repo.has_active_children(category_id, tenant_id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorMessages.CATEGORY_HAS_CHILDREN,
             )
 
-        return self.repo.soft_delete(category_id, tenant_id)
+        await self.repo.soft_delete(category)
+        return True
 
-    def get_tree(self, tenant_id: int) -> list[CategoryTreeNode]:
+    async def get_tree(self, tenant_id: int) -> list[CategoryTreeNode]:
         """Construit l'arbre hierarchique des categories.
 
         Charge toutes les categories actives et construit l'arbre en memoire.
         """
-        categories = self.repo.list_all_active(tenant_id)
+        categories = await self.repo.list_all_active(tenant_id)
 
-        # Compter les produits par slug
         product_counts: dict[str, int] = {}
         for cat in categories:
-            product_counts[cat.slug] = self.repo.count_products(cat.slug, tenant_id)
+            product_counts[cat.slug] = await self.repo.count_products(cat.slug, tenant_id)
 
-        # Construire dict id -> node
         nodes: dict[int, CategoryTreeNode] = {}
         for cat in categories:
             nodes[cat.id] = CategoryTreeNode(
@@ -212,7 +182,6 @@ class CategoryService:
                 product_count=product_counts.get(cat.slug, 0),
             )
 
-        # Assembler arbre
         roots: list[CategoryTreeNode] = []
         for node in nodes.values():
             if node.parent_id is not None and node.parent_id in nodes:

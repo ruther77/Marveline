@@ -4,13 +4,12 @@ from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
-from app.core.deps import get_current_user, require_permission
-from app.core.permissions import Permission
-from app.models.user import User
-from app.services.inventory_movement import MovementService
+from app.core.database import get_async_db
+from app.core.deps import get_current_user, require_scope, UserCompat
+from app.core.permissions import Scope
+from app.services.inventory_movement import AsyncMovementService
 from app.schemas.inventory_movement import (
     MovementCreate,
     MovementUpdate,
@@ -22,7 +21,7 @@ from app.schemas.inventory_movement import (
     MovementItemResponse,
     AgendaView,
 )
-from app.schemas.common import PaginatedResponse
+from app.schemas.common import PaginatedResponse, PaginationParams
 
 
 logger = logging.getLogger(__name__)
@@ -34,19 +33,20 @@ router = APIRouter(prefix="/inventory-movements", tags=["Inventory Movements"])
 
 
 @router.get("", response_model=PaginatedResponse[MovementListItem])
-def list_movements(
+async def list_movements(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=1000),
     movement_type: Optional[str] = Query(None, description="Filtrer par type (departure/return)"),
     movement_status: Optional[str] = Query(None, alias="status", description="Filtrer par statut"),
     event_id: Optional[int] = Query(None, description="Filtrer par événement"),
     reservation_id: Optional[int] = Query(None, description="Filtrer par réservation"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    product_id: Optional[int] = Query(None, description="Filtrer par produit"),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.STOCK_READ)),
 ) -> PaginatedResponse[MovementListItem]:
     """Liste les mouvements avec pagination et filtres."""
-    service = MovementService(db)
-    movements, total = service.list_movements(
+    service = AsyncMovementService(db)
+    movements, total = await service.list_movements(
         tenant_id=current_user.tenant_id,
         skip=skip,
         limit=limit,
@@ -54,6 +54,7 @@ def list_movements(
         movement_status=movement_status,
         event_id=event_id,
         reservation_id=reservation_id,
+        product_id=product_id,
     )
 
     # items_count est déjà calculé en SQL par le repository (évite N+1)
@@ -67,42 +68,54 @@ def list_movements(
     )
 
 
-@router.get("/late", response_model=list[MovementListItem])
-def list_late_movements(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> list[MovementListItem]:
+@router.get("/late", response_model=PaginatedResponse[MovementListItem])
+async def list_late_movements(
+    pagination: PaginationParams = Depends(),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.STOCK_READ)),
+) -> PaginatedResponse[MovementListItem]:
     """Liste les mouvements en retard."""
-    service = MovementService(db)
-    movements, _ = service.get_late_movements(current_user.tenant_id)
+    service = AsyncMovementService(db)
+    movements, total = await service.get_late_movements(
+        current_user.tenant_id, skip=pagination.skip, limit=pagination.limit,
+    )
+    return PaginatedResponse(
+        items=[MovementListItem.model_validate(m) for m in movements],
+        total=total,
+        skip=pagination.skip,
+        limit=pagination.limit,
+    )
 
-    # items_count est déjà calculé en SQL par le repository (évite N+1)
-    return [MovementListItem.model_validate(m) for m in movements]
 
-
-@router.get("/pending-inspections", response_model=list[MovementListItem])
-def list_pending_inspections(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> list[MovementListItem]:
+@router.get("/pending-inspections", response_model=PaginatedResponse[MovementListItem])
+async def list_pending_inspections(
+    pagination: PaginationParams = Depends(),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.STOCK_READ)),
+) -> PaginatedResponse[MovementListItem]:
     """Liste les mouvements avec inspection en attente."""
-    service = MovementService(db)
-    movements, _ = service.get_pending_inspections(current_user.tenant_id)
-
-    # items_count est déjà calculé en SQL par le repository (évite N+1)
-    return [MovementListItem.model_validate(m) for m in movements]
+    service = AsyncMovementService(db)
+    movements, total = await service.get_pending_inspections(
+        current_user.tenant_id, skip=pagination.skip, limit=pagination.limit,
+    )
+    return PaginatedResponse(
+        items=[MovementListItem.model_validate(m) for m in movements],
+        total=total,
+        skip=pagination.skip,
+        limit=pagination.limit,
+    )
 
 
 @router.get("/statistics", response_model=MovementStatistics)
-def get_statistics(
+async def get_statistics(
     start_date: date | None = Query(None, description="Date de début (filtre scheduled_date)"),
     end_date: date | None = Query(None, description="Date de fin (filtre scheduled_date)"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.STOCK_READ)),
 ) -> MovementStatistics:
     """Retourne les statistiques des mouvements."""
-    service = MovementService(db)
-    stats = service.get_statistics(
+    service = AsyncMovementService(db)
+    stats = await service.get_statistics(
         current_user.tenant_id,
         start_date=start_date,
         end_date=end_date,
@@ -110,49 +123,44 @@ def get_statistics(
     return MovementStatistics(**stats)
 
 
-@router.get("/agenda", response_model=AgendaView)
-def get_agenda(
-    start_date: date | None = Query(None, description="Date de début (filtre scheduled_date mouvements)"),
-    end_date: date | None = Query(None, description="Date de fin (filtre scheduled_date mouvements)"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> AgendaView:
-    """Retourne la vue agenda avec événements/réservations et mouvements associés."""
-    service = MovementService(db)
-    agenda_data = service.get_agenda(
-        current_user.tenant_id,
-        start_date=start_date,
-        end_date=end_date,
-    )
-    return AgendaView(**agenda_data)
+@router.get("/today", status_code=410, deprecated=True)
+async def get_today_movements_gone() -> dict:
+    """RETIRED — Use GET /planning/today instead."""
+    raise HTTPException(status_code=410, detail="Gone. Use GET /planning/today")
+
+
+@router.get("/agenda", status_code=410, deprecated=True)
+async def get_agenda_gone() -> dict:
+    """RETIRED — Use GET /planning/timeline instead."""
+    raise HTTPException(status_code=410, detail="Gone. Use GET /planning/timeline")
 
 
 # ── Single movement CRUD ──────────────────────────────────────────────
 
 
 @router.get("/{movement_id}", response_model=MovementResponse)
-def get_movement(
+async def get_movement(
     movement_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.STOCK_READ)),
 ) -> MovementResponse:
     """Récupère les détails d'un mouvement."""
-    service = MovementService(db)
-    movement = service.get_movement(movement_id, current_user.tenant_id)
+    service = AsyncMovementService(db)
+    movement = await service.get_movement(movement_id, current_user.tenant_id)
     return MovementResponse.model_validate(movement)
 
 
 @router.post("", response_model=MovementResponse, status_code=status.HTTP_201_CREATED)
-def create_movement(
+async def create_movement(
     data: MovementCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission(Permission.INVENTORY_WRITE)),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.STOCK_WRITE)),
 ) -> MovementResponse:
     """Crée un nouveau mouvement avec ses articles (inventory:write)."""
-    service = MovementService(db)
+    service = AsyncMovementService(db)
 
     try:
-        movement = service.create_movement(
+        movement = await service.create_movement(
             tenant_id=current_user.tenant_id,
             movement_type=data.movement_type.value,
             scheduled_date=data.scheduled_date,
@@ -163,8 +171,9 @@ def create_movement(
             delivery_address=data.delivery_address,
             delivery_notes=data.delivery_notes,
         )
-        db.commit()
-        db.refresh(movement)
+        await db.commit()
+        # Recharger avec relations eager-loaded (évite MissingGreenlet sur items.units)
+        movement = await service.get_movement(movement.id, current_user.tenant_id)
         return MovementResponse.model_validate(movement)
     except HTTPException:
         raise
@@ -177,14 +186,14 @@ def create_movement(
 
 
 @router.patch("/{movement_id}", response_model=MovementResponse)
-def update_movement(
+async def update_movement(
     movement_id: int,
     data: MovementUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission(Permission.INVENTORY_WRITE)),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.STOCK_WRITE)),
 ) -> MovementResponse:
     """Met à jour un mouvement existant (inventory:write, PATCH partiel)."""
-    service = MovementService(db)
+    service = AsyncMovementService(db)
 
     try:
         update_data = data.model_dump(exclude_unset=True)
@@ -197,13 +206,14 @@ def update_movement(
         if "inspection_status" in update_data and update_data["inspection_status"] is not None:
             update_data["inspection_status"] = update_data["inspection_status"].value if hasattr(update_data["inspection_status"], "value") else update_data["inspection_status"]
 
-        movement = service.update_movement(
+        movement = await service.update_movement(
             movement_id,
             current_user.tenant_id,
             **update_data,
         )
-        db.commit()
-        db.refresh(movement)
+        await db.commit()
+        # Recharger avec relations eager-loaded (évite MissingGreenlet sur items.units)
+        movement = await service.get_movement(movement_id, current_user.tenant_id)
         return MovementResponse.model_validate(movement)
     except HTTPException:
         raise
@@ -216,17 +226,17 @@ def update_movement(
 
 
 @router.delete("/{movement_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_movement(
+async def delete_movement(
     movement_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission(Permission.INVENTORY_WRITE)),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.STOCK_WRITE)),
 ) -> None:
     """Supprime un mouvement (soft delete, inventory:write)."""
-    service = MovementService(db)
+    service = AsyncMovementService(db)
 
     try:
-        service.delete_movement(movement_id, current_user.tenant_id)
-        db.commit()
+        await service.delete_movement(movement_id, current_user.tenant_id)
+        await db.commit()
     except HTTPException:
         raise
     except Exception as e:
@@ -241,18 +251,19 @@ def delete_movement(
 
 
 @router.patch("/{movement_id}/complete", response_model=MovementResponse)
-def complete_movement(
+async def complete_movement(
     movement_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission(Permission.INVENTORY_WRITE)),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.STOCK_WRITE)),
 ) -> MovementResponse:
     """Marque un mouvement comme complété (inventory:write)."""
-    service = MovementService(db)
+    service = AsyncMovementService(db)
 
     try:
-        movement = service.complete_movement(movement_id, current_user.tenant_id)
-        db.commit()
-        db.refresh(movement)
+        movement = await service.complete_movement(movement_id, current_user.tenant_id)
+        await db.commit()
+        # Recharger avec relations eager-loaded (évite MissingGreenlet sur items.units)
+        movement = await service.get_movement(movement_id, current_user.tenant_id)
         return MovementResponse.model_validate(movement)
     except HTTPException:
         raise
@@ -267,29 +278,44 @@ def complete_movement(
 # ── Items management ──────────────────────────────────────────────────
 
 
+@router.get("/{movement_id}/items", response_model=list[MovementItemResponse])
+async def list_items(
+    movement_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.STOCK_READ)),
+) -> list[MovementItemResponse]:
+    """Liste les articles d'un mouvement."""
+    service = AsyncMovementService(db)
+    movement = await service.get_movement(movement_id, current_user.tenant_id)
+    return [MovementItemResponse.model_validate(item) for item in movement.items]
+
+
 @router.post("/{movement_id}/items", response_model=MovementItemResponse, status_code=status.HTTP_201_CREATED)
-def add_item(
+async def add_item(
     movement_id: int,
     data: MovementItemCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission(Permission.INVENTORY_WRITE)),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.STOCK_WRITE)),
 ) -> MovementItemResponse:
     """Ajoute un article à un mouvement (inventory:write)."""
-    service = MovementService(db)
+    service = AsyncMovementService(db)
 
     try:
-        item = service.add_item(
+        item = await service.add_item(
             movement_id=movement_id,
             tenant_id=current_user.tenant_id,
             event_item_id=data.event_item_id,
             product_id=data.product_id,
-            product_variation_id=data.product_variation_id,
+            variant_id=data.variant_id,
             quantity_expected=data.quantity_expected,
             condition=data.condition.value if data.condition else None,
             condition_notes=data.condition_notes,
         )
-        db.commit()
-        db.refresh(item)
+        item_id_created = item.id
+        await db.commit()
+        # Recharger le movement avec relations eager-loaded puis extraire l'item
+        movement = await service.get_movement(movement_id, current_user.tenant_id)
+        item = next(i for i in movement.items if i.id == item_id_created)
         return MovementItemResponse.model_validate(item)
     except HTTPException:
         raise
@@ -302,18 +328,18 @@ def add_item(
 
 
 @router.patch("/{movement_id}/items/{item_id}", response_model=MovementItemResponse)
-def update_item(
+async def update_item(
     movement_id: int,
     item_id: int,
     data: MovementItemUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission(Permission.INVENTORY_WRITE)),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.STOCK_WRITE)),
 ) -> MovementItemResponse:
     """Met à jour un article de mouvement (inventory:write)."""
-    service = MovementService(db)
+    service = AsyncMovementService(db)
 
     try:
-        item = service.update_item(
+        item = await service.update_item(
             item_id=item_id,
             tenant_id=current_user.tenant_id,
             quantity_actual=data.quantity_actual,
@@ -326,8 +352,10 @@ def update_item(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Item not found in this movement",
             )
-        db.commit()
-        db.refresh(item)
+        await db.commit()
+        # Recharger le movement avec relations eager-loaded puis extraire l'item
+        movement = await service.get_movement(movement_id, current_user.tenant_id)
+        item = next(i for i in movement.items if i.id == item_id)
         return MovementItemResponse.model_validate(item)
     except HTTPException:
         raise
@@ -340,32 +368,34 @@ def update_item(
 
 
 @router.delete("/{movement_id}/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-def remove_item(
+async def remove_item(
     movement_id: int,
     item_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission(Permission.INVENTORY_WRITE)),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserCompat = Depends(require_scope(Scope.STOCK_WRITE)),
 ) -> None:
     """Supprime un article d'un mouvement (inventory:write)."""
-    service = MovementService(db)
+    service = AsyncMovementService(db)
 
     try:
-        # Récupérer l'item pour validation
-        item_repo = service.item_repo
-        item = item_repo.get_by_id(item_id, current_user.tenant_id)
+        # Récupérer l'item et valider la cohérence movement
+        item = await service.item_repo.get_by_id_and_movement(
+            item_id, movement_id, current_user.tenant_id
+        )
         if not item:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Movement item not found",
+                detail="Movement item not found in this movement",
             )
-        # Validation cohérence: vérifier que l'item appartient bien au movement
-        if item.movement_id != movement_id:
+        # Vérifier que le mouvement n'est pas dans un état terminal
+        movement = await service.get_movement(movement_id, current_user.tenant_id)
+        if movement.status in ("completed", "cancelled"):
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Item not found in this movement",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot remove items from a {movement.status} movement",
             )
-        service.remove_item(item_id, current_user.tenant_id)
-        db.commit()
+        await service.item_repo.soft_delete(item)
+        await db.commit()
     except HTTPException:
         raise
     except Exception as e:

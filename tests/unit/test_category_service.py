@@ -1,10 +1,10 @@
 """Tests unitaires pour CategoryService."""
 import pytest
 from fastapi import HTTPException
+from sqlalchemy import select
 from app.models.category import Category
 from app.models.product import Product
 from app.services.category import CategoryService
-from app.repositories.category import CategoryRepository
 from app.utils.slug import slugify
 from app.constants import ErrorMessages
 
@@ -13,7 +13,8 @@ from app.constants import ErrorMessages
 # Helpers
 # ─────────────────────────────────────────────────────────────────────
 
-def _make_category(db, tenant_id=1, name="Test Category", slug=None, parent_id=None, display_order=0):
+async def _make_category(db, tenant_id=1, name="Test Category", slug=None,
+                         parent_id=None, display_order=0):
     """Cree une categorie de test."""
     cat = Category(
         tenant_id=tenant_id,
@@ -23,27 +24,28 @@ def _make_category(db, tenant_id=1, name="Test Category", slug=None, parent_id=N
         display_order=display_order,
     )
     db.add(cat)
-    db.commit()
-    db.refresh(cat)
+    await db.flush()
+    await db.refresh(cat)
     return cat
 
 
-def _make_product(db, tenant_id=1, name="Produit Test", sku="PRD-001", category="test_category"):
+async def _make_product(db, tenant_id=1, name="Produit Test", sku="PRD-001",
+                        category="test_category"):
     """Cree un produit de test."""
     prod = Product(
         tenant_id=tenant_id,
         name=name,
         sku=sku,
         category=category,
-        price_per_day=250,
-        deposit_amount=0,
+        price_per_day_cents=250,
+        deposit_amount_cents=0,
         stock_quantity=10,
         available_quantity=10,
         condition="bon",
     )
     db.add(prod)
-    db.commit()
-    db.refresh(prod)
+    await db.flush()
+    await db.refresh(prod)
     return prod
 
 
@@ -83,67 +85,68 @@ class TestSlugify:
 # Create
 # ─────────────────────────────────────────────────────────────────────
 
+@pytest.mark.asyncio
 class TestCreateCategory:
     """Tests pour CategoryService.create_category."""
 
-    def test_create_with_auto_slug(self, test_db):
-        service = CategoryService(test_db)
+    async def test_create_with_auto_slug(self, async_db):
+        service = CategoryService(async_db)
         from app.schemas.category import CategoryCreate
         data = CategoryCreate(name="Assiettes")
-        cat = service.create_category(data, tenant_id=1)
-        test_db.commit()
+        cat = await service.create_category(data, tenant_id=1)
+        await async_db.commit()
         assert cat.name == "Assiettes"
         assert cat.slug == "assiettes"
         assert cat.tenant_id == 1
 
-    def test_create_with_explicit_slug(self, test_db):
-        service = CategoryService(test_db)
+    async def test_create_with_explicit_slug(self, async_db):
+        service = CategoryService(async_db)
         from app.schemas.category import CategoryCreate
         data = CategoryCreate(name="Verres a vin", slug="verres_vin")
-        cat = service.create_category(data, tenant_id=1)
-        test_db.commit()
+        cat = await service.create_category(data, tenant_id=1)
+        await async_db.commit()
         assert cat.slug == "verres_vin"
 
-    def test_create_with_valid_parent(self, test_db):
-        parent = _make_category(test_db, name="Mobilier")
-        service = CategoryService(test_db)
+    async def test_create_with_valid_parent(self, async_db):
+        parent = await _make_category(async_db, name="Mobilier")
+        service = CategoryService(async_db)
         from app.schemas.category import CategoryCreate
         data = CategoryCreate(name="Tables", parent_id=parent.id)
-        cat = service.create_category(data, tenant_id=1)
-        test_db.commit()
+        cat = await service.create_category(data, tenant_id=1)
+        await async_db.commit()
         assert cat.parent_id == parent.id
 
-    def test_create_with_invalid_parent_raises(self, test_db):
-        service = CategoryService(test_db)
+    async def test_create_with_invalid_parent_raises(self, async_db):
+        service = CategoryService(async_db)
         from app.schemas.category import CategoryCreate
         data = CategoryCreate(name="Orphan", parent_id=99999)
         with pytest.raises(HTTPException) as exc_info:
-            service.create_category(data, tenant_id=1)
+            await service.create_category(data, tenant_id=1)
         assert exc_info.value.status_code == 400
         assert ErrorMessages.CATEGORY_PARENT_NOT_FOUND in exc_info.value.detail
 
-    def test_create_slug_duplicate_raises(self, test_db):
-        _make_category(test_db, name="Chaises", slug="chaises")
-        service = CategoryService(test_db)
+    async def test_create_slug_duplicate_raises(self, async_db):
+        await _make_category(async_db, name="Chaises", slug="chaises")
+        service = CategoryService(async_db)
         from app.schemas.category import CategoryCreate
         data = CategoryCreate(name="Chaises Luxe", slug="chaises")
         with pytest.raises(HTTPException) as exc_info:
-            service.create_category(data, tenant_id=1)
+            await service.create_category(data, tenant_id=1)
         assert exc_info.value.status_code == 400
         assert ErrorMessages.CATEGORY_SLUG_EXISTS in exc_info.value.detail
 
-    def test_create_name_duplicate_raises(self, test_db):
-        _make_category(test_db, name="Nappes", slug="nappes_existing")
-        service = CategoryService(test_db)
+    async def test_create_name_duplicate_raises(self, async_db):
+        await _make_category(async_db, name="Nappes", slug="nappes_existing")
+        service = CategoryService(async_db)
         from app.schemas.category import CategoryCreate
         data = CategoryCreate(name="Nappes", slug="nappes_new")
         with pytest.raises(HTTPException) as exc_info:
-            service.create_category(data, tenant_id=1)
+            await service.create_category(data, tenant_id=1)
         assert exc_info.value.status_code == 400
         assert ErrorMessages.CATEGORY_NAME_EXISTS in exc_info.value.detail
 
-    def test_create_with_description_and_image(self, test_db):
-        service = CategoryService(test_db)
+    async def test_create_with_description_and_image(self, async_db):
+        service = CategoryService(async_db)
         from app.schemas.category import CategoryCreate
         data = CategoryCreate(
             name="Decorations",
@@ -151,8 +154,8 @@ class TestCreateCategory:
             image_url="https://cdn.example.com/deco.jpg",
             display_order=5,
         )
-        cat = service.create_category(data, tenant_id=1)
-        test_db.commit()
+        cat = await service.create_category(data, tenant_id=1)
+        await async_db.commit()
         assert cat.description == "Toute la deco"
         assert cat.image_url == "https://cdn.example.com/deco.jpg"
         assert cat.display_order == 5
@@ -162,45 +165,46 @@ class TestCreateCategory:
 # Update
 # ─────────────────────────────────────────────────────────────────────
 
+@pytest.mark.asyncio
 class TestUpdateCategory:
     """Tests pour CategoryService.update_category."""
 
-    def test_update_name(self, test_db):
-        cat = _make_category(test_db, name="Old Name")
-        service = CategoryService(test_db)
+    async def test_update_name(self, async_db):
+        cat = await _make_category(async_db, name="Old Name")
+        service = CategoryService(async_db)
         from app.schemas.category import CategoryUpdate
         data = CategoryUpdate(name="New Name")
-        updated = service.update_category(cat.id, data, tenant_id=1)
-        test_db.commit()
+        updated = await service.update_category(cat.id, data, tenant_id=1)
+        await async_db.commit()
         assert updated.name == "New Name"
 
-    def test_update_slug_unique_violation_raises(self, test_db):
-        _make_category(test_db, name="Cat A", slug="cat_a")
-        cat_b = _make_category(test_db, name="Cat B", slug="cat_b")
-        service = CategoryService(test_db)
+    async def test_update_slug_unique_violation_raises(self, async_db):
+        await _make_category(async_db, name="Cat A", slug="cat_a")
+        cat_b = await _make_category(async_db, name="Cat B", slug="cat_b")
+        service = CategoryService(async_db)
         from app.schemas.category import CategoryUpdate
         data = CategoryUpdate(slug="cat_a")
         with pytest.raises(HTTPException) as exc_info:
-            service.update_category(cat_b.id, data, tenant_id=1)
+            await service.update_category(cat_b.id, data, tenant_id=1)
         assert exc_info.value.status_code == 400
         assert ErrorMessages.CATEGORY_SLUG_EXISTS in exc_info.value.detail
 
-    def test_update_parent_self_cycle_raises(self, test_db):
-        cat = _make_category(test_db, name="Self Ref")
-        service = CategoryService(test_db)
+    async def test_update_parent_self_cycle_raises(self, async_db):
+        cat = await _make_category(async_db, name="Self Ref")
+        service = CategoryService(async_db)
         from app.schemas.category import CategoryUpdate
         data = CategoryUpdate(parent_id=cat.id)
         with pytest.raises(HTTPException) as exc_info:
-            service.update_category(cat.id, data, tenant_id=1)
+            await service.update_category(cat.id, data, tenant_id=1)
         assert exc_info.value.status_code == 400
         assert ErrorMessages.CATEGORY_PARENT_CYCLE in exc_info.value.detail
 
-    def test_update_not_found_raises(self, test_db):
-        service = CategoryService(test_db)
+    async def test_update_not_found_raises(self, async_db):
+        service = CategoryService(async_db)
         from app.schemas.category import CategoryUpdate
         data = CategoryUpdate(name="Does Not Exist")
         with pytest.raises(HTTPException) as exc_info:
-            service.update_category(99999, data, tenant_id=1)
+            await service.update_category(99999, data, tenant_id=1)
         assert exc_info.value.status_code == 404
 
 
@@ -208,33 +212,37 @@ class TestUpdateCategory:
 # Delete
 # ─────────────────────────────────────────────────────────────────────
 
+@pytest.mark.asyncio
 class TestDeleteCategory:
     """Tests pour CategoryService.delete_category."""
 
-    def test_delete_without_children(self, test_db):
-        cat = _make_category(test_db, name="Leaf")
-        service = CategoryService(test_db)
-        result = service.delete_category(cat.id, tenant_id=1)
-        test_db.commit()
+    async def test_delete_without_children(self, async_db):
+        cat = await _make_category(async_db, name="Leaf")
+        service = CategoryService(async_db)
+        result = await service.delete_category(cat.id, tenant_id=1)
+        await async_db.commit()
         assert result is True
-        # Verifier soft delete
-        repo = CategoryRepository(test_db)
-        deleted = repo.get_by_id(cat.id, tenant_id=1, include_inactive=True)
+        # Verifier soft delete via requête directe
+        res = await async_db.execute(
+            select(Category).where(Category.id == cat.id)
+        )
+        deleted = res.scalars().first()
+        assert deleted is not None
         assert deleted.is_active is False
 
-    def test_delete_with_active_children_raises(self, test_db):
-        parent = _make_category(test_db, name="Parent Cat")
-        _make_category(test_db, name="Child Cat", parent_id=parent.id)
-        service = CategoryService(test_db)
+    async def test_delete_with_active_children_raises(self, async_db):
+        parent = await _make_category(async_db, name="Parent Cat")
+        await _make_category(async_db, name="Child Cat", parent_id=parent.id)
+        service = CategoryService(async_db)
         with pytest.raises(HTTPException) as exc_info:
-            service.delete_category(parent.id, tenant_id=1)
+            await service.delete_category(parent.id, tenant_id=1)
         assert exc_info.value.status_code == 400
         assert ErrorMessages.CATEGORY_HAS_CHILDREN in exc_info.value.detail
 
-    def test_delete_not_found_raises(self, test_db):
-        service = CategoryService(test_db)
+    async def test_delete_not_found_raises(self, async_db):
+        service = CategoryService(async_db)
         with pytest.raises(HTTPException) as exc_info:
-            service.delete_category(99999, tenant_id=1)
+            await service.delete_category(99999, tenant_id=1)
         assert exc_info.value.status_code == 404
 
 
@@ -242,16 +250,17 @@ class TestDeleteCategory:
 # Tree
 # ─────────────────────────────────────────────────────────────────────
 
+@pytest.mark.asyncio
 class TestGetTree:
     """Tests pour CategoryService.get_tree."""
 
-    def test_tree_builds_correctly(self, test_db):
-        root = _make_category(test_db, name="Root")
-        child = _make_category(test_db, name="Child", parent_id=root.id)
-        _make_category(test_db, name="Grandchild", parent_id=child.id)
+    async def test_tree_builds_correctly(self, async_db):
+        root = await _make_category(async_db, name="Root")
+        child = await _make_category(async_db, name="Child", parent_id=root.id)
+        await _make_category(async_db, name="Grandchild", parent_id=child.id)
 
-        service = CategoryService(test_db)
-        tree = service.get_tree(tenant_id=1)
+        service = CategoryService(async_db)
+        tree = await service.get_tree(tenant_id=1)
 
         assert len(tree) == 1
         assert tree[0].name == "Root"
@@ -260,13 +269,13 @@ class TestGetTree:
         assert len(tree[0].children[0].children) == 1
         assert tree[0].children[0].children[0].name == "Grandchild"
 
-    def test_tree_tenant_isolation(self, test_db):
-        _make_category(test_db, tenant_id=1, name="Tenant 1 Cat")
-        _make_category(test_db, tenant_id=2, name="Tenant 2 Cat")
+    async def test_tree_tenant_isolation(self, async_db):
+        await _make_category(async_db, tenant_id=1, name="Tenant 1 Cat")
+        await _make_category(async_db, tenant_id=2, name="Tenant 2 Cat")
 
-        service = CategoryService(test_db)
-        tree_t1 = service.get_tree(tenant_id=1)
-        tree_t2 = service.get_tree(tenant_id=2)
+        service = CategoryService(async_db)
+        tree_t1 = await service.get_tree(tenant_id=1)
+        tree_t2 = await service.get_tree(tenant_id=2)
 
         t1_names = [n.name for n in tree_t1]
         t2_names = [n.name for n in tree_t2]
@@ -275,18 +284,18 @@ class TestGetTree:
         assert "Tenant 2 Cat" in t2_names
         assert "Tenant 1 Cat" not in t2_names
 
-    def test_tree_with_product_count(self, test_db):
-        cat = _make_category(test_db, name="Verres", slug="verres")
-        _make_product(test_db, name="Verre 1", sku="V-001", category="verres")
-        _make_product(test_db, name="Verre 2", sku="V-002", category="verres")
+    async def test_tree_with_product_count(self, async_db):
+        await _make_category(async_db, name="Verres", slug="verres")
+        await _make_product(async_db, name="Verre 1", sku="V-001", category="verres")
+        await _make_product(async_db, name="Verre 2", sku="V-002", category="verres")
 
-        service = CategoryService(test_db)
-        tree = service.get_tree(tenant_id=1)
+        service = CategoryService(async_db)
+        tree = await service.get_tree(tenant_id=1)
 
         verres_node = next(n for n in tree if n.slug == "verres")
         assert verres_node.product_count == 2
 
-    def test_tree_empty_tenant(self, test_db):
-        service = CategoryService(test_db)
-        tree = service.get_tree(tenant_id=999)
+    async def test_tree_empty_tenant(self, async_db):
+        service = CategoryService(async_db)
+        tree = await service.get_tree(tenant_id=999)
         assert tree == []

@@ -1,0 +1,69 @@
+{
+  "id": "page:invoices-tva",
+  "type": "page",
+  "name": "Rapport TVA",
+  "description": "Page principale \"Rapport TVA\". Contenu non détecté automatiquement.",
+  "route": "/invoices/tva-report",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "manager",
+      "admin"
+    ],
+    "group": "Facturation",
+    "dom_h1": "Rapport TVA mensuel"
+  },
+  "params": {},
+  "features": [],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Générer le rapport",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

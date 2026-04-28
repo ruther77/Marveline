@@ -1,0 +1,61 @@
+═══════════════════════════════════════════════════════════
+  SESSION: session_20260317_e2e — 2026-03-17 20:26:32
+═══════════════════════════════════════════════════════════
+
+[AXE 3] PARASITAGES D'APPELS
+
+[20:26:33] Analyse des logs API (30 dernières secondes)...
+[OK] Aucun parasitage détecté dans les logs API
+
+[20:26:33] Requêtes en double (même endpoint < 1s)...
+
+[20:28:01] Navigation Dashboard
+  6 appels API (auth/me, users/me, 4x dashboard)
+  Analyse: Pattern attendu — aucun doublon, aucun appel parasite
+  Verdict: OK
+
+[20:29:27] Navigation Opérations
+  4 appels API
+  DOUBLON: /api/v1/operations/summary appelé 2x (retry TanStack Query après 500)
+  DOUBLON: /api/v1/notifications appelé 2x
+  Verdict: PARASITAGE — retry + double notification
+
+[20:46:55] Navigation Catalogue → OK (3 appels, pas de parasitage)
+[20:46:55] Navigation Clients → OK (2 appels, pas de parasitage)
+[20:46:55] Navigation Finances → OK (6 appels, pas de parasitage)
+
+[20:46:55] *** PARASITAGE N+1 détecté : Stock/Inventaire ***
+  26 requêtes pour 1 page
+  20 appels GET /api/v1/products/{id}/stock individuels
+  Pattern: le frontend boucle sur chaque produit pour fetch son stock
+  Impact: latence cumulée, charge API
+  Recommandation: endpoint batch GET /api/v1/products/stock?ids=4,5,8,...
+  Sévérité: P2 (performance)
+
+[21:07:45] Formulaire création réservation (page ouverte ~3min)
+  15 requêtes capturées dont 11 polling notifications (30s chacun)
+  1x auth/csrf, 1x 401→refresh→200 (refresh cycle)
+  Verdict: Polling excessif pendant remplissage formulaire
+  Note: le refresh token fonctionne correctement
+
+[21:42:55] Cycle réservation — Analyse parasitages
+  Création: 8 appels (1 POST + 7 GET reloads) — attendu
+  Confirmation: 10 appels (1 POST confirm + reload + 8 notifications polling)
+  Pré-départ: 4 appels (auth/me, users/me, departure, notifications) — OK
+  
+  PARASITAGE notifications: 7+ appels notifications pendant la page pré-départ
+  Cause: polling 30s accumulé pendant interaction utilisateur
+  Note: 2 cycles refresh token observés (401 → refresh → 200)
+
+[22:19:18] *** PARASITAGE MAJEUR : Restaurant login ***
+  32 requêtes réseau au chargement de /restaurant/login
+  Cause: polling notifications Marveline continue dans le même tab
+  Le refresh token a expiré (401) mais le polling continue
+  Impact: requêtes inutiles, charge serveur, logs pollués
+  Fix: clear polling intervals au changement d'app / logout
+  Sévérité: P2 (performance + nettoyage)
+
+[22:20:36] Navigation Épicerie → CLEAN
+  1 seule requête (auth/refresh → 401)
+  Pas de parasitage, pas de polling résiduel
+  Verdict: OK

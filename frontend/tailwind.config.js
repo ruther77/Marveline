@@ -6,33 +6,68 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans:    ['Manrope', 'system-ui', 'sans-serif'],
+        display: ['Sora', 'system-ui', 'sans-serif'],
+      },
       colors: {
-        primary: {
-          50: '#fdf5fe',
-          100: '#f9e8fb',
-          200: '#f3d1f6',
-          300: '#eab3ee',
-          400: '#dfb7e3',
-          500: '#c97bcf',
-          600: '#ad5ab5',
-          700: '#924496',
-          800: '#79397c',
-          900: '#643266',
-          950: '#3f1542',
-        },
+        // --------------------------------------------------------
+        // Palette "dark-*" — RESPONSIVE AU THÈME via RGB variables
+        //   Light : dark-950=#f2f6fb (bg), dark-900=#fff (carte), dark-50=#16253d (texte)
+        //   Dark  : dark-950=#07101f (bg), dark-900=#0d1e33 (carte), dark-50=#dde6f0 (texte)
+        // Compatible opacité : bg-dark-900/80, border-dark-700/50, etc.
+        // --------------------------------------------------------
         dark: {
-          50: '#f0f5fa',
-          100: '#dce6f0',
-          200: '#b8cce0',
-          300: '#8aabcb',
-          400: '#5f89b2',
-          500: '#456d97',
-          600: '#35567d',
-          700: '#2c4566',
-          800: '#173352',
-          900: '#09284a',
-          950: '#061a30',
-        }
+          50:  'rgb(var(--c-text-rgb) / <alpha-value>)',   // texte principal
+          100: 'rgb(var(--c-text2-rgb) / <alpha-value>)',  // texte secondaire
+          200: 'rgb(var(--c-body2-rgb) / <alpha-value>)',  // corps léger
+          300: 'rgb(var(--c-muted2-rgb) / <alpha-value>)', // muted2
+          400: 'rgb(var(--c-muted2-rgb) / <alpha-value>)', // muted2 (alias)
+          500: 'rgb(var(--c-muted-rgb) / <alpha-value>)',  // muted
+          600: 'rgb(var(--c-border2-rgb) / <alpha-value>)',// border2
+          700: 'rgb(var(--c-border-rgb) / <alpha-value>)', // border
+          800: 'rgb(var(--c-s2-rgb) / <alpha-value>)',     // surface2
+          900: 'rgb(var(--c-s1-rgb) / <alpha-value>)',     // surface (cartes)
+          950: 'rgb(var(--c-bg-rgb) / <alpha-value>)',     // fond page
+        },
+
+        // --------------------------------------------------------
+        // Couleurs sémantiques — alias CSS variables directes
+        // Usage : bg-surface, text-body, border-border, etc.
+        // --------------------------------------------------------
+        bg:       'var(--bg)',
+        surface:  'var(--s1)',
+        surface2: 'var(--s2)',
+        'layer-border':  'var(--border)',
+        'layer-border2': 'var(--border2)',
+        body:     'var(--text)',
+        muted:    'var(--muted)',
+        muted2:   'var(--muted2)',
+        accent:   'var(--pink)',
+        accent2:  'var(--pink2)',
+        success:  'var(--green)',
+        info:     'var(--blue)',
+        warning:  'var(--orange)',
+        danger:   'var(--red)',
+        caution:  'var(--yellow)',
+        subtle:   'var(--purple)',
+
+        // --------------------------------------------------------
+        // Palette rose-magenta — valeurs fixes pour gradients
+        // --------------------------------------------------------
+        primary: {
+          50:  '#fdf5fa',
+          100: '#f9e8f4',
+          200: '#f0d0e8',
+          300: '#dfb7e3',
+          400: '#ce8ed4',
+          500: '#b96cc4',
+          600: '#9b52a8',
+          700: '#7e408a',
+          800: '#63326d',
+          900: '#4a2452',
+          950: '#2d1533',
+        },
       },
       keyframes: {
         'fade-in': {
@@ -95,5 +130,8 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    require('@tailwindcss/forms'),
+    require('@tailwindcss/typography'),
+  ],
 }

@@ -1,0 +1,145 @@
+{
+  "id": "page:bundles",
+  "type": "page",
+  "name": "Packs",
+  "description": "Page principale \"Packs\". Contient : Champ : Rechercher une formule.... Paramètres : rechercher-une-formule.",
+  "route": "/products/bundles",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "staff",
+      "manager",
+      "admin"
+    ],
+    "group": "Catalogue",
+    "dom_h1": "Formules & Packs"
+  },
+  "params": {
+    "rechercher-une-formule": "text"
+  },
+  "features": [
+    "Champ : Rechercher une formule..."
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Vue tableau",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Vue grille",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nouvelle formule",
+      "trigger": "click",
+      "target_id": "modal:nouvelle-formule",
+      "node": {
+        "id": "modal:nouvelle-formule",
+        "type": "form",
+        "name": "Nouvelle formule",
+        "description": "Formulaire \"Nouvelle formule\". Contient : Prix total de la formule, Champ : Pack Mariage Complet, Champ : Description de la formule..., Champ : 0.00, Champ : featured, Champ : is_active. Paramètres : name, description, bundle-price, featured, is-active.",
+        "attributes": {
+          "depth": 1,
+          "opened_from_depth": 0
+        },
+        "params": {
+          "name": "text",
+          "description": "textarea",
+          "bundle-price": "number",
+          "featured": "checkbox",
+          "is-active": "checkbox"
+        },
+        "features": [
+          "Prix total de la formule",
+          "Champ : Pack Mariage Complet",
+          "Champ : Description de la formule...",
+          "Champ : 0.00",
+          "Champ : featured",
+          "Champ : is_active",
+          "Fermer",
+          "Annuler",
+          "Créer"
+        ],
+        "children": [
+          {
+            "link_type": "action",
+            "label": "Fermer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "action",
+            "label": "Annuler",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "form_submit",
+            "label": "Créer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          }
+        ]
+      }
+    },
+    {
+      "link_type": "action",
+      "label": "Vedette",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

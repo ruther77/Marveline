@@ -7,35 +7,45 @@ entre RateLimitMiddleware et MetricsMiddleware.
 from typing import Optional
 from fastapi import Request
 from app.constants import AuthEndpoints, HTTPMethods, RateLimitScope
-from app.core.deps import X_API_KEY_HEADER
 from app.core.security import decode_token
 
+# Constante dupliquée depuis deps.py pour briser le circular import :
+# rate_limit_utils → deps → services → schemas → core.__init__ → rate_limit_utils
+X_API_KEY_HEADER = "X-API-Key"
 
-def get_user_id_from_jwt(request: Request) -> Optional[int]:
-    """Extrait user_id depuis JWT Bearer token (si présent et valide).
 
-    Args:
-        request: Requête FastAPI
+def _decode_jwt_claims(request: Request) -> Optional[dict]:
+    """Décode le JWT Bearer et retourne les claims (fail-safe).
 
     Returns:
-        user_id si JWT valide, None sinon
-
-    Notes:
-        - Retourne None si Authorization header absent
-        - Retourne None si token invalide/expiré
-        - Pas d'exception levée (fail-safe)
+        dict claims si JWT valide, None sinon.
     """
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return None
-
     try:
         token = auth_header.split(" ")[1]
-        payload = decode_token(token)
-        user_id_str = payload.get("sub")
-        return int(user_id_str) if user_id_str else None
+        return decode_token(token)
     except Exception:
         return None
+
+
+def get_user_id_from_jwt(request: Request) -> Optional[int]:
+    """Extrait user_id depuis JWT Bearer token (si présent et valide)."""
+    claims = _decode_jwt_claims(request)
+    if not claims:
+        return None
+    user_id_str = claims.get("sub")
+    return int(user_id_str) if user_id_str else None
+
+
+def get_tenant_id_from_jwt(request: Request) -> Optional[int]:
+    """Extrait tenant_id depuis JWT Bearer token (si présent et valide)."""
+    claims = _decode_jwt_claims(request)
+    if not claims:
+        return None
+    tid = claims.get("tid")
+    return int(tid) if tid is not None else None
 
 
 def determine_rate_limit_scope(request: Request) -> str:
@@ -85,17 +95,29 @@ def determine_rate_limit_scope(request: Request) -> str:
     if request.url.path == AuthEndpoints.LOGIN:
         return RateLimitScope.LOGIN
 
+    # Scope CSRF — limite stricte pour éviter flood de tokens Redis (H2-Bug1)
+    if request.url.path == AuthEndpoints.CSRF:
+        return RateLimitScope.LOGIN
+
     # Scope API key authentifiée (quota par API key)
     if request.headers.get(X_API_KEY_HEADER):
         return RateLimitScope.API_KEY_AUTHENTICATED
 
-    # Scope user authentifié (quota utilisateur)
+    # Scope user authentifié — app-specific par préfixe route
     if get_user_id_from_jwt(request) is not None:
+        path = request.url.path
+        is_mutation = request.method in HTTPMethods.UNSAFE_METHODS
+
+        if "/epicerie/" in path:
+            return RateLimitScope.EPICERIE_MUTATIONS if is_mutation else RateLimitScope.EPICERIE_AUTHENTICATED
+        if "/restaurant/" in path:
+            return RateLimitScope.RESTAURANT_MUTATIONS if is_mutation else RateLimitScope.RESTAURANT_AUTHENTICATED
+
         return RateLimitScope.USER_AUTHENTICATED
 
-    # Scope mutations (write-heavy abuse)
+    # Scope mutations (write-heavy abuse, non authentifié)
     if request.method in HTTPMethods.UNSAFE_METHODS:
         return RateLimitScope.MUTATIONS
 
-    # Scope reads (read-heavy abuse)
+    # Scope reads (read-heavy abuse, non authentifié)
     return RateLimitScope.READS

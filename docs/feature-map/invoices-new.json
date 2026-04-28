@@ -1,0 +1,74 @@
+{
+  "id": "page:invoices-new",
+  "type": "page",
+  "name": "Nouvelle facture",
+  "description": "Page principale \"Nouvelle facture\". Contient : Réservation *, Champ : Rechercher par client ou référence…. Paramètres : rechercher-par-client-ou-reference.",
+  "route": "/invoices/new",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "manager",
+      "admin"
+    ],
+    "group": "Facturation",
+    "dom_h1": "Nouvelle facture"
+  },
+  "params": {
+    "rechercher-par-client-ou-reference": "text"
+  },
+  "features": [
+    "Réservation *",
+    "Champ : Rechercher par client ou référence…"
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Annuler",
+      "trigger": "click",
+      "target_id": "page:invoices",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

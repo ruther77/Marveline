@@ -48,13 +48,13 @@ class ProductBundle(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
         comment="Description courte pour les listes"
     )
 
-    bundle_price: Mapped[int] = mapped_column(
+    bundle_price_cents: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
         comment="Prix du bundle en centimes (25000 = 250.00 EUR)"
     )
 
-    cleaning_fee: Mapped[int] = mapped_column(
+    cleaning_fee_cents: Mapped[int] = mapped_column(
         BigInteger,
         nullable=False,
         default=0,
@@ -93,8 +93,8 @@ class ProductBundle(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     __table_args__ = (
         UniqueConstraint("tenant_id", "slug", name="uq_bundle_tenant_slug"),
         UniqueConstraint("tenant_id", "name", name="uq_bundle_tenant_name"),
-        CheckConstraint("bundle_price >= 0", name="check_bundle_price_positive"),
-        CheckConstraint("cleaning_fee >= 0", name="check_bundle_cleaning_fee_positive"),
+        CheckConstraint("bundle_price_cents >= 0", name="check_bundle_price_positive"),
+        CheckConstraint("cleaning_fee_cents >= 0", name="check_bundle_cleaning_fee_positive"),
         CheckConstraint("display_order >= 0", name="check_bundle_display_order"),
     )
 
@@ -135,6 +135,14 @@ class BundleItem(Base, TimestampMixin, TenantMixin):
         comment="FK vers products"
     )
 
+    variant_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("product_variants.id", name="fk_bundle_item_variant", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="FK vers product_variants (optionnel — précise la variante dans le bundle)"
+    )
+
     quantity: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
@@ -157,9 +165,12 @@ class BundleItem(Base, TimestampMixin, TenantMixin):
 
     product: Mapped["Product"] = relationship("Product")
 
-    # Contraintes
+    variant: Mapped[Optional["ProductVariant"]] = relationship("ProductVariant")
+
+    # Contraintes — les index partiels uniques sont gérés via migration Alembic
+    # uq_bundle_item_no_variant  : (bundle_id, product_id) WHERE variant_id IS NULL
+    # uq_bundle_item_with_variant: (bundle_id, product_id, variant_id) WHERE variant_id IS NOT NULL
     __table_args__ = (
-        UniqueConstraint("bundle_id", "product_id", name="uq_bundle_item_product"),
         CheckConstraint("quantity > 0", name="check_bundle_item_quantity_positive"),
         CheckConstraint("display_order >= 0", name="check_bundle_item_display_order"),
     )

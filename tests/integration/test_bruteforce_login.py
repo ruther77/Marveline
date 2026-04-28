@@ -1,10 +1,9 @@
 """Tests d'intégration : brute force + login endpoint.
 
 Couvre :
-    - Login bloqué après 8 échecs → 403 AccountLocked
-    - Response contient captcha_required après 3 échecs
-    - Response contient delay_seconds après 5 échecs
-    - Lock expire après 15 min (TTL Redis)
+    - Response contient message CAPTCHA après 3 échecs (HTTP 400)
+    - Response contient delay_seconds > 0 après 5 échecs
+    - Jamais de lockout : 8+ tentatives → toujours allowed=True + delay max
     - Login réussi reset les compteurs brute force
     - Compteurs per-IP fonctionnent aussi
 
@@ -14,11 +13,18 @@ Fichiers testés :
     - app/services/bruteforce.py (service)
     - app/core/redis.py (compteurs Redis)
 """
+import redis as _sync_redis
 import pytest
 from fastapi.testclient import TestClient
+from unittest.mock import patch, AsyncMock
 
-from app.constants import BruteForceThresholds, RedisKeys
-from app.core.redis import redis_client
+from app.constants import RedisKeys
+from app.core.config import settings
+
+# Client Redis synchrone pour assertions de test.
+# redis_client.client est AsyncRedis (redis.asyncio) — .keys()/.get()/.delete()
+# retournent des coroutines, non appelables en contexte synchrone.
+_redis = _sync_redis.from_url(settings.REDIS_SEC_URL, decode_responses=True)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -31,27 +37,37 @@ def _clear_rate_limit():
     Le rate limiter LOGIN (5 req/min) est un mécanisme distinct du brute force.
     On le reset entre chaque appel pour tester le brute force en isolation.
     """
-    keys = redis_client.client.keys("rate_limit:*")
+    keys = _redis.keys("rate_limit:*")
     if keys:
-        redis_client.client.delete(*keys)
+        _redis.delete(*keys)
+
+
+_CAPTCHA_BYPASS = "app.services.bruteforce.BruteForceService.validate_captcha_token"
 
 
 def _do_failed_login(client: TestClient, email: str = "test@carocorp.com"):
-    """Effectue un login échoué (mauvais mot de passe)."""
+    """Effectue un login échoué (mauvais mot de passe).
+
+    Le CAPTCHA (M2) est bypassé pour tester le brute force en isolation :
+    après 3 failures check_and_enforce exige un token CAPTCHA valide → on mock
+    validate_captcha_token pour permettre l'incrémentation des compteurs.
+    """
     _clear_rate_limit()
-    return client.post(
-        "/api/v1/auth/login",
-        data={"username": email, "password": "wrongpassword"},
-    )
+    with patch(_CAPTCHA_BYPASS, new=AsyncMock(return_value=True)):
+        return client.post(
+            "/api/v1/auth/login",
+            data={"username": email, "password": "wrongpassword"},
+        )
 
 
 def _do_successful_login(client: TestClient, email: str = "test@carocorp.com"):
-    """Effectue un login réussi."""
+    """Effectue un login réussi (CAPTCHA bypassé pour isolation)."""
     _clear_rate_limit()
-    return client.post(
-        "/api/v1/auth/login",
-        data={"username": email, "password": "testpass123"},
-    )
+    with patch(_CAPTCHA_BYPASS, new=AsyncMock(return_value=True)):
+        return client.post(
+            "/api/v1/auth/login",
+            data={"username": email, "password": "testpass123"},
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -87,17 +103,16 @@ class TestBruteForceCaptcha:
     """Tests pour le niveau CAPTCHA (3-4 tentatives)."""
 
     def test_captcha_required_after_3_failures(self, client, test_user):
-        """3 tentatives échouées → response contient captcha_required=True."""
+        """3 tentatives échouées → HTTP 400 avec message CAPTCHA, delay_seconds=0."""
         for _ in range(2):
             _do_failed_login(client)
 
         resp = _do_failed_login(client)  # 3ème
-        assert resp.status_code == 401
+        assert resp.status_code == 400
         detail = resp.json()["detail"]
         assert isinstance(detail, dict)
-        assert detail["captcha_required"] is True
+        assert detail["message"] == "CAPTCHA verification required"
         assert detail["delay_seconds"] == 0
-        assert detail["attempts"] == 3
 
     def test_captcha_still_required_at_4(self, client, test_user):
         """4 tentatives → captcha toujours requis, pas de délai."""
@@ -105,10 +120,10 @@ class TestBruteForceCaptcha:
             _do_failed_login(client)
 
         resp = _do_failed_login(client)  # 4ème
-        assert resp.status_code == 401
+        assert resp.status_code == 400
         detail = resp.json()["detail"]
         assert isinstance(detail, dict)
-        assert detail["captcha_required"] is True
+        assert detail["message"] == "CAPTCHA verification required"
         assert detail["delay_seconds"] == 0
 
 
@@ -120,15 +135,15 @@ class TestBruteForceDelay:
     """Tests pour le niveau délai progressif (5-7 tentatives)."""
 
     def test_delay_after_5_failures(self, client, test_user):
-        """5 tentatives → captcha + delay_seconds > 0."""
+        """5 tentatives → HTTP 400, captcha + delay_seconds >= 1."""
         for _ in range(4):
             _do_failed_login(client)
 
         resp = _do_failed_login(client)  # 5ème
-        assert resp.status_code == 401
+        assert resp.status_code == 400
         detail = resp.json()["detail"]
         assert isinstance(detail, dict)
-        assert detail["captcha_required"] is True
+        assert detail["message"] == "CAPTCHA verification required"
         assert detail["delay_seconds"] >= 1
 
     def test_delay_increases_progressively(self, client, test_user):
@@ -142,52 +157,6 @@ class TestBruteForceDelay:
         delay5 = resp5.json()["detail"]["delay_seconds"]
         delay6 = resp6.json()["detail"]["delay_seconds"]
         assert delay6 > delay5
-
-
-# ─────────────────────────────────────────────────────────────────────
-# Lock (8+ attempts)
-# ─────────────────────────────────────────────────────────────────────
-
-class TestBruteForceLock:
-    """Tests pour le verrouillage (8+ tentatives)."""
-
-    def test_account_locked_after_8_failures(self, client, test_user):
-        """8 tentatives échouées → 403 AccountLocked."""
-        for _ in range(7):
-            _do_failed_login(client)
-
-        resp = _do_failed_login(client)  # 8ème
-        assert resp.status_code == 403
-        body = resp.json()
-        assert body["error"] == "ACCOUNT_LOCKED"
-        assert "retry_after_minutes" in body.get("details", {})
-
-    def test_locked_account_blocks_valid_credentials(self, client, test_user):
-        """Après lock, même des credentials valides sont refusés."""
-        for _ in range(8):
-            _do_failed_login(client)
-
-        # Tentative avec les bons credentials → toujours 403
-        resp = _do_successful_login(client)
-        assert resp.status_code == 403
-        assert resp.json()["error"] == "ACCOUNT_LOCKED"
-
-    def test_lock_creates_redis_key(self, client, test_user):
-        """Le lock crée bien une clé Redis bf_lock:{email}."""
-        for _ in range(8):
-            _do_failed_login(client)
-
-        lock_key = f"{RedisKeys.BRUTE_FORCE_LOCK}test@carocorp.com"
-        assert redis_client.client.exists(lock_key) == 1
-
-    def test_lock_has_ttl(self, client, test_user):
-        """La clé de lock a un TTL (ne reste pas indéfiniment)."""
-        for _ in range(8):
-            _do_failed_login(client)
-
-        lock_key = f"{RedisKeys.BRUTE_FORCE_LOCK}test@carocorp.com"
-        ttl = redis_client.client.ttl(lock_key)
-        assert 0 < ttl <= BruteForceThresholds.LOCK_DURATION_SECONDS
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -208,8 +177,8 @@ class TestBruteForceReset:
         assert resp.status_code == 200
 
         # Vérifier que les compteurs sont à 0
-        email_key = f"{RedisKeys.BRUTE_FORCE_EMAIL}test@carocorp.com"
-        count = redis_client.client.get(email_key)
+        email_key = f"{RedisKeys.BRUTE_FORCE_USER}test@carocorp.com"
+        count = _redis.get(email_key)
         assert count is None or int(count) == 0
 
     def test_after_reset_no_captcha(self, client, test_user):
@@ -241,7 +210,7 @@ class TestBruteForcePerIP:
 
         # Le TestClient utilise "testclient" comme IP
         ip_key = f"{RedisKeys.BRUTE_FORCE_IP}testclient"
-        count = redis_client.client.get(ip_key)
+        count = _redis.get(ip_key)
         assert count is not None
         assert int(count) >= 1
 
@@ -249,8 +218,8 @@ class TestBruteForcePerIP:
         """Les compteurs email sont bien incrémentés."""
         _do_failed_login(client)
 
-        email_key = f"{RedisKeys.BRUTE_FORCE_EMAIL}test@carocorp.com"
-        count = redis_client.client.get(email_key)
+        email_key = f"{RedisKeys.BRUTE_FORCE_USER}test@carocorp.com"
+        count = _redis.get(email_key)
         assert count is not None
         assert int(count) >= 1
 
@@ -272,13 +241,13 @@ class TestBruteForceEdgeCases:
                 data={"username": email, "password": "wrongpassword"},
             )
 
-        email_key = f"{RedisKeys.BRUTE_FORCE_EMAIL}{email}"
-        count = redis_client.client.get(email_key)
+        email_key = f"{RedisKeys.BRUTE_FORCE_USER}{email}"
+        count = _redis.get(email_key)
         assert count is not None
         assert int(count) == 3
 
     def test_nonexistent_user_gets_captcha_too(self, client):
-        """Email inexistant → captcha après 3 tentatives."""
+        """Email inexistant → HTTP 400 CAPTCHA après 3 tentatives."""
         email = "ghost@example.com"
         for _ in range(2):
             _clear_rate_limit()
@@ -292,10 +261,10 @@ class TestBruteForceEdgeCases:
             "/api/v1/auth/login",
             data={"username": email, "password": "wrong"},
         )
-        assert resp.status_code == 401
+        assert resp.status_code == 400
         detail = resp.json()["detail"]
         assert isinstance(detail, dict)
-        assert detail["captcha_required"] is True
+        assert detail["message"] == "CAPTCHA verification required"
 
     def test_case_insensitive_email_counts(self, client, test_user):
         """Compteurs email sont case-insensitive (email normalisé)."""
@@ -316,7 +285,7 @@ class TestBruteForceEdgeCases:
             data={"username": "test@carocorp.com", "password": "wrong"},
         )
         # 3ème tentative → captcha
-        assert resp.status_code == 401
+        assert resp.status_code == 400
         detail = resp.json()["detail"]
         assert isinstance(detail, dict)
-        assert detail["captcha_required"] is True
+        assert detail["message"] == "CAPTCHA verification required"

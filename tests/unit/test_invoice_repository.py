@@ -43,8 +43,8 @@ def test_reservation_for_invoice(test_db, test_customer_invoice):
         return_date=date.today() + timedelta(days=11),
         event_location="Test Location",
         status=ReservationStatus.CONFIRMED,
-        total_amount=10000,
-        deposit_amount=5000,
+        total_amount_cents=10000,
+        deposit_amount_cents=5000,
         deposit_paid=True,
     )
     test_db.add(reservation)
@@ -62,8 +62,8 @@ def test_invoice_unpaid(test_db, test_reservation_for_invoice):
         invoice_number="INV-TEST-UNPAID",
         issue_date=date.today(),
         due_date=date.today() + timedelta(days=14),
-        total_amount=10000,
-        paid_amount=0,
+        total_amount_cents=10000,
+        paid_amount_cents=0,
         status=InvoiceStatus.SENT,
     )
     test_db.add(invoice)
@@ -85,8 +85,8 @@ def test_invoice_partial(test_db, test_reservation_for_invoice):
         return_date=date.today() + timedelta(days=16),
         event_location="Partial Payment Event",
         status=ReservationStatus.CONFIRMED,
-        total_amount=20000,
-        deposit_amount=10000,
+        total_amount_cents=20000,
+        deposit_amount_cents=10000,
         deposit_paid=True,
     )
     test_db.add(reservation)
@@ -98,8 +98,8 @@ def test_invoice_partial(test_db, test_reservation_for_invoice):
         invoice_number="INV-TEST-PARTIAL",
         issue_date=date.today(),
         due_date=date.today() + timedelta(days=14),
-        total_amount=20000,
-        paid_amount=10000,  # 50% payé
+        total_amount_cents=20000,
+        paid_amount_cents=10000,  # 50% payé
         status=InvoiceStatus.SENT,
     )
     test_db.add(invoice)
@@ -121,8 +121,8 @@ def test_invoice_paid(test_db, test_reservation_for_invoice):
         return_date=date.today() + timedelta(days=21),
         event_location="Paid Event",
         status=ReservationStatus.CONFIRMED,
-        total_amount=15000,
-        deposit_amount=7500,
+        total_amount_cents=15000,
+        deposit_amount_cents=7500,
         deposit_paid=True,
     )
     test_db.add(reservation)
@@ -134,8 +134,8 @@ def test_invoice_paid(test_db, test_reservation_for_invoice):
         invoice_number="INV-TEST-PAID",
         issue_date=date.today() - timedelta(days=10),
         due_date=date.today() - timedelta(days=1),
-        total_amount=15000,
-        paid_amount=15000,  # 100% payé
+        total_amount_cents=15000,
+        paid_amount_cents=15000,  # 100% payé
         status=InvoiceStatus.PAID,
         payment_method="card",
         payment_date=date.today() - timedelta(days=5),
@@ -314,7 +314,7 @@ def test_list_unpaid(test_db, test_invoice_unpaid, test_invoice_partial, test_in
     assert test_invoice_paid.id not in unpaid_ids
 
     # Vérifier que toutes sont impayées
-    assert all(i.paid_amount < i.total_amount for i in results)
+    assert all(i.paid_amount_cents < i.total_amount_cents for i in results)
 
 
 def test_list_unpaid_excludes_cancelled(test_db, test_invoice_unpaid, test_customer_invoice):
@@ -329,8 +329,8 @@ def test_list_unpaid_excludes_cancelled(test_db, test_invoice_unpaid, test_custo
         return_date=date.today() + timedelta(days=21),
         event_location="Cancelled Event",
         status=ReservationStatus.CANCELLED,
-        total_amount=5000,
-        deposit_amount=2500,
+        total_amount_cents=5000,
+        deposit_amount_cents=2500,
         deposit_paid=False
     )
     test_db.add(reservation_cancelled)
@@ -343,8 +343,8 @@ def test_list_unpaid_excludes_cancelled(test_db, test_invoice_unpaid, test_custo
         invoice_number="INV-TEST-CANCELLED",
         issue_date=date.today(),
         due_date=date.today() + timedelta(days=14),
-        total_amount=5000,
-        paid_amount=0,
+        total_amount_cents=5000,
+        paid_amount_cents=0,
         status=InvoiceStatus.CANCELLED
     )
     test_db.add(invoice_cancelled)
@@ -483,8 +483,8 @@ def test_list_unpaid_cross_tenant_isolation(test_db, test_invoice_unpaid):
         return_date=date.today() + timedelta(days=11),
         event_location="Tenant 2 Event",
         status=ReservationStatus.CONFIRMED,
-        total_amount=10000,
-        deposit_amount=5000,
+        total_amount_cents=10000,
+        deposit_amount_cents=5000,
         deposit_paid=True
     )
     test_db.add(reservation_tenant2)
@@ -497,8 +497,8 @@ def test_list_unpaid_cross_tenant_isolation(test_db, test_invoice_unpaid):
         invoice_number="INV-TENANT2",
         issue_date=date.today(),
         due_date=date.today() + timedelta(days=14),
-        total_amount=10000,
-        paid_amount=0,
+        total_amount_cents=10000,
+        paid_amount_cents=0,
         status=InvoiceStatus.SENT
     )
     test_db.add(invoice_tenant2)

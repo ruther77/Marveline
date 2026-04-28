@@ -87,12 +87,19 @@ class TestRoleHierarchy:
 class TestGetEffectivePermissions:
     """Tests pour la resolution des permissions avec heritage."""
 
-    def test_staff_has_only_read_permissions(self):
+    def test_staff_permissions_match_defined_delta(self):
+        """Staff : permissions effectives = delta staff (pas d'heritage en dessous)."""
         perms = get_effective_permissions("staff")
         assert perms == ROLE_PERMISSIONS["staff"]
-        # Staff n'a que des :read et health:read
+        # Staff a des :read + :write operationnels (reservations, invoices, customers, inventory, ventes, evenements)
+        read_perms = {p for p in perms if p.value.endswith(":read")}
+        write_perms = {p for p in perms if p.value.endswith(":write")}
+        assert len(read_perms) > 0, "Staff doit avoir des permissions :read"
+        assert len(write_perms) > 0, "Staff doit avoir des permissions :write operationnelles"
+        # Staff ne doit pas avoir de permissions :delete ni :admin
         for p in perms:
-            assert p.value.endswith(":read"), f"Staff should only have :read, got {p.value}"
+            assert not p.value.endswith(":delete"), f"Staff ne doit pas avoir :delete, got {p.value}"
+            assert not p.value.endswith(":admin"), f"Staff ne doit pas avoir :admin, got {p.value}"
 
     def test_manager_inherits_staff_permissions(self):
         manager_perms = get_effective_permissions("manager")
@@ -219,9 +226,10 @@ class TestCachedPermissions:
         for role in ROLE_HIERARCHY:
             assert role in _EFFECTIVE_CACHE
 
-    def test_cached_unknown_role_raises(self):
-        with pytest.raises(ValueError, match="Role inconnu: 'hacker'"):
-            get_effective_permissions_cached("hacker")
+    def test_cached_unknown_role_returns_empty_set(self):
+        """Role v3 inconnu du vieux systeme -> set vide (FAIL-OPEN, gere par require_scope)."""
+        result = get_effective_permissions_cached("hacker")
+        assert result == set()
 
 
 # ---------------------------------------------------------------------------
@@ -243,40 +251,40 @@ class TestRequirePermission:
     def test_admin_passes_write_check(self):
         dep_func = require_permission(Permission.PRODUCTS_WRITE)
         user = self._make_user("admin")
-        result = dep_func(current_user=user)
+        result = dep_func(principal=user)
         assert result is user
 
     def test_staff_fails_write_check(self):
         dep_func = require_permission(Permission.PRODUCTS_WRITE)
         user = self._make_user("staff")
         with pytest.raises(HTTPException) as exc_info:
-            dep_func(current_user=user)
+            dep_func(principal=user)
         assert exc_info.value.status_code == 403
         assert "products:write" in exc_info.value.detail
 
     def test_manager_passes_reservation_write(self):
         dep_func = require_permission(Permission.RESERVATIONS_WRITE)
         user = self._make_user("manager")
-        result = dep_func(current_user=user)
+        result = dep_func(principal=user)
         assert result is user
 
     def test_staff_passes_read_check(self):
         dep_func = require_permission(Permission.PRODUCTS_READ)
         user = self._make_user("staff")
-        result = dep_func(current_user=user)
+        result = dep_func(principal=user)
         assert result is user
 
     def test_multiple_permissions_all_required(self):
         dep_func = require_permission(Permission.PRODUCTS_WRITE, Permission.AUDIT_READ)
         user = self._make_user("admin")
-        result = dep_func(current_user=user)
+        result = dep_func(principal=user)
         assert result is user
 
     def test_multiple_permissions_partial_fails(self):
         dep_func = require_permission(Permission.PRODUCTS_READ, Permission.AUDIT_READ)
         user = self._make_user("staff")  # has products:read but not audit:read
         with pytest.raises(HTTPException) as exc_info:
-            dep_func(current_user=user)
+            dep_func(principal=user)
         assert exc_info.value.status_code == 403
         assert "audit:read" in exc_info.value.detail
 
@@ -284,7 +292,7 @@ class TestRequirePermission:
         dep_func = require_permission(Permission.PRODUCTS_WRITE, Permission.AUDIT_READ)
         user = self._make_user("staff")
         with pytest.raises(HTTPException) as exc_info:
-            dep_func(current_user=user)
+            dep_func(principal=user)
         detail = exc_info.value.detail
         assert "products:write" in detail
         assert "audit:read" in detail
@@ -306,5 +314,5 @@ class TestPermissionsAreTenantAgnostic:
         dep_func = require_permission(Permission.PRODUCTS_WRITE)
         user_t1 = MagicMock(role="admin", tenant_id=1)
         user_t2 = MagicMock(role="admin", tenant_id=999)
-        assert dep_func(current_user=user_t1) is user_t1
-        assert dep_func(current_user=user_t2) is user_t2
+        assert dep_func(principal=user_t1) is user_t1
+        assert dep_func(principal=user_t2) is user_t2

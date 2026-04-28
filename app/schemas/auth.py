@@ -2,7 +2,7 @@
 from typing import Literal
 from pydantic import EmailStr, Field
 from app.schemas.base import BaseSchema
-from app.constants import Limits, UserRole
+from app.constants import Limits, SessionConfig, UserRole
 
 
 class LoginRequest(BaseSchema):
@@ -35,10 +35,14 @@ class LoginRequest(BaseSchema):
 class TokenResponse(BaseSchema):
     """Schema pour réponse de login avec tokens JWT.
 
+    Note:
+        Le refresh_token N'est PAS inclus dans ce JSON.
+        Il est transmis via un cookie httpOnly (Set-Cookie: refresh_token=...).
+        Voir POST /auth/login et POST /auth/refresh.
+
     Example:
         {
             "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-            "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
             "token_type": "bearer",
             "expires_in": 1800
         }
@@ -47,11 +51,6 @@ class TokenResponse(BaseSchema):
     access_token: str = Field(
         ...,
         description="JWT access token (courte durée: 30 min)"
-    )
-
-    refresh_token: str = Field(
-        ...,
-        description="JWT refresh token (longue durée: 7 jours)"
     )
 
     token_type: Literal["bearer"] = Field(
@@ -64,22 +63,23 @@ class TokenResponse(BaseSchema):
         description="Durée de validité de l'access token en secondes"
     )
 
+    password_change_required: bool = Field(
+        default=False,
+        description="Si True, le client doit rediriger vers /change-password avant toute autre action"
+    )
+
 
 class RefreshTokenRequest(BaseSchema):
     """Schema pour requête de refresh token.
 
+    Note:
+        Le refresh_token est lu depuis le cookie httpOnly (pas du body).
+        Ce schema est conservé pour compatibilité des imports.
+
     Example:
         POST /auth/refresh
-        {
-            "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-        }
+        Cookie: refresh_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
     """
-
-    refresh_token: str = Field(
-        ...,
-        min_length=20,
-        description="Refresh token JWT reçu lors du login"
-    )
 
 
 class UserInfo(BaseSchema):
@@ -135,6 +135,11 @@ class UserInfo(BaseSchema):
     created_at: str | None = Field(
         default=None,
         description="Date de création du compte"
+    )
+
+    password_change_required: bool = Field(
+        default=False,
+        description="Si True, le mot de passe doit être changé (HIBP breach ou décision admin)"
     )
 
 
@@ -284,6 +289,36 @@ class LoginBruteForceDetail(BaseSchema):
     attempts: int = Field(default=0, description="Nombre de tentatives échouées dans la fenêtre")
 
 
+class LoginV2Request(BaseSchema):
+    """Requête de login IAM v2 (JSON body avec tenant_id explicite).
+
+    Contrairement à v1 (form-encoded OAuth2), v2 accepte JSON.
+    tenant_id est obligatoire : multi-tenant, pas d'auto-résolution.
+    """
+
+    email: EmailStr = Field(..., description="Email du compte global")
+    password: str = Field(..., min_length=Limits.PASSWORD_MIN_LENGTH, max_length=100)
+    tenant_id: int = Field(..., gt=0, description="ID du tenant dans lequel se connecter")
+
+
+class AccountInfo(BaseSchema):
+    """Informations du compte IAM v2 pour GET /auth/v2/me.
+
+    Retourne les données de l'Account global + du TenantMembership actif.
+    """
+
+    account_id: int = Field(..., gt=0, description="ID global du compte")
+    email: EmailStr
+    first_name: str
+    last_name: str
+    tenant_id: int = Field(..., gt=0)
+    membership_id: int = Field(..., gt=0)
+    role_name: str = Field(..., description="Rôle RBAC dans ce tenant")
+    is_active: bool = True
+    password_change_required: bool = False
+    scopes: list[str] = Field(default_factory=list, description="Scopes RBAC effectifs")
+
+
 class CSRFTokenResponse(BaseSchema):
     """Schema pour réponse de génération de token CSRF.
 
@@ -292,7 +327,7 @@ class CSRFTokenResponse(BaseSchema):
         Response:
         {
             "csrf_token": "abc123xyz789...",
-            "expires_in": 900
+            "expires_in": 604800
         }
     """
 
@@ -303,6 +338,6 @@ class CSRFTokenResponse(BaseSchema):
     )
 
     expires_in: int = Field(
-        default=900,
-        description="Durée de validité en secondes (15 minutes)"
+        default=SessionConfig.SESSION_TTL_SECONDS,
+        description="Durée de validité en secondes (aligné sur la session)"
     )

@@ -113,6 +113,11 @@ class BundleItemCreate(BaseSchema):
         gt=0,
         description="ID du produit"
     )
+    variant_id: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="ID de la variante (optionnel — preciser la variante dans le bundle)"
+    )
     quantity: int = Field(
         default=1,
         ge=1,
@@ -128,6 +133,11 @@ class BundleItemCreate(BaseSchema):
 class BundleItemUpdate(BaseSchema):
     """Schema pour mise a jour d'un item du bundle."""
 
+    variant_id: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="ID de la variante"
+    )
     quantity: Optional[int] = Field(
         default=None,
         ge=1,
@@ -146,6 +156,7 @@ class BundleItemResponse(BaseSchema):
     id: int
     bundle_id: int
     product_id: int
+    variant_id: Optional[int] = None
     quantity: int
     display_order: int
     product: ProductList
@@ -158,8 +169,8 @@ class BundleResponse(EntityResponseSchema):
     slug: str
     description: Optional[str] = None
     short_description: Optional[str] = None
-    bundle_price_cents: int = Field(validation_alias="bundle_price")
-    cleaning_fee_cents: int = Field(validation_alias="cleaning_fee")
+    bundle_price_cents: int
+    cleaning_fee_cents: int
     featured: bool
     display_order: int
     image_url: Optional[str] = None

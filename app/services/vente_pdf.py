@@ -13,11 +13,12 @@ def _fmt_date(d: date | None) -> str:
     return d.strftime("%d/%m/%Y")
 
 
-def generate_vente_pdf(vente: Vente) -> bytes:
+def generate_vente_pdf(vente: Vente, brand_name: str = "Marveline") -> bytes:
     """Génère le PDF d'une vente et retourne les bytes.
 
     Args:
         vente: Instance Vente avec relations chargées (customer, lines, payments)
+        brand_name: Nom de marque à afficher dans le footer (fallback Marveline).
 
     Returns:
         Contenu PDF en bytes
@@ -128,7 +129,7 @@ def generate_vente_pdf(vente: Vente) -> bytes:
 {"<p style='margin-top:20px;font-size:11px;color:#555'>Notes : " + vente.notes + "</p>" if vente.notes else ""}
 
 <div class="footer">
-  Document généré automatiquement — Marveline
+  Document généré automatiquement — {brand_name}
 </div>
 </body>
 </html>"""

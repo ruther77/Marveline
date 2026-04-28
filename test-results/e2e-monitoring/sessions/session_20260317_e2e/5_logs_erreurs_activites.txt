@@ -1,0 +1,91 @@
+═══════════════════════════════════════════════════════════
+  SESSION: session_20260317_e2e — 2026-03-17 20:26:32
+═══════════════════════════════════════════════════════════
+
+[AXE 5] LOGS ERREURS & ACTIVITES
+[WARN] Impossible d'obtenir un token auth — tests auth requis
+[20:26:32] ERREUR 401 sur /api/v1/dashboard/stats
+[20:26:32] ERREUR 401 sur /api/v1/reservations?page=1&per_page=10
+[20:26:32] ERREUR 401 sur /api/v1/products?page=1&per_page=10
+[20:26:32] ERREUR 401 sur /api/v1/customers?page=1&per_page=10
+[20:26:32] ERREUR 401 sur /api/v1/invoices?page=1&per_page=10
+[20:26:33] ERREUR 401 sur /api/v1/planning/today
+[20:26:33] ERREUR 401 sur /api/v1/categories
+
+[20:26:34] === Logs services (60s) ===
+
+--- Redis SEC ---
+
+--- Redis CACHE ---
+
+--- Celery Worker ---
+
+--- Celery Beat ---
+
+--- DB (PostgreSQL) ---
+[OK] Aucune erreur DB
+
+[20:28:01] Navigation Dashboard
+  Console JS: aucune erreur
+  Requêtes: 6/6 = 200
+  Verdict: CLEAN
+
+[20:29:27] *** BUG DÉTECTÉ ***
+  Endpoint: GET /api/v1/operations/summary
+  Status: 500 Internal Server Error (2 tentatives)
+  Impact: Page Opérations sans données summary
+  Sévérité: P1
+  Frontend: Gère gracieusement (affiche sections vides)
+
+[20:38:25] NOTE: Polling 30s = useNotifications refetchInterval (attendu)
+  Chaîne: refetch notifications → intercepteur auth → SELECT accounts.is_active
+  Impact: bruit dans les logs SQL (INFO level), pas de bug
+  
+[20:38:25] BUG P1 CONFIRMÉ: GET /api/v1/operations/summary → 500
+  Cause racine: operations.py:209 — Reservation.is_active n'existe pas
+  Le modèle Reservation utilise is_archived (pas is_active)
+  Fix: remplacer Reservation.is_active == True par Reservation.is_archived == False
+  Statut: À CORRIGER
+
+[21:42:55] Cycle réservation — Activités
+  Création réservation: OK (201)
+  Confirmation: OK (200) — transition Brouillon → Pre-check
+  Pré-départ: OK (200) — page opérations fonctionnelle
+  Token refresh: 2 cycles observés (silencieux, sans impact UX)
+  Erreurs console JS: 0
+  Extension Chrome: 3 déconnexions pendant le test
+
+[22:17:56] Cycle réservation complet — SUCCÈS
+  5 transitions, toutes 200/201
+  Erreurs rencontrées pendant le test:
+    - 403 CSRF missing (attendu si pas de header CSRF)
+    - 422 line_id required sur return (validation correcte)
+    - 404 sur /reservations/14/return (endpoint inexistant, c'est /operations/return/14)
+  Bugs frontend observés:
+    - Pre-check article-par-article ne persiste pas (0/1 après vérification)
+    - Extension Chrome déconnexions fréquentes (4+ pendant le test)
+    - Doublon auth/me + users/me au login (2× chaque)
+
+[22:56:27] === CORRECTIONS PARASITAGES APPLIQUÉES ===
+
+  FIX 1 — Polling notifications (déjà corrigé)
+    Fichier: useNotifications.ts
+    État: enabled: canPoll + refetchInterval conditionnel + retry auth-aware
+    Note: fix appliqué dans une session précédente
+
+  FIX 2 — Dashboard polling conditionnel
+    Fichier: useDashboard.ts
+    Changement: ajout enabled: ready + refetchInterval arrêté si !ready
+    4 hooks modifiés: Stats, UrgentAlert, Today, Activity
+    Build: OK (36.8s)
+
+  FIX 3 — Doublon auth/me au login
+    Fichier: authStore.ts → fetchUser()
+    Changement: après getCanonicalUser(), set _initCacheExpiry
+    pour que initialize() (guard _app.tsx) skip le re-fetch
+    Avant: 4 requêtes (2x auth/me + 2x users/me)
+    Après: 2 requêtes (1x auth/me + 1x users/me)
+
+  FIX N+1 stock — NON NÉCESSAIRE
+    Le code utilise déjà le batch useProductsStock()
+    Les 20 appels individuels observés = probablement ancien build en cache

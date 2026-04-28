@@ -53,11 +53,13 @@ from app.core.crypto import encrypt_totp_secret, decrypt_totp_secret
 
 from app.core.permissions import (
     Permission,
+    Scope,
     ROLE_HIERARCHY,
     ROLE_PERMISSIONS,
     get_effective_permissions,
     get_effective_permissions_cached,
     has_permission,
+    has_scope,
 )
 
 __all__ = [
@@ -105,11 +107,14 @@ __all__ = [
     # Crypto
     "encrypt_totp_secret",
     "decrypt_totp_secret",
-    # Permissions RBAC
+    # Permissions RBAC v2
     "Permission",
     "ROLE_HIERARCHY",
     "ROLE_PERMISSIONS",
     "get_effective_permissions",
     "get_effective_permissions_cached",
     "has_permission",
+    # Scopes RBAC v3
+    "Scope",
+    "has_scope",
 ]

@@ -1,0 +1,20 @@
+{
+  "backend_unique": 329,
+  "backend_product_required": 314,
+  "frontend_api_unique": 314,
+  "product_missing_in_frontend_count": 0,
+  "product_missing_in_frontend_by_module": [],
+  "product_missing_in_frontend": [],
+  "api_functions_total": 317,
+  "api_functions_without_hook_count": 0,
+  "api_functions_without_hook_by_file": [],
+  "taxonomy_unknown_for_backend_count": 0,
+  "taxonomy_unknown_for_backend": [],
+  "taxonomy_orphans_count": 1,
+  "taxonomy_orphans": [
+    {
+      "key": "GET /.well-known/jwks.json",
+      "category": "platform/system"
+    }
+  ]
+}

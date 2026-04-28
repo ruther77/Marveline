@@ -39,7 +39,7 @@ def test_product_endpoint_cache_miss_then_hit(client, test_db, test_tenant, auth
         name="Assiette Cache E2E",
         sku="E2E-CACHE-001",
         category="assiettes",
-        price_per_day=300,
+        price_per_day_cents=300,
         available_quantity=10,
         stock_quantity=10,
         is_active=True
@@ -80,7 +80,7 @@ def test_product_endpoint_cache_invalidation_on_update(client, test_db, test_ten
         name="Produit Original",
         sku="E2E-UPDATE-001",
         category="verres",
-        price_per_day=250,
+        price_per_day_cents=250,
         available_quantity=5,
         stock_quantity=5,
         is_active=True
@@ -181,7 +181,7 @@ def test_cache_multi_tenant_isolation_via_api(
         name="Produit Tenant 1",
         sku="TENANT1-CACHE",
         category="assiettes",
-        price_per_day=200,
+        price_per_day_cents=200,
         available_quantity=3,
         stock_quantity=3,
         is_active=True
@@ -196,7 +196,7 @@ def test_cache_multi_tenant_isolation_via_api(
         name="Produit Tenant 2",
         sku="TENANT2-CACHE",
         category="verres",
-        price_per_day=300,
+        price_per_day_cents=300,
         available_quantity=5,
         stock_quantity=5,
         is_active=True
@@ -249,7 +249,7 @@ def test_cache_hit_rate_metrics_exposed(client, test_db, test_tenant, auth_heade
         name="Produit Metrics",
         sku="METRICS-001",
         category="couverts",
-        price_per_day=150,
+        price_per_day_cents=150,
         available_quantity=2,
         stock_quantity=2,
         is_active=True
@@ -292,7 +292,7 @@ def test_cache_delete_endpoint_invalidation(client, test_db, test_tenant, auth_h
         name="Produit à Supprimer",
         sku="DELETE-CACHE-001",
         category="nappes",
-        price_per_day=400,
+        price_per_day_cents=400,
         available_quantity=1,
         stock_quantity=1,
         is_active=True

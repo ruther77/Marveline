@@ -1,0 +1,110 @@
+groups:
+  - name: carocorp-api
+    rules:
+      # P0 — Erreurs 5xx > 1% pendant 5 min
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+          / sum(rate(http_requests_total[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Error rate > 1% ({{ $value | humanizePercentage }})"
+          description: "API returns > 1% 5xx errors for 5 minutes."
+
+      # P0 — API down (aucune requete depuis 2 min)
+      - alert: APIDown
+        expr: absent(up{job="carocorp-api"} == 1)
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API unreachable"
+
+      # P1 — Latence p99 > 2s pendant 5 min
+      - alert: HighLatencyP99
+        expr: |
+          histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
+          > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P99 latency > 2s ({{ $value | humanizeDuration }})"
+
+      # P1 — Latence p95 > 500ms pendant 10 min
+      - alert: HighLatencyP95
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
+          > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P95 latency > 500ms ({{ $value | humanizeDuration }})"
+
+      # P1 — Rate limit hits > 100/min
+      - alert: HighRateLimitHits
+        expr: sum(rate(rate_limit_hits_total[5m])) * 60 > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Rate limiting > 100 hits/min"
+
+      # P2 — Cache hit rate < 50%
+      - alert: LowCacheHitRate
+        expr: cache_hit_rate < 0.5
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "Cache hit rate < 50% ({{ $value | humanizePercentage }})"
+
+  - name: infrastructure
+    rules:
+      # Redis down
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis {{ $labels.instance }} is down"
+
+      # Redis memory > 80%
+      - alert: RedisHighMemory
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis memory > 80%"
+
+      # PostgreSQL down
+      - alert: PostgresDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+
+      # DB connections > 80% pool
+      - alert: DBPoolSaturation
+        expr: pg_stat_activity_count / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DB connection pool > 80%"
+
+      # Disk > 85%
+      - alert: HighDiskUsage
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.15
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk usage > 85% on {{ $labels.mountpoint }}"

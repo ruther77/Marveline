@@ -1,0 +1,79 @@
+{
+  "id": "page:admin-users",
+  "type": "page",
+  "name": "Utilisateurs",
+  "description": "Page principale \"Utilisateurs\". Contient : Champ : Rechercher par nom ou email.... Paramètres : rechercher-par-nom-ou-email.",
+  "route": "/admin/users",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "admin"
+    ],
+    "group": "Admin",
+    "dom_h1": "Utilisateurs"
+  },
+  "params": {
+    "rechercher-par-nom-ou-email": "text"
+  },
+  "features": [
+    "Champ : Rechercher par nom ou email..."
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Inviter",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Nouvel utilisateur",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

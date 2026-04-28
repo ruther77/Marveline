@@ -1,273 +1,320 @@
-"""Service de gestion des sessions utilisateur (Redis-backed).
+"""Service de gestion des sessions utilisateur (DB PostgreSQL + Redis-SEC).
 
-Responsabilités:
-    - Créer une session au login (metadata: IP, user-agent, family_id)
-    - Lister les sessions actives d'un utilisateur
-    - Révoquer une session (+ tokens associés)
-    - Révoquer toutes les sessions (force re-login partout)
-    - Mise à jour last_activity
-    - Enforcement max sessions par user (éviction de la plus ancienne)
+Architecture CaroCorp v3 (§6.6-6.10) :
+    - Session DB (account_sessions) : source de vérité, audit, révocation
+    - Session Redis (HASH) : hot path, TTL 7 jours, données courantes
+    - Index Redis SET : user_sessions_index:{uid} = SET["did:sid"]
+    - Max 5 sessions par user (éviction DB + Redis de la plus ancienne)
+    - Device ID : fingerprint déterministe SHA-256 (User-Agent + IP prefix)
 
-Architecture:
-    - Sessions stockées dans Redis (pas en DB) car éphémères
-    - Index user → sessions via Redis SET (session_idx:{user_id})
-    - TTL aligné avec refresh token (7 jours)
-    - Chaque session liée à un token family_id (pour revocation coordonnée)
-
-Fichiers liés:
-    - app/core/redis.py (store_session, get_session, etc.)
-    - app/services/token.py (revocation tokens lors de revocation session)
-    - app/constants/security.py (SessionConfig, RedisKeys)
+Toutes les méthodes sont async (redis.asyncio, PHASE 2).
+Ordre opérations : Redis first, DB flush ensuite (P2-04).
 """
+import hashlib
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from app.core.redis import redis_client
-from app.constants import SessionConfig, RedisKeys
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.redis import redis_sec
+from app.constants import SessionConfig
+from app.models.account_session import AccountSession
+from app.models.tenant_membership import TenantMembership
 
 logger = logging.getLogger(__name__)
 
+SESSION_TTL_SECONDS = SessionConfig.SESSION_TTL_SECONDS
+
+
+def generate_device_id(user_agent: str, ip_address: str) -> str:
+    """Génère un device_id déterministe à partir du User-Agent et de l'IP (§8.1)."""
+    ip_parts = ip_address.split(".")
+    if len(ip_parts) == 4:
+        ip_prefix = ".".join(ip_parts[:3])
+    else:
+        ip_prefix = ip_address[:16]
+
+    fingerprint = f"{user_agent.strip()}|{ip_prefix}"
+    digest = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()
+    return digest[:32]
+
 
 class SessionService:
-    """Service de gestion des sessions utilisateur.
+    """Service de gestion des sessions — CaroCorp Auth v3 §6.6-6.10."""
 
-    Patterns:
-        - Session créée au login, supprimée au logout
-        - Max 5 sessions par user (la plus ancienne est évincée)
-        - Chaque session liée à un family_id (token family)
-        - Revocation session = revocation famille de tokens associée
-    """
-
-    # ========== Create ==========
-
-    def create_session(
+    async def create_session(
         self,
+        db: AsyncSession,
         user_id: int,
         tenant_id: int,
-        family_id: str,
+        device_id: str,
         ip_address: str,
-        user_agent: str,
+        user_agent: Optional[str] = None,
+        mfa_verified: bool = False,
     ) -> str:
-        """Crée une nouvelle session utilisateur dans Redis.
-
-        Enforce max sessions : si l'utilisateur a déjà MAX_SESSIONS_PER_USER
-        sessions actives, la plus ancienne est évincée (tokens révoqués).
-
-        Args:
-            user_id: ID de l'utilisateur
-            tenant_id: ID du tenant
-            family_id: ID de la famille de tokens (pour revocation coordonnée)
-            ip_address: IP du client
-            user_agent: User-Agent du client
-
-        Returns:
-            session_id (UUID string)
-        """
+        """Crée une session DB + Redis simultanément (IAM v2 — AccountSession)."""
         session_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(seconds=SESSION_TTL_SECONDS)
+
+        # Résoudre membership_id depuis (account_id, tenant_id) — requis par AccountSession
+        membership_row = await db.execute(
+            select(TenantMembership).where(
+                TenantMembership.account_id == user_id,
+                TenantMembership.tenant_id == tenant_id,
+                TenantMembership.status == "active",
+            )
+        )
+        membership = membership_row.scalar_one_or_none()
+        if not membership:
+            raise ValueError(
+                f"No active membership for account {user_id} in tenant {tenant_id}"
+            )
+
+        await self._enforce_max_sessions(db, user_id)
+
+        db_session = AccountSession(
+            session_id=session_id,
+            account_id=user_id,
+            membership_id=membership.id,
+            tenant_id=tenant_id,
+            device_id=device_id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            created_at=now,
+            last_active_at=now,
+            expires_at=expires_at,
+            mfa_verified=mfa_verified,
+        )
+        db.add(db_session)
+        await db.flush()
 
         session_data = {
             "session_id": session_id,
-            "user_id": user_id,
-            "tenant_id": tenant_id,
-            "family_id": family_id,
+            "user_id": str(user_id),
+            "tenant_id": str(tenant_id),
+            "device_id": device_id,
             "ip_address": ip_address,
-            "user_agent": user_agent,
-            "created_at": now,
-            "last_activity": now,
+            "user_agent": user_agent or "",
+            "created_at": now.isoformat(),
+            "last_activity": now.isoformat(),
+            "mfa_verified": "1" if mfa_verified else "0",
         }
-
-        # Enforce max sessions avant de créer la nouvelle
-        self._enforce_max_sessions(user_id)
-
-        # Stocker la session dans Redis
-        redis_client.store_session(
+        await redis_sec.store_session(
+            user_id=user_id,
+            device_id=device_id,
             session_id=session_id,
             data=session_data,
-            ttl_seconds=SessionConfig.SESSION_TTL_SECONDS,
+            ttl_seconds=SESSION_TTL_SECONDS,
         )
 
         logger.info(
-            "Session created: session=%s user=%s tenant=%s ip=%s",
-            session_id, user_id, tenant_id, ip_address,
+            "Session created: sid=%s user=%s device=%.8s ip=%s",
+            session_id, user_id, device_id, ip_address,
         )
 
         return session_id
 
-    # ========== Read ==========
-
-    def get_session(self, session_id: str) -> Optional[dict]:
-        """Récupère une session par son ID.
-
-        Args:
-            session_id: ID de la session
-
-        Returns:
-            Dict avec les données de session ou None si inexistante
-        """
-        return redis_client.get_session(session_id)
-
-    def get_session_by_family(self, user_id: int, family_id: str) -> Optional[dict]:
-        """Trouve une session par son family_id (pour logout).
-
-        Scanne les sessions de l'utilisateur (max 5) pour trouver
-        celle associée à la famille de tokens.
-
-        Args:
-            user_id: ID de l'utilisateur
-            family_id: ID de la famille de tokens
-
-        Returns:
-            Dict session ou None si non trouvée
-        """
-        sessions = redis_client.list_user_sessions(user_id)
-        for session in sessions:
-            if session.get("family_id") == family_id:
-                return session
-        return None
-
-    def list_sessions(self, user_id: int) -> list[dict]:
-        """Liste toutes les sessions actives d'un utilisateur.
-
-        Args:
-            user_id: ID de l'utilisateur
-
-        Returns:
-            Liste des sessions (triées par created_at, plus récente en premier)
-        """
-        sessions = redis_client.list_user_sessions(user_id)
-        # Trier par created_at décroissant (plus récente en premier)
-        sessions.sort(key=lambda s: s.get("created_at", ""), reverse=True)
-        return sessions
-
-    # ========== Revoke ==========
-
-    def revoke_session(self, session_id: str, user_id: int) -> bool:
-        """Révoque une session et les tokens associés.
-
-        1. Récupère les données de session (pour family_id)
-        2. Révoque la famille de tokens associée
-        3. Supprime la session de Redis
-
-        Args:
-            session_id: ID de la session à révoquer
-            user_id: ID de l'utilisateur (pour vérification + index)
-
-        Returns:
-            True si session trouvée et révoquée, False sinon
-        """
-        session_data = redis_client.get_session(session_id)
-        if not session_data:
-            return False
-
-        # Vérifier que la session appartient bien au user
-        if session_data.get("user_id") != user_id:
-            logger.warning(
-                "Session revoke denied: session=%s belongs to user=%s, not user=%s",
-                session_id, session_data.get("user_id"), user_id,
+    async def get_session(self, db: AsyncSession, session_id: str) -> Optional[AccountSession]:
+        """Récupère une session active depuis la DB."""
+        result = await db.execute(
+            select(AccountSession).filter(
+                AccountSession.session_id == session_id,
+                AccountSession.revoked_at.is_(None),
             )
+        )
+        return result.scalars().first()
+
+    async def list_sessions(self, db: AsyncSession, user_id: int) -> list[AccountSession]:
+        """Liste les sessions actives d'un user."""
+        now = datetime.now(timezone.utc)
+        result = await db.execute(
+            select(AccountSession)
+            .filter(
+                AccountSession.account_id == user_id,
+                AccountSession.revoked_at.is_(None),
+                AccountSession.expires_at > now,
+            )
+            .order_by(AccountSession.created_at.desc())
+        )
+        return result.scalars().all()
+
+    async def revoke_session(
+        self,
+        db: AsyncSession,
+        session_id: str,
+        user_id: int,
+        reason: str = "user_logout",
+    ) -> bool:
+        """Révoque une session spécifique (Redis first, DB ensuite — P2-04)."""
+        result = await db.execute(
+            select(AccountSession).filter(
+                AccountSession.session_id == session_id,
+                AccountSession.account_id == user_id,
+                AccountSession.revoked_at.is_(None),
+            )
+        )
+        db_session = result.scalars().first()
+
+        if not db_session:
             return False
 
-        # Révoquer la famille de tokens associée
-        family_id = session_data.get("family_id")
-        if family_id:
-            self._revoke_token_family(family_id)
+        device_id = db_session.device_id
 
-        # Supprimer la session
-        redis_client.delete_session(session_id, user_id)
+        # Redis first (P2-04) — révocation tokens avant marquage DB
+        await redis_sec.revoke_refresh_jti(user_id, device_id, session_id)
+        await redis_sec.delete_session(user_id, device_id, session_id)
+        await redis_sec.revoke_csrf_token(session_id)  # spec §04 §4.3 — CSRF lié à la session
+
+        # DB ensuite
+        db_session.revoked_at = datetime.now(timezone.utc)
+        db_session.revoke_reason = reason
+        await db.flush()
 
         logger.info(
-            "Session revoked: session=%s user=%s family=%s",
-            session_id, user_id, family_id,
+            "Session revoked: sid=%s user=%s device=%.8s reason=%s",
+            session_id, user_id, device_id, reason,
         )
 
         return True
 
-    def revoke_all_sessions(self, user_id: int) -> int:
-        """Révoque toutes les sessions d'un utilisateur (force re-login partout).
+    async def revoke_all_sessions(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        reason: str = "logout_all",
+    ) -> int:
+        """Révoque toutes les sessions actives d'un user (Redis first, DB ensuite — P2-04)."""
+        result = await db.execute(
+            select(AccountSession).filter(
+                AccountSession.account_id == user_id,
+                AccountSession.revoked_at.is_(None),
+            )
+        )
+        active_sessions = result.scalars().all()
 
-        Pour chaque session active:
-        1. Révoque la famille de tokens associée
-        2. Supprime la session
+        # Redis first (P2-04)
+        await redis_sec.revoke_all_user_sessions(user_id)
 
-        Args:
-            user_id: ID de l'utilisateur
+        # DB ensuite
+        revoke_time = datetime.now(timezone.utc)
+        count = 0
+        for sess in active_sessions:
+            sess.revoked_at = revoke_time
+            sess.revoke_reason = reason
+            count += 1
 
-        Returns:
-            Nombre de sessions révoquées
-        """
-        sessions = redis_client.list_user_sessions(user_id)
+        if count:
+            await db.flush()
+            logger.info("All sessions revoked: user=%s count=%s", user_id, count)
 
-        for session in sessions:
-            family_id = session.get("family_id")
-            if family_id:
-                self._revoke_token_family(family_id)
+        return count
 
-        count = redis_client.delete_all_user_sessions(user_id)
+    async def revoke_all_sessions_except_device(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        current_did: str,
+        reason: str = "password_change",
+    ) -> int:
+        """Révoque toutes les sessions sauf le device courant (spec §4.5 NC-06)."""
+        q = select(AccountSession).filter(
+            AccountSession.account_id == user_id,
+            AccountSession.revoked_at.is_(None),
+        )
+        if current_did:
+            q = q.filter(AccountSession.device_id != current_did)
 
-        if count > 0:
+        result = await db.execute(q)
+        active_sessions = result.scalars().all()
+
+        # Redis first (P2-04)
+        await redis_sec.revoke_sessions_except_device(user_id, current_did)
+
+        # DB ensuite
+        revoke_time = datetime.now(timezone.utc)
+        count = 0
+        for sess in active_sessions:
+            sess.revoked_at = revoke_time
+            sess.revoke_reason = reason
+            count += 1
+
+        if count:
+            await db.flush()
             logger.info(
-                "All sessions revoked: user=%s count=%s",
-                user_id, count,
+                "Sessions revoked except device: user=%s did=%s count=%s",
+                user_id, current_did, count,
             )
 
         return count
 
-    # ========== Update ==========
+    async def update_activity(
+        self,
+        db: AsyncSession,
+        session_id: str,
+        user_id: int,
+        device_id: str,
+    ) -> bool:
+        """Met à jour last_active_at (DB + Redis)."""
+        result = await db.execute(
+            select(AccountSession).filter(
+                AccountSession.session_id == session_id,
+                AccountSession.revoked_at.is_(None),
+            )
+        )
+        db_session = result.scalars().first()
 
-    def update_activity(self, session_id: str) -> bool:
-        """Met à jour le timestamp last_activity d'une session.
+        if not db_session:
+            return False
 
-        Appelé périodiquement (ex: dans middleware) pour tracker l'activité.
+        db_session.last_active_at = datetime.now(timezone.utc)
+        await db.flush()
 
-        Args:
-            session_id: ID de la session
+        await redis_sec.update_session_activity(user_id, device_id, session_id)
 
-        Returns:
-            True si mis à jour, False si session inexistante
-        """
-        return redis_client.update_session_activity(session_id)
+        return True
 
-    # ========== Private ==========
+    async def _enforce_max_sessions(self, db: AsyncSession, user_id: int) -> None:
+        """Évince les sessions les plus anciennes si MAX_SESSIONS_PER_USER atteint (§6.8)."""
+        now = datetime.now(timezone.utc)
+        result = await db.execute(
+            select(AccountSession)
+            .filter(
+                AccountSession.account_id == user_id,
+                AccountSession.revoked_at.is_(None),
+                AccountSession.expires_at > now,
+            )
+            .order_by(AccountSession.created_at.asc())
+            .with_for_update()  # D1 — évite race condition création simultanée (§6.8)
+        )
+        active_sessions = result.scalars().all()
 
-    def _enforce_max_sessions(self, user_id: int) -> None:
-        """Évince les sessions les plus anciennes si le max est atteint.
-
-        Stratégie: si user a >= MAX sessions, supprimer la plus ancienne
-        (par created_at) pour faire de la place.
-        """
-        sessions = redis_client.list_user_sessions(user_id)
-
-        if len(sessions) < SessionConfig.MAX_SESSIONS_PER_USER:
+        to_evict = len(active_sessions) - SessionConfig.MAX_SESSIONS_PER_USER + 1
+        if to_evict <= 0:
             return
 
-        # Trier par created_at croissant (plus ancienne en premier)
-        sessions.sort(key=lambda s: s.get("created_at", ""))
+        eviction_time = datetime.now(timezone.utc)
+        for sess in active_sessions[:to_evict]:
+            # Redis first (P2-04)
+            await redis_sec.revoke_refresh_jti(user_id, sess.device_id, sess.session_id)
+            await redis_sec.delete_session(user_id, sess.device_id, sess.session_id)
+            await redis_sec.revoke_csrf_token(sess.session_id)  # D2 — évite CSRF orphelins
 
-        # Nombre de sessions à évincer pour faire de la place
-        to_evict = len(sessions) - SessionConfig.MAX_SESSIONS_PER_USER + 1
+            sess.revoked_at = eviction_time
+            sess.revoke_reason = "max_sessions_eviction"
 
-        for session in sessions[:to_evict]:
-            sid = session.get("session_id")
-            family_id = session.get("family_id")
-            if sid:
-                if family_id:
-                    self._revoke_token_family(family_id)
-                redis_client.delete_session(sid, user_id)
-                logger.info(
-                    "Session evicted (max reached): session=%s user=%s",
-                    sid, user_id,
-                )
+            logger.info(
+                "Session evicted (max=%s): sid=%s user=%s device=%.8s",
+                SessionConfig.MAX_SESSIONS_PER_USER,
+                sess.session_id,
+                user_id,
+                sess.device_id,
+            )
 
-    @staticmethod
-    def _revoke_token_family(family_id: str) -> None:
-        """Révoque une famille de tokens via le client Redis.
-
-        Marque la famille comme inactive (bloque les refresh futurs).
-        """
-        redis_client.revoke_token_family(family_id)
+        await db.flush()
 
 
 # Singleton

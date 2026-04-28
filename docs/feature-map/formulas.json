@@ -1,0 +1,110 @@
+{
+  "id": "page:formulas",
+  "type": "page",
+  "name": "Formules",
+  "description": "Page principale \"Formules\". Contient : CLASSIQUES (7), Formule Tout-Petits, Formule Enfant – 6 pièces, Formule 8 pièces, Formule 12 pièces, Formule 15 pièces.",
+  "route": "/products/formulas",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "manager",
+      "admin"
+    ],
+    "group": "Catalogue",
+    "dom_h1": "Formules traiteur"
+  },
+  "params": {},
+  "features": [
+    "CLASSIQUES (7)",
+    "Formule Tout-Petits",
+    "Formule Enfant – 6 pièces",
+    "Formule 8 pièces",
+    "Formule 12 pièces",
+    "Formule 15 pièces",
+    "Formule 17 pièces",
+    "Formule 20 pièces"
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nouvelle formule",
+      "trigger": "click",
+      "target_id": "modal:nouvelle-formule",
+      "node": {
+        "id": "modal:nouvelle-formule",
+        "type": "modal",
+        "name": "Nouvelle formule",
+        "description": "Modal/panneau ouvert(e) par le bouton \"Nouvelle formule\" sur la page Formules. Non extrait automatiquement.",
+        "attributes": {
+          "scan_status": "placeholder"
+        },
+        "params": {},
+        "features": [],
+        "children": []
+      }
+    },
+    {
+      "link_type": "action",
+      "label": "Toutes",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Classique",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Vin d'honneur",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

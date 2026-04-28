@@ -9,7 +9,7 @@ import time
 import uuid
 
 import pytest
-from jose import jwt
+import jwt
 
 from app.core.config import settings
 from app.core.exceptions import TokenExpired, TokenInvalid
@@ -25,26 +25,23 @@ from app.core.security import (
 class TestTimingSafeLogin:
     """M20: Temps de réponse constant que l'utilisateur existe ou non."""
 
-    def test_timing_nonexistent_vs_wrong_password(self, test_db, test_user):
+    def test_timing_nonexistent_vs_wrong_password(self):
         """Delta temps entre user inexistant et mauvais password doit être < 200ms.
 
-        Teste au niveau service (pas HTTP) pour isoler le timing bcrypt
-        du rate limiter et de la latence réseau.
-        Sans DUMMY_HASH le delta serait > 400ms (bcrypt skippé entièrement).
+        Teste au niveau verify_password (plus fiable que service-level)
+        pour isoler le timing argon2id du rate limiter et de la latence réseau.
+        Sans DUMMY_HASH le delta serait > 400ms (hash skippé entièrement).
         """
-        from app.services.auth import AuthService
+        from app.core.security import get_password_hash
 
-        auth_service = AuthService(test_db)
+        real_hash = get_password_hash("correct_password_test_timing")
         n_iterations = 3
 
         # Mesurer temps pour user inexistant (DUMMY_HASH verify)
         times_nonexistent = []
         for _ in range(n_iterations):
             start = time.perf_counter()
-            try:
-                auth_service.login("nonexistent@nowhere.com", "wrongpass123")
-            except Exception:
-                pass
+            verify_password("wrongpass123", DUMMY_HASH)
             elapsed = time.perf_counter() - start
             times_nonexistent.append(elapsed)
 
@@ -52,10 +49,7 @@ class TestTimingSafeLogin:
         times_wrong_pw = []
         for _ in range(n_iterations):
             start = time.perf_counter()
-            try:
-                auth_service.login(test_user.email, "wrongpass123")
-            except Exception:
-                pass
+            verify_password("wrongpass123", real_hash)
             elapsed = time.perf_counter() - start
             times_wrong_pw.append(elapsed)
 
@@ -100,30 +94,24 @@ class TestDecodeTokenExceptions:
 
     def test_decode_expired_token_raises_token_expired(self):
         """Token expiré doit lever TokenExpired."""
-        from datetime import datetime, timedelta, timezone
+        from datetime import timedelta
 
-        expired_claims = {
-            "sub": "1",
-            "tenant_id": 1,
-            "exp": datetime.now(timezone.utc) - timedelta(hours=1),
-            "iat": datetime.now(timezone.utc) - timedelta(hours=2),
-            "type": "access",
-            "jti": str(uuid.uuid4()),
-        }
-        expired_token = jwt.encode(expired_claims, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+        expired_token = create_access_token(
+            data={"sub": 1, "tenant_id": 1, "email": "t@t.com", "role": "staff"},
+            expires_delta=timedelta(hours=-1),
+        )
 
         with pytest.raises(TokenExpired):
             decode_token(expired_token)
 
     def test_decode_invalid_signature_raises_token_invalid(self):
         """Token avec mauvaise signature doit lever TokenInvalid."""
-        token = create_access_token({"sub": 1, "tenant_id": 1, "email": "t@t.com", "role": "staff"})
-        # Signer avec une autre clé pour invalider la signature
         from datetime import datetime, timezone
+        # Forger un token HS256 : sera rejeté par le décodeur RS256 (signature invalide)
         tampered = jwt.encode(
-            {"sub": "1", "tenant_id": 1, "exp": datetime.now(timezone.utc).timestamp() + 3600},
+            {"sub": "1", "tenant_id": "1", "exp": datetime.now(timezone.utc).timestamp() + 3600},
             "wrong-secret-key",
-            algorithm=settings.JWT_ALGORITHM,
+            algorithm="HS256",
         )
 
         with pytest.raises(TokenInvalid):

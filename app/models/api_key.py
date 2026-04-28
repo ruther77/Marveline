@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Integer, String, DateTime, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import ARRAY
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base, TimestampMixin, TenantMixin, SoftDeleteMixin
 
 
@@ -72,9 +72,17 @@ class ApiKey(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
 
     created_by: Mapped[int] = mapped_column(
         BigInteger,
-        ForeignKey("users.id"),
         nullable=False,
-        comment="ID de l'admin qui a cree la cle"
+        comment="ID de l'admin (account_id) qui a cree la cle — plain int depuis IAM v2 drop_legacy"
+    )
+
+    # IAM v2 — expand phase (nullable pendant la migration)
+    membership_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        ForeignKey("tenant_memberships.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Membership qui a cree la cle (IAM v2 — remplace created_by FK users)"
     )
 
     last_used_at: Mapped[Optional[datetime]] = mapped_column(
@@ -94,13 +102,6 @@ class ApiKey(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
         nullable=False,
         default=0,
         comment="Compteur d'utilisations"
-    )
-
-    # Relations
-    creator: Mapped["User"] = relationship(
-        "User",
-        foreign_keys=[created_by],
-        lazy="select",
     )
 
     __table_args__ = (

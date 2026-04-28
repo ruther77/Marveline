@@ -140,14 +140,19 @@ async def validation_exception_handler(
     request_id = getattr(request.state, "request_id", None)
 
     raw_errors = exc.errors() if hasattr(exc, "errors") else []
-    formatted_errors = [
-        {
-            "field": ".".join(str(part) for part in error.get("loc", [])),
-            "message": error.get("msg", "Validation error"),
-            "type": error.get("type", "unknown"),
-        }
-        for error in raw_errors
-    ]
+    # P3-09 : en prod, ne pas exposer la structure du schema (anti-reconnaissance)
+    from app.core.config import settings
+    if settings.DEBUG:
+        formatted_errors = [
+            {
+                "field": ".".join(str(part) for part in error.get("loc", [])),
+                "message": error.get("msg", "Validation error"),
+                "type": error.get("type", "unknown"),
+            }
+            for error in raw_errors
+        ]
+    else:
+        formatted_errors = [{"message": "Validation error"}]
 
     return create_error_response(
         status_code=422,

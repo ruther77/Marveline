@@ -181,8 +181,8 @@ def test_create_reservation_invalid_dates_returns_422(client: TestClient, test_d
         name="Date Product",
         sku="DATE-PRODUCT",
         category=ProductCategory.MOBILIER,
-        price_per_day=1000,
-        deposit_amount=2000,
+        price_per_day_cents=1000,
+        deposit_amount_cents=2000,
         stock_quantity=10,
         available_quantity=10,
         condition=ProductCondition.BON,
@@ -217,8 +217,8 @@ def test_create_product_duplicate_sku_returns_400(client: TestClient, test_db, a
         name="Existing Product",
         sku="DUPLICATE-SKU",
         category=ProductCategory.MOBILIER,
-        price_per_day=1000,
-        deposit_amount=2000,
+        price_per_day_cents=1000,
+        deposit_amount_cents=2000,
         stock_quantity=10,
         available_quantity=10,
         condition=ProductCondition.BON,
@@ -293,8 +293,8 @@ def test_confirm_reservation_insufficient_stock_returns_400(client: TestClient, 
         name="Low Stock Product",
         sku="LOW-STOCK-TEST",
         category=ProductCategory.MOBILIER,
-        price_per_day=1000,
-        deposit_amount=2000,
+        price_per_day_cents=1000,
+        deposit_amount_cents=2000,
         stock_quantity=10,
         available_quantity=2,  # Seulement 2 disponibles
         condition=ProductCondition.BON,
@@ -347,8 +347,8 @@ def test_cancel_already_cancelled_reservation_returns_400(client: TestClient, te
         return_date=date.today() + timedelta(days=11),
         event_location="Test",
         status=ReservationStatus.CANCELLED,  # Déjà annulée
-        total_amount=1000,
-        deposit_amount=500,
+        total_amount_cents=1000,
+        deposit_amount_cents=500,
         deposit_paid=False
     )
     test_db.add(reservation)
@@ -387,8 +387,8 @@ def test_add_payment_exceeding_total_returns_400(client: TestClient, test_db, au
         return_date=date.today() + timedelta(days=11),
         event_location="Test",
         status=ReservationStatus.CONFIRMED,
-        total_amount=10000,
-        deposit_amount=5000,
+        total_amount_cents=10000,
+        deposit_amount_cents=5000,
         deposit_paid=False
     )
     test_db.add(reservation)
@@ -400,8 +400,8 @@ def test_add_payment_exceeding_total_returns_400(client: TestClient, test_db, au
         invoice_number="INV-EXCEED",
         issue_date=date.today(),
         due_date=date.today() + timedelta(days=14),
-        total_amount=10000,
-        paid_amount=0,
+        total_amount_cents=10000,
+        paid_amount_cents=0,
         status=ReservationStatus.DRAFT
     )
     test_db.add(invoice)
@@ -447,8 +447,8 @@ def test_cancel_paid_invoice_returns_400(client: TestClient, test_db, auth_heade
         return_date=date.today() + timedelta(days=11),
         event_location="Test",
         status=ReservationStatus.CONFIRMED,
-        total_amount=10000,
-        deposit_amount=5000,
+        total_amount_cents=10000,
+        deposit_amount_cents=5000,
         deposit_paid=False
     )
     test_db.add(reservation)
@@ -460,8 +460,8 @@ def test_cancel_paid_invoice_returns_400(client: TestClient, test_db, auth_heade
         invoice_number="INV-PAID",
         issue_date=date.today(),
         due_date=date.today() + timedelta(days=14),
-        total_amount=10000,
-        paid_amount=10000,  # Payée
+        total_amount_cents=10000,
+        paid_amount_cents=10000,  # Payée
         status=InvoiceStatus.PAID
     )
     test_db.add(invoice)

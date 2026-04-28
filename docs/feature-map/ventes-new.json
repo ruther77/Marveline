@@ -1,0 +1,111 @@
+{
+  "id": "page:ventes-new",
+  "type": "page",
+  "name": "Nouvelle vente",
+  "description": "Page principale \"Nouvelle vente\". Contient : Informations, Articles, Champ : ex : 30, Champ : Informations complémentaires…. Paramètres : ex-30, informations-complementaires.",
+  "route": "/ventes/new",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "staff",
+      "manager",
+      "admin"
+    ],
+    "group": "Ventes",
+    "dom_h1": "Nouvelle vente"
+  },
+  "params": {
+    "ex-30": "number",
+    "informations-complementaires": "textarea"
+  },
+  "features": [
+    "Informations",
+    "Articles",
+    "Champ : ex : 30",
+    "Champ : Informations complémentaires…"
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Ajouter un article",
+      "trigger": "click",
+      "target_id": "modal:ajouter-un-article",
+      "node": {
+        "id": "modal:selectionner-un-produit",
+        "type": "form",
+        "name": "Sélectionner un produit",
+        "description": "Formulaire \"Sélectionner un produit\". Contient : Chargement..., Champ : Rechercher un produit..., Fermer. Paramètres : rechercher-un-produit.",
+        "attributes": {
+          "depth": 1,
+          "opened_from_depth": 0
+        },
+        "params": {
+          "rechercher-un-produit": "text"
+        },
+        "features": [
+          "Chargement...",
+          "Champ : Rechercher un produit...",
+          "Fermer"
+        ],
+        "children": [
+          {
+            "link_type": "action",
+            "label": "Fermer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          }
+        ]
+      }
+    },
+    {
+      "link_type": "action",
+      "label": "+ Sélectionner des articles depuis le catalogue",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

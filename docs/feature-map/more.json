@@ -1,0 +1,174 @@
+{
+  "id": "page:more",
+  "type": "page",
+  "name": "Plus",
+  "description": "Page principale \"Plus\". Contient : FINANCES, CATALOGUE, INVENTAIRE, CLIENTS, ADMINISTRATION.",
+  "route": "/more",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "staff",
+      "manager",
+      "admin"
+    ],
+    "group": "Home",
+    "dom_h1": "Plus"
+  },
+  "params": {},
+  "features": [
+    "FINANCES",
+    "CATALOGUE",
+    "INVENTAIRE",
+    "CLIENTS",
+    "ADMINISTRATION"
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Factures",
+      "trigger": "click",
+      "target_id": "page:invoices",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Trésorerie",
+      "trigger": "click",
+      "target_id": "page:tresorerie",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Rapport finances",
+      "trigger": "click",
+      "target_id": "page:finances",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Tarification",
+      "trigger": "click",
+      "target_id": "page:tarification",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Produits",
+      "trigger": "click",
+      "target_id": "page:products",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Builder offre",
+      "trigger": "click",
+      "target_id": "page:catalogue-builder",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Types de dommages",
+      "trigger": "click",
+      "target_id": "page:inventory-damage",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Analyse RFM",
+      "trigger": "click",
+      "target_id": "page:customers",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Relances",
+      "trigger": "click",
+      "target_id": "page:relances",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Utilisateurs",
+      "trigger": "click",
+      "target_id": "page:admin-users",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Sessions",
+      "trigger": "click",
+      "target_id": "page:admin-sessions",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Feature Flags",
+      "trigger": "click",
+      "target_id": "page:admin-features",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "API Keys",
+      "trigger": "click",
+      "target_id": "page:admin-api-keys",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "VPN",
+      "trigger": "click",
+      "target_id": "page:admin-vpn",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Paramètres",
+      "trigger": "click",
+      "target_id": "page:admin-settings",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Audit Logs",
+      "trigger": "click",
+      "target_id": "page:admin-audit",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

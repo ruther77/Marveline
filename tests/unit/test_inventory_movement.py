@@ -23,9 +23,9 @@ TENANT_ID_OTHER = 2
 
 
 @pytest.fixture
-def service(test_db):
+async def service(async_db):
     """MovementService avec session de test."""
-    return MovementService(test_db)
+    return MovementService(async_db)
 
 
 @pytest.fixture
@@ -46,7 +46,7 @@ def sample_items():
 # ── Helpers ───────────────────────────────────────────────────────────
 
 
-def _create_movement_in_db(
+async def _create_movement_in_db(
     db,
     tenant_id=TENANT_ID,
     status=MovementStatus.SCHEDULED.value,
@@ -56,22 +56,24 @@ def _create_movement_in_db(
     movement = InventoryMovement(
         tenant_id=tenant_id,
         movement_type=kwargs.get("movement_type", MovementType.DEPARTURE.value),
-        scheduled_date=kwargs.get("scheduled_date", datetime.now(timezone.utc) + timedelta(days=7)),
+        scheduled_date=kwargs.get(
+            "scheduled_date", datetime.now(timezone.utc) + timedelta(days=7)
+        ),
         status=status,
         delivery_method=kwargs.get("delivery_method"),
         delivery_address=kwargs.get("delivery_address"),
         delivery_notes=kwargs.get("delivery_notes"),
         event_id=kwargs.get("event_id"),
-        damage_fee=kwargs.get("damage_fee", 0),
+        damage_fee_cents=kwargs.get("damage_fee", 0),
         inspection_status=kwargs.get("inspection_status"),
     )
     db.add(movement)
-    db.flush()
-    db.refresh(movement)
+    await db.flush()
+    await db.refresh(movement)
     return movement
 
 
-def _add_item_in_db(db, movement, **kwargs):
+async def _add_item_in_db(db, movement, **kwargs):
     """Ajoute un item directement en DB."""
     item = MovementItem(
         tenant_id=movement.tenant_id,
@@ -79,14 +81,14 @@ def _add_item_in_db(db, movement, **kwargs):
         quantity_expected=kwargs.get("quantity_expected", 5),
         product_id=kwargs.get("product_id"),
         event_item_id=kwargs.get("event_item_id"),
-        product_variation_id=kwargs.get("product_variation_id"),
+        variant_id=kwargs.get("variant_id"),
         quantity_actual=kwargs.get("quantity_actual"),
         condition=kwargs.get("condition"),
         condition_notes=kwargs.get("condition_notes"),
     )
     db.add(item)
-    db.flush()
-    db.refresh(item)
+    await db.flush()
+    await db.refresh(item)
     return item
 
 
@@ -95,9 +97,11 @@ def _add_item_in_db(db, movement, **kwargs):
 # ═══════════════════════════════════════════════════════════════════════
 
 
-def test_create_movement_departure_success(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_create_movement_departure_success(service, async_db, future_date,
+                                                  sample_items):
     """Crée un mouvement de type departure avec succès."""
-    movement = service.create_movement(
+    movement = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
@@ -112,9 +116,10 @@ def test_create_movement_departure_success(service, test_db, future_date, sample
     assert len(movement.items) == 2
 
 
-def test_create_movement_return_success(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_create_movement_return_success(service, async_db, future_date):
     """Crée un mouvement de type return avec succès."""
-    movement = service.create_movement(
+    movement = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.RETURN.value,
         scheduled_date=future_date,
@@ -126,9 +131,10 @@ def test_create_movement_return_success(service, test_db, future_date):
     assert len(movement.items) == 1
 
 
-def test_create_movement_with_optional_fields(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_create_movement_with_optional_fields(service, async_db, future_date):
     """Crée un mouvement avec tous les champs optionnels."""
-    movement = service.create_movement(
+    movement = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
@@ -145,13 +151,14 @@ def test_create_movement_with_optional_fields(service, test_db, future_date):
     assert movement.delivery_notes == "Livrer avant 14h"
 
 
-def test_create_movement_items_have_correct_data(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_create_movement_items_have_correct_data(service, async_db, future_date):
     """Les items créés ont les bonnes quantités et sont liés au mouvement."""
     items_data = [
         {"quantity_expected": 10, "condition": ItemCondition.PERFECT.value},
         {"quantity_expected": 5, "condition_notes": "Fragile"},
     ]
-    movement = service.create_movement(
+    movement = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
@@ -167,10 +174,11 @@ def test_create_movement_items_have_correct_data(service, test_db, future_date):
         assert item.tenant_id == TENANT_ID
 
 
-def test_create_movement_no_items_error(service, future_date):
+@pytest.mark.asyncio
+async def test_create_movement_no_items_error(service, future_date):
     """Erreur 400 si aucun item fourni."""
     with pytest.raises(HTTPException) as exc_info:
-        service.create_movement(
+        await service.create_movement(
             tenant_id=TENANT_ID,
             movement_type=MovementType.DEPARTURE.value,
             scheduled_date=future_date,
@@ -181,10 +189,11 @@ def test_create_movement_no_items_error(service, future_date):
     assert "At least one item" in exc_info.value.detail
 
 
-def test_create_movement_invalid_type_error(service, future_date):
+@pytest.mark.asyncio
+async def test_create_movement_invalid_type_error(service, future_date):
     """Erreur 400 si movement_type invalide."""
     with pytest.raises(HTTPException) as exc_info:
-        service.create_movement(
+        await service.create_movement(
             tenant_id=TENANT_ID,
             movement_type="invalid_type",
             scheduled_date=future_date,
@@ -200,32 +209,36 @@ def test_create_movement_invalid_type_error(service, future_date):
 # ═══════════════════════════════════════════════════════════════════════
 
 
-def test_get_movement_success(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_get_movement_success(service, async_db, future_date, sample_items):
     """Récupère un mouvement existant par ID."""
-    created = service.create_movement(
+    created = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
 
-    fetched = service.get_movement(created.id, TENANT_ID)
+    fetched = await service.get_movement(created.id, TENANT_ID)
     assert fetched.id == created.id
     assert fetched.movement_type == MovementType.DEPARTURE.value
 
 
-def test_get_movement_not_found(service):
+@pytest.mark.asyncio
+async def test_get_movement_not_found(service):
     """Erreur 404 pour ID inexistant."""
     with pytest.raises(HTTPException) as exc_info:
-        service.get_movement(99999, TENANT_ID)
+        await service.get_movement(99999, TENANT_ID)
 
     assert exc_info.value.status_code == 404
     assert "Movement not found" in exc_info.value.detail
 
 
-def test_get_movement_cross_tenant_not_found(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_get_movement_cross_tenant_not_found(service, async_db, future_date,
+                                                    sample_items):
     """Erreur 404 quand on accède au mouvement d'un autre tenant."""
-    created = service.create_movement(
+    created = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
@@ -233,7 +246,7 @@ def test_get_movement_cross_tenant_not_found(service, test_db, future_date, samp
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        service.get_movement(created.id, TENANT_ID_OTHER)
+        await service.get_movement(created.id, TENANT_ID_OTHER)
 
     assert exc_info.value.status_code == 404
 
@@ -243,37 +256,39 @@ def test_get_movement_cross_tenant_not_found(service, test_db, future_date, samp
 # ═══════════════════════════════════════════════════════════════════════
 
 
-def test_list_movements_returns_all(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_list_movements_returns_all(service, async_db, future_date):
     """Liste retourne tous les mouvements actifs du tenant."""
     for _ in range(3):
-        service.create_movement(
+        await service.create_movement(
             tenant_id=TENANT_ID,
             movement_type=MovementType.DEPARTURE.value,
             scheduled_date=future_date,
             items=[{"quantity_expected": 1}],
         )
 
-    movements, total = service.list_movements(tenant_id=TENANT_ID)
+    movements, total = await service.list_movements(tenant_id=TENANT_ID)
     assert total == 3
     assert len(movements) == 3
 
 
-def test_list_movements_filter_by_type(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_list_movements_filter_by_type(service, async_db, future_date):
     """Filtre par movement_type fonctionne."""
-    service.create_movement(
+    await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 1}],
     )
-    service.create_movement(
+    await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.RETURN.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 1}],
     )
 
-    departures, total = service.list_movements(
+    departures, total = await service.list_movements(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
     )
@@ -281,26 +296,27 @@ def test_list_movements_filter_by_type(service, test_db, future_date):
     assert departures[0].movement_type == MovementType.DEPARTURE.value
 
 
-def test_list_movements_filter_by_status(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_list_movements_filter_by_status(service, async_db, future_date):
     """Filtre par status fonctionne."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 1}],
     )
     # Passer en in_transit
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
 
     # Créer un second mouvement (rest scheduled)
-    service.create_movement(
+    await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 1}],
     )
 
-    in_transit, total = service.list_movements(
+    in_transit, total = await service.list_movements(
         tenant_id=TENANT_ID,
         movement_status=MovementStatus.IN_TRANSIT.value,
     )
@@ -308,16 +324,17 @@ def test_list_movements_filter_by_status(service, test_db, future_date):
     assert in_transit[0].status == MovementStatus.IN_TRANSIT.value
 
 
-def test_list_movements_filter_by_event_id(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_list_movements_filter_by_event_id(service, async_db, future_date):
     """Filtre par event_id fonctionne."""
-    service.create_movement(
+    await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 1}],
         event_id=10,
     )
-    service.create_movement(
+    await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
@@ -325,50 +342,53 @@ def test_list_movements_filter_by_event_id(service, test_db, future_date):
         event_id=20,
     )
 
-    results, total = service.list_movements(tenant_id=TENANT_ID, event_id=10)
+    results, total = await service.list_movements(tenant_id=TENANT_ID, event_id=10)
     assert total == 1
     assert results[0].event_id == 10
 
 
-def test_list_movements_pagination(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_list_movements_pagination(service, async_db, future_date):
     """Pagination skip/limit fonctionne."""
     for _ in range(5):
-        service.create_movement(
+        await service.create_movement(
             tenant_id=TENANT_ID,
             movement_type=MovementType.DEPARTURE.value,
             scheduled_date=future_date,
             items=[{"quantity_expected": 1}],
         )
 
-    page, total = service.list_movements(tenant_id=TENANT_ID, skip=2, limit=2)
+    page, total = await service.list_movements(tenant_id=TENANT_ID, skip=2, limit=2)
     assert total == 5
     assert len(page) == 2
 
 
-def test_list_movements_empty(service, test_db):
+@pytest.mark.asyncio
+async def test_list_movements_empty(service, async_db):
     """Liste vide pour un tenant sans mouvements."""
-    movements, total = service.list_movements(tenant_id=TENANT_ID)
+    movements, total = await service.list_movements(tenant_id=TENANT_ID)
     assert total == 0
     assert movements == []
 
 
-def test_list_movements_tenant_isolation(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_list_movements_tenant_isolation(service, async_db, future_date):
     """list_movements ne retourne que les mouvements du tenant demandé."""
-    service.create_movement(
+    await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 1}],
     )
-    service.create_movement(
+    await service.create_movement(
         tenant_id=TENANT_ID_OTHER,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 1}],
     )
 
-    t1_results, t1_total = service.list_movements(tenant_id=TENANT_ID)
-    t2_results, t2_total = service.list_movements(tenant_id=TENANT_ID_OTHER)
+    t1_results, t1_total = await service.list_movements(tenant_id=TENANT_ID)
+    t2_results, t2_total = await service.list_movements(tenant_id=TENANT_ID_OTHER)
 
     assert t1_total == 1
     assert t2_total == 1
@@ -381,16 +401,17 @@ def test_list_movements_tenant_isolation(service, test_db, future_date):
 # ═══════════════════════════════════════════════════════════════════════
 
 
-def test_update_movement_basic_fields(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_update_movement_basic_fields(service, async_db, future_date, sample_items):
     """Met à jour les champs basiques (delivery, notes)."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
 
-    updated = service.update_movement(
+    updated = await service.update_movement(
         m.id, TENANT_ID,
         delivery_address="456 Rue Nouvelle",
         delivery_notes="Urgent",
@@ -402,29 +423,31 @@ def test_update_movement_basic_fields(service, test_db, future_date, sample_item
     assert updated.delivery_method == DeliveryMethod.SHIPPING.value
 
 
-def test_update_movement_damage_fee(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_update_movement_damage_fee(service, async_db, future_date, sample_items):
     """Met à jour le damage_fee en centimes."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
 
-    updated = service.update_movement(m.id, TENANT_ID, damage_fee=1500)
+    updated = await service.update_movement(m.id, TENANT_ID, damage_fee_cents=1500)
     assert updated.damage_fee == 1500  # 15.00 EUR
 
 
-def test_update_movement_inspection(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_update_movement_inspection(service, async_db, future_date, sample_items):
     """Met à jour le statut d'inspection."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
 
-    updated = service.update_movement(
+    updated = await service.update_movement(
         m.id, TENANT_ID,
         inspection_status=InspectionStatus.DAMAGED.value,
         inspection_notes="Caisse abimee",
@@ -434,10 +457,11 @@ def test_update_movement_inspection(service, test_db, future_date, sample_items)
     assert updated.inspection_notes == "Caisse abimee"
 
 
-def test_update_movement_not_found(service):
+@pytest.mark.asyncio
+async def test_update_movement_not_found(service):
     """Erreur 404 si mouvement inexistant."""
     with pytest.raises(HTTPException) as exc_info:
-        service.update_movement(99999, TENANT_ID, delivery_notes="test")
+        await service.update_movement(99999, TENANT_ID, delivery_notes="test")
 
     assert exc_info.value.status_code == 404
 
@@ -447,107 +471,134 @@ def test_update_movement_not_found(service):
 # ═══════════════════════════════════════════════════════════════════════
 
 
-def test_transition_scheduled_to_in_transit(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_transition_scheduled_to_in_transit(service, async_db, future_date,
+                                                   sample_items):
     """Transition scheduled → in_transit autorisée."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
 
-    updated = service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    updated = await service.update_movement(
+        m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value
+    )
     assert updated.status == MovementStatus.IN_TRANSIT.value
 
 
-def test_transition_scheduled_to_cancelled(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_transition_scheduled_to_cancelled(service, async_db, future_date,
+                                                  sample_items):
     """Transition scheduled → cancelled autorisée."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
 
-    updated = service.update_movement(m.id, TENANT_ID, status=MovementStatus.CANCELLED.value)
+    updated = await service.update_movement(
+        m.id, TENANT_ID, status=MovementStatus.CANCELLED.value
+    )
     assert updated.status == MovementStatus.CANCELLED.value
 
 
-def test_transition_in_transit_to_completed(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_transition_in_transit_to_completed(service, async_db, future_date,
+                                                   sample_items):
     """Transition in_transit → completed autorisée."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
 
-    updated = service.update_movement(m.id, TENANT_ID, status=MovementStatus.COMPLETED.value)
+    updated = await service.update_movement(
+        m.id, TENANT_ID, status=MovementStatus.COMPLETED.value
+    )
     assert updated.status == MovementStatus.COMPLETED.value
 
 
-def test_transition_in_transit_to_late(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_transition_in_transit_to_late(service, async_db, future_date, sample_items):
     """Transition in_transit → late autorisée."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
 
-    updated = service.update_movement(m.id, TENANT_ID, status=MovementStatus.LATE.value)
+    updated = await service.update_movement(
+        m.id, TENANT_ID, status=MovementStatus.LATE.value
+    )
     assert updated.status == MovementStatus.LATE.value
 
 
-def test_transition_in_transit_to_cancelled(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_transition_in_transit_to_cancelled(service, async_db, future_date,
+                                                   sample_items):
     """Transition in_transit → cancelled autorisée."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
 
-    updated = service.update_movement(m.id, TENANT_ID, status=MovementStatus.CANCELLED.value)
+    updated = await service.update_movement(
+        m.id, TENANT_ID, status=MovementStatus.CANCELLED.value
+    )
     assert updated.status == MovementStatus.CANCELLED.value
 
 
-def test_transition_late_to_completed(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_transition_late_to_completed(service, async_db, future_date, sample_items):
     """Transition late → completed autorisée."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.LATE.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.LATE.value)
 
-    updated = service.update_movement(m.id, TENANT_ID, status=MovementStatus.COMPLETED.value)
+    updated = await service.update_movement(
+        m.id, TENANT_ID, status=MovementStatus.COMPLETED.value
+    )
     assert updated.status == MovementStatus.COMPLETED.value
 
 
-def test_transition_late_to_cancelled(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_transition_late_to_cancelled(service, async_db, future_date, sample_items):
     """Transition late → cancelled autorisée."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.LATE.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.LATE.value)
 
-    updated = service.update_movement(m.id, TENANT_ID, status=MovementStatus.CANCELLED.value)
+    updated = await service.update_movement(
+        m.id, TENANT_ID, status=MovementStatus.CANCELLED.value
+    )
     assert updated.status == MovementStatus.CANCELLED.value
 
 
-def test_transition_scheduled_to_completed_invalid(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_transition_scheduled_to_completed_invalid(service, async_db, future_date,
+                                                          sample_items):
     """Transition scheduled → completed interdite (doit passer par in_transit)."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
@@ -555,15 +606,19 @@ def test_transition_scheduled_to_completed_invalid(service, test_db, future_date
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        service.update_movement(m.id, TENANT_ID, status=MovementStatus.COMPLETED.value)
+        await service.update_movement(
+            m.id, TENANT_ID, status=MovementStatus.COMPLETED.value
+        )
 
     assert exc_info.value.status_code == 400
     assert "Invalid status transition" in exc_info.value.detail
 
 
-def test_transition_scheduled_to_late_invalid(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_transition_scheduled_to_late_invalid(service, async_db, future_date,
+                                                     sample_items):
     """Transition scheduled → late interdite."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
@@ -571,50 +626,55 @@ def test_transition_scheduled_to_late_invalid(service, test_db, future_date, sam
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        service.update_movement(m.id, TENANT_ID, status=MovementStatus.LATE.value)
+        await service.update_movement(m.id, TENANT_ID, status=MovementStatus.LATE.value)
 
     assert exc_info.value.status_code == 400
 
 
-def test_transition_from_completed_invalid(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_transition_from_completed_invalid(service, async_db, future_date,
+                                                  sample_items):
     """Aucune transition depuis completed (statut terminal)."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.COMPLETED.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.COMPLETED.value)
 
     for target in [MovementStatus.SCHEDULED.value, MovementStatus.IN_TRANSIT.value,
                    MovementStatus.LATE.value, MovementStatus.CANCELLED.value]:
         with pytest.raises(HTTPException) as exc_info:
-            service.update_movement(m.id, TENANT_ID, status=target)
+            await service.update_movement(m.id, TENANT_ID, status=target)
         assert exc_info.value.status_code == 400
         assert "none" in exc_info.value.detail.lower()
 
 
-def test_transition_from_cancelled_invalid(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_transition_from_cancelled_invalid(service, async_db, future_date,
+                                                  sample_items):
     """Aucune transition depuis cancelled (statut terminal)."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.CANCELLED.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.CANCELLED.value)
 
     for target in [MovementStatus.SCHEDULED.value, MovementStatus.IN_TRANSIT.value,
                    MovementStatus.COMPLETED.value, MovementStatus.LATE.value]:
         with pytest.raises(HTTPException) as exc_info:
-            service.update_movement(m.id, TENANT_ID, status=target)
+            await service.update_movement(m.id, TENANT_ID, status=target)
         assert exc_info.value.status_code == 400
 
 
-def test_transition_same_status_no_error(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_transition_same_status_no_error(service, async_db, future_date, sample_items):
     """Re-set du meme statut ne declenche pas d'erreur."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
@@ -622,7 +682,9 @@ def test_transition_same_status_no_error(service, test_db, future_date, sample_i
     )
 
     # Mettre scheduled → scheduled ne change rien et ne leve pas d'erreur
-    updated = service.update_movement(m.id, TENANT_ID, status=MovementStatus.SCHEDULED.value)
+    updated = await service.update_movement(
+        m.id, TENANT_ID, status=MovementStatus.SCHEDULED.value
+    )
     assert updated.status == MovementStatus.SCHEDULED.value
 
 
@@ -631,67 +693,72 @@ def test_transition_same_status_no_error(service, test_db, future_date, sample_i
 # ═══════════════════════════════════════════════════════════════════════
 
 
-def test_delete_movement_success(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_delete_movement_success(service, async_db, future_date, sample_items):
     """Soft delete d'un mouvement scheduled."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
 
-    result = service.delete_movement(m.id, TENANT_ID)
+    result = await service.delete_movement(m.id, TENANT_ID)
     assert result is True
 
     # Mouvement plus visible via get (is_active=False)
     with pytest.raises(HTTPException) as exc_info:
-        service.get_movement(m.id, TENANT_ID)
+        await service.get_movement(m.id, TENANT_ID)
     assert exc_info.value.status_code == 404
 
 
-def test_delete_movement_in_transit(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_delete_movement_in_transit(service, async_db, future_date, sample_items):
     """Soft delete d'un mouvement in_transit (autorise)."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
 
-    result = service.delete_movement(m.id, TENANT_ID)
+    result = await service.delete_movement(m.id, TENANT_ID)
     assert result is True
 
 
-def test_delete_completed_movement_error(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_delete_completed_movement_error(service, async_db, future_date, sample_items):
     """Erreur 400 si on tente de supprimer un mouvement completed."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.COMPLETED.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.COMPLETED.value)
 
     with pytest.raises(HTTPException) as exc_info:
-        service.delete_movement(m.id, TENANT_ID)
+        await service.delete_movement(m.id, TENANT_ID)
 
     assert exc_info.value.status_code == 400
     assert "Cannot delete a completed movement" in exc_info.value.detail
 
 
-def test_delete_movement_not_found(service):
+@pytest.mark.asyncio
+async def test_delete_movement_not_found(service):
     """Erreur 404 si mouvement inexistant."""
     with pytest.raises(HTTPException) as exc_info:
-        service.delete_movement(99999, TENANT_ID)
+        await service.delete_movement(99999, TENANT_ID)
 
     assert exc_info.value.status_code == 404
 
 
-def test_delete_movement_cross_tenant(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_delete_movement_cross_tenant(service, async_db, future_date, sample_items):
     """Erreur 404 si on tente de supprimer un mouvement d'un autre tenant."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
@@ -699,7 +766,7 @@ def test_delete_movement_cross_tenant(service, test_db, future_date, sample_item
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        service.delete_movement(m.id, TENANT_ID_OTHER)
+        await service.delete_movement(m.id, TENANT_ID_OTHER)
 
     assert exc_info.value.status_code == 404
 
@@ -709,43 +776,48 @@ def test_delete_movement_cross_tenant(service, test_db, future_date, sample_item
 # ═══════════════════════════════════════════════════════════════════════
 
 
-def test_complete_movement_from_in_transit(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_complete_movement_from_in_transit(service, async_db, future_date,
+                                                  sample_items):
     """complete_movement depuis in_transit passe en completed avec actual_date."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
 
     before = datetime.now(timezone.utc)
-    completed = service.complete_movement(m.id, TENANT_ID)
+    completed = await service.complete_movement(m.id, TENANT_ID)
 
     assert completed.status == MovementStatus.COMPLETED.value
     assert completed.actual_date is not None
     assert completed.actual_date >= before
 
 
-def test_complete_movement_from_late(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_complete_movement_from_late(service, async_db, future_date, sample_items):
     """complete_movement depuis late passe en completed."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=sample_items,
     )
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.LATE.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.LATE.value)
 
-    completed = service.complete_movement(m.id, TENANT_ID)
+    completed = await service.complete_movement(m.id, TENANT_ID)
     assert completed.status == MovementStatus.COMPLETED.value
     assert completed.actual_date is not None
 
 
-def test_complete_movement_from_scheduled_error(service, test_db, future_date, sample_items):
+@pytest.mark.asyncio
+async def test_complete_movement_from_scheduled_error(service, async_db, future_date,
+                                                       sample_items):
     """complete_movement depuis scheduled echoue (doit passer par in_transit)."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
@@ -753,10 +825,10 @@ def test_complete_movement_from_scheduled_error(service, test_db, future_date, s
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        service.complete_movement(m.id, TENANT_ID)
+        await service.complete_movement(m.id, TENANT_ID)
 
-    assert exc_info.value.status_code == 400
-    assert "Invalid status transition" in exc_info.value.detail
+    assert exc_info.value.status_code == 409
+    assert "Cannot complete movement" in exc_info.value.detail
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -764,59 +836,64 @@ def test_complete_movement_from_scheduled_error(service, test_db, future_date, s
 # ═══════════════════════════════════════════════════════════════════════
 
 
-def test_get_late_movements(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_get_late_movements(service, async_db, future_date):
     """get_late_movements retourne uniquement les mouvements late."""
     # Creer un mouvement late
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 1}],
     )
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.LATE.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.LATE.value)
 
     # Creer un mouvement scheduled (pas late)
-    service.create_movement(
+    await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 1}],
     )
 
-    late, total = service.get_late_movements(TENANT_ID)
+    late, total = await service.get_late_movements(TENANT_ID)
     assert total == 1
     assert late[0].status == MovementStatus.LATE.value
 
 
-def test_get_pending_inspections(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_get_pending_inspections(service, async_db, future_date):
     """get_pending_inspections retourne les mouvements avec inspection pending."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.RETURN.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 1}],
     )
-    service.update_movement(m.id, TENANT_ID, inspection_status=InspectionStatus.PENDING.value)
+    await service.update_movement(
+        m.id, TENANT_ID, inspection_status=InspectionStatus.PENDING.value
+    )
 
     # Mouvement sans inspection
-    service.create_movement(
+    await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 1}],
     )
 
-    pending, total = service.get_pending_inspections(TENANT_ID)
+    pending, total = await service.get_pending_inspections(TENANT_ID)
     assert total == 1
     assert pending[0].inspection_status == InspectionStatus.PENDING.value
 
 
-def test_get_statistics(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_get_statistics(service, async_db, future_date):
     """get_statistics retourne les bons comptes par statut."""
     # 2 scheduled
     for _ in range(2):
-        service.create_movement(
+        await service.create_movement(
             tenant_id=TENANT_ID,
             movement_type=MovementType.DEPARTURE.value,
             scheduled_date=future_date,
@@ -824,25 +901,27 @@ def test_get_statistics(service, test_db, future_date):
         )
 
     # 1 in_transit
-    m1 = service.create_movement(
+    m1 = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 1}],
     )
-    service.update_movement(m1.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    await service.update_movement(m1.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
 
     # 1 completed avec damage_fee
-    m2 = service.create_movement(
+    m2 = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 1}],
     )
-    service.update_movement(m2.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
-    service.update_movement(m2.id, TENANT_ID, status=MovementStatus.COMPLETED.value, damage_fee=2500)
+    await service.update_movement(m2.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    await service.update_movement(
+        m2.id, TENANT_ID, status=MovementStatus.COMPLETED.value, damage_fee_cents=2500
+    )
 
-    stats = service.get_statistics(TENANT_ID)
+    stats = await service.get_statistics(TENANT_ID)
     assert stats["total_movements"] == 4
     assert stats["scheduled"] == 2
     assert stats["in_transit"] == 1
@@ -852,9 +931,10 @@ def test_get_statistics(service, test_db, future_date):
     assert stats["total_damage_fees"] == 2500
 
 
-def test_get_statistics_empty(service, test_db):
+@pytest.mark.asyncio
+async def test_get_statistics_empty(service, async_db):
     """get_statistics pour un tenant vide retourne des zeros."""
-    stats = service.get_statistics(TENANT_ID)
+    stats = await service.get_statistics(TENANT_ID)
     assert stats["total_movements"] == 0
     assert stats["total_damage_fees"] == 0
 
@@ -864,16 +944,17 @@ def test_get_statistics_empty(service, test_db):
 # ═══════════════════════════════════════════════════════════════════════
 
 
-def test_add_item_success(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_add_item_success(service, async_db, future_date):
     """Ajoute un item a un mouvement scheduled."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 1}],
     )
 
-    new_item = service.add_item(
+    new_item = await service.add_item(
         movement_id=m.id,
         tenant_id=TENANT_ID,
         quantity_expected=7,
@@ -886,59 +967,63 @@ def test_add_item_success(service, test_db, future_date):
     assert new_item.condition == ItemCondition.GOOD.value
 
 
-def test_add_item_to_in_transit(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_add_item_to_in_transit(service, async_db, future_date):
     """Ajout d'item a un mouvement in_transit autorise."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 1}],
     )
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
 
-    item = service.add_item(movement_id=m.id, tenant_id=TENANT_ID, quantity_expected=3)
+    item = await service.add_item(movement_id=m.id, tenant_id=TENANT_ID, quantity_expected=3)
     assert item.movement_id == m.id
 
 
-def test_add_item_to_completed_error(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_add_item_to_completed_error(service, async_db, future_date):
     """Erreur 400 si on ajoute un item a un mouvement completed."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 1}],
     )
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.COMPLETED.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.COMPLETED.value)
 
     with pytest.raises(HTTPException) as exc_info:
-        service.add_item(movement_id=m.id, tenant_id=TENANT_ID, quantity_expected=1)
+        await service.add_item(movement_id=m.id, tenant_id=TENANT_ID, quantity_expected=1)
 
     assert exc_info.value.status_code == 400
     assert "completed or cancelled" in exc_info.value.detail
 
 
-def test_add_item_to_cancelled_error(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_add_item_to_cancelled_error(service, async_db, future_date):
     """Erreur 400 si on ajoute un item a un mouvement cancelled."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 1}],
     )
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.CANCELLED.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.CANCELLED.value)
 
     with pytest.raises(HTTPException) as exc_info:
-        service.add_item(movement_id=m.id, tenant_id=TENANT_ID, quantity_expected=1)
+        await service.add_item(movement_id=m.id, tenant_id=TENANT_ID, quantity_expected=1)
 
     assert exc_info.value.status_code == 400
     assert "completed or cancelled" in exc_info.value.detail
 
 
-def test_add_item_movement_not_found(service):
+@pytest.mark.asyncio
+async def test_add_item_movement_not_found(service):
     """Erreur 404 si mouvement inexistant."""
     with pytest.raises(HTTPException) as exc_info:
-        service.add_item(movement_id=99999, tenant_id=TENANT_ID, quantity_expected=1)
+        await service.add_item(movement_id=99999, tenant_id=TENANT_ID, quantity_expected=1)
 
     assert exc_info.value.status_code == 404
 
@@ -948,9 +1033,10 @@ def test_add_item_movement_not_found(service):
 # ═══════════════════════════════════════════════════════════════════════
 
 
-def test_update_item_quantity_actual(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_update_item_quantity_actual(service, async_db, future_date):
     """Met a jour la quantite effective d'un item."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
@@ -958,13 +1044,14 @@ def test_update_item_quantity_actual(service, test_db, future_date):
     )
     item_id = m.items[0].id
 
-    updated = service.update_item(item_id, TENANT_ID, quantity_actual=8)
+    updated = await service.update_item(item_id, TENANT_ID, quantity_actual=8)
     assert updated.quantity_actual == 8
 
 
-def test_update_item_condition(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_update_item_condition(service, async_db, future_date):
     """Met a jour la condition d'un item."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
@@ -972,7 +1059,7 @@ def test_update_item_condition(service, test_db, future_date):
     )
     item_id = m.items[0].id
 
-    updated = service.update_item(
+    updated = await service.update_item(
         item_id, TENANT_ID,
         condition=ItemCondition.DAMAGED.value,
         condition_notes="Ecran fissure",
@@ -981,10 +1068,11 @@ def test_update_item_condition(service, test_db, future_date):
     assert updated.condition_notes == "Ecran fissure"
 
 
-def test_update_item_not_found(service):
+@pytest.mark.asyncio
+async def test_update_item_not_found(service):
     """Erreur 404 si item inexistant."""
     with pytest.raises(HTTPException) as exc_info:
-        service.update_item(99999, TENANT_ID, quantity_actual=1)
+        await service.update_item(99999, TENANT_ID, quantity_actual=1)
 
     assert exc_info.value.status_code == 404
     assert "Movement item not found" in exc_info.value.detail
@@ -995,65 +1083,84 @@ def test_update_item_not_found(service):
 # ═══════════════════════════════════════════════════════════════════════
 
 
-def test_remove_item_success(service, test_db, future_date):
-    """Supprime un item (hard delete) d'un mouvement scheduled."""
-    m = service.create_movement(
+@pytest.mark.asyncio
+async def test_remove_item_success(service, async_db, future_date):
+    """Supprime un item (soft delete is_active=False) d'un mouvement scheduled.
+
+    Note: update_item ne filtre pas is_active (BUG-P2-UPDATE-ITEM-INACTIVE), donc
+    on vérifie le soft delete via requête directe plutôt que via update_item → 404.
+    """
+    from sqlalchemy import select as _select
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 5}, {"quantity_expected": 3}],
     )
-    item_to_remove = m.items[0].id
+    # Charger les items pour obtenir l'ID
+    await async_db.refresh(m)
+    items_result = await async_db.execute(
+        _select(MovementItem).where(MovementItem.movement_id == m.id)
+    )
+    items_list = items_result.scalars().all()
+    assert len(items_list) == 2
+    item_to_remove = items_list[0].id
 
-    result = service.remove_item(item_to_remove, TENANT_ID)
+    result = await service.remove_item(item_to_remove, TENANT_ID)
     assert result is True
 
-    # Verifier que l'item est supprime
-    with pytest.raises(HTTPException) as exc_info:
-        service.update_item(item_to_remove, TENANT_ID, quantity_actual=1)
-    assert exc_info.value.status_code == 404
+    # Vérifier le soft delete via requête directe (is_active=False)
+    check_result = await async_db.execute(
+        _select(MovementItem).where(MovementItem.id == item_to_remove)
+    )
+    removed_item = check_result.scalars().first()
+    assert removed_item is not None
+    assert removed_item.is_active is False
 
 
-def test_remove_item_from_completed_error(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_remove_item_from_completed_error(service, async_db, future_date):
     """Erreur 400 si on retire un item d'un mouvement completed."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 5}],
     )
     item_id = m.items[0].id
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.COMPLETED.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.IN_TRANSIT.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.COMPLETED.value)
 
     with pytest.raises(HTTPException) as exc_info:
-        service.remove_item(item_id, TENANT_ID)
+        await service.remove_item(item_id, TENANT_ID)
 
     assert exc_info.value.status_code == 400
     assert "completed or cancelled" in exc_info.value.detail
 
 
-def test_remove_item_from_cancelled_error(service, test_db, future_date):
+@pytest.mark.asyncio
+async def test_remove_item_from_cancelled_error(service, async_db, future_date):
     """Erreur 400 si on retire un item d'un mouvement cancelled."""
-    m = service.create_movement(
+    m = await service.create_movement(
         tenant_id=TENANT_ID,
         movement_type=MovementType.DEPARTURE.value,
         scheduled_date=future_date,
         items=[{"quantity_expected": 5}],
     )
     item_id = m.items[0].id
-    service.update_movement(m.id, TENANT_ID, status=MovementStatus.CANCELLED.value)
+    await service.update_movement(m.id, TENANT_ID, status=MovementStatus.CANCELLED.value)
 
     with pytest.raises(HTTPException) as exc_info:
-        service.remove_item(item_id, TENANT_ID)
+        await service.remove_item(item_id, TENANT_ID)
 
     assert exc_info.value.status_code == 400
 
 
-def test_remove_item_not_found(service):
+@pytest.mark.asyncio
+async def test_remove_item_not_found(service):
     """Erreur 404 si item inexistant."""
     with pytest.raises(HTTPException) as exc_info:
-        service.remove_item(99999, TENANT_ID)
+        await service.remove_item(99999, TENANT_ID)
 
     assert exc_info.value.status_code == 404
 

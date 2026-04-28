@@ -1,8 +1,6 @@
 """Celery periodic tasks for monitoring (late movements, low stock)."""
 import logging
 
-from sqlalchemy import distinct
-
 from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -12,14 +10,14 @@ logger = logging.getLogger(__name__)
 def check_late_movements():
     """Log late movements for each active tenant."""
     from app.core.database import get_db_context
-    from app.models.user import User
+    from app.models.tenant import Tenant
     from app.repositories.inventory_movement import MovementRepository
 
     with get_db_context() as db:
         tenant_ids = [
             r[0]
-            for r in db.query(distinct(User.tenant_id))
-            .filter(User.is_active == True)  # noqa: E712
+            for r in db.query(Tenant.id)
+            .filter(Tenant.status == "active")
             .all()
         ]
 
@@ -35,13 +33,13 @@ def check_low_stock(threshold: int = 5):
     """Detect products with available stock below threshold."""
     from app.core.database import get_db_context
     from app.models.product import Product
-    from app.models.user import User
+    from app.models.tenant import Tenant
 
     with get_db_context() as db:
         tenant_ids = [
             r[0]
-            for r in db.query(distinct(User.tenant_id))
-            .filter(User.is_active == True)  # noqa: E712
+            for r in db.query(Tenant.id)
+            .filter(Tenant.status == "active")
             .all()
         ]
 

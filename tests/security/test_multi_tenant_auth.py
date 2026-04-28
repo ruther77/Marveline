@@ -28,43 +28,7 @@ class TestCrossTenantLogin:
         access_token = resp.json()["access_token"]
 
         payload = decode_token(access_token)
-        assert payload["tenant_id"] == test_user.tenant_id
-
-    def test_different_tenants_same_email_get_own_tokens(self, client, test_db):
-        """Deux users avec même email dans des tenants différents reçoivent des tokens isolés."""
-        from app.models.user import User
-        from app.core.security import get_password_hash, decode_token
-
-        # Créer 2 users avec le même email dans 2 tenants
-        user_t10 = User(
-            tenant_id=10,
-            email="shared@multitenant.com",
-            hashed_password=get_password_hash("P@ssT10_ok1"),
-            first_name="User Tenant", last_name="10",
-            role="staff",
-            is_active=True,
-        )
-        user_t20 = User(
-            tenant_id=20,
-            email="shared@multitenant.com",
-            hashed_password=get_password_hash("P@ssT20_ok1"),
-            first_name="User Tenant", last_name="20",
-            role="staff",
-            is_active=True,
-        )
-        test_db.add(user_t10)
-        test_db.commit()
-        test_db.add(user_t20)
-        test_db.commit()
-
-        # Login tenant 10
-        resp10 = client.post(
-            "/api/v1/auth/login",
-            data={"username": "shared@multitenant.com", "password": "P@ssT10_ok1"},
-        )
-        assert resp10.status_code == 200
-        token10 = decode_token(resp10.json()["access_token"])
-        assert token10["tenant_id"] == 10
+        assert payload["tid"] == str(test_user.tenant_id)  # tid en string dans JWT v3
 
     def test_user_cannot_access_other_tenant_products(self, client, test_user, test_user_tenant2):
         """User tenant1 ne peut pas voir les produits tenant2 et vice versa."""
@@ -221,9 +185,7 @@ class TestTenantTampering:
         """JWT avec tenant_id falsifié (999) → 401."""
         tampered_token = create_access_token({
             "sub": test_user.id,
-            "tenant_id": 999,
-            "email": test_user.email,
-            "role": test_user.role,
+            "tid": "999",
         })
         csrf = csrf_token_for_user(test_user.id)
 
@@ -240,8 +202,7 @@ class TestTenantTampering:
         """JWT avec role=admin (falsifié, user est staff) — accès admin refusé."""
         tampered_token = create_access_token({
             "sub": test_user.id,
-            "tenant_id": test_user.tenant_id,
-            "email": test_user.email,
+            "tid": str(test_user.tenant_id),
             "role": "admin",  # Falsifié — le user est "staff"
         })
         csrf = csrf_token_for_user(test_user.id)
@@ -262,3 +223,20 @@ class TestTenantTampering:
         # Si 200 : le système fait confiance au JWT (architecture standard)
         # Si 403 : le système vérifie vs DB (plus strict)
         assert response.status_code in (200, 403)
+
+    def test_jwt_without_tid_claim_is_rejected(self, client, test_user):
+        """JWT sans claim 'tid' → 401 : fail-closed, tid obligatoire (LOT A — P0).
+
+        Un attaquant qui forge un JWT sans claim 'tid' ne doit pas accéder à
+        aucune ressource — le guard doit lever credentials_exception immédiatement.
+        """
+        token_without_tid = create_access_token({
+            "sub": test_user.id,
+            # Absence intentionnelle du claim "tid" — simule un JWT forgé
+        })
+
+        response = client.get(
+            "/api/v1/products",
+            headers={"Authorization": f"Bearer {token_without_tid}"},
+        )
+        assert response.status_code == 401

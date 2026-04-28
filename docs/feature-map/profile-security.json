@@ -1,0 +1,106 @@
+{
+  "id": "page:profile-security",
+  "type": "page",
+  "name": "Sécurité",
+  "description": "Page principale \"Sécurité\". Contient : Authentification à deux facteurs, Changer le mot de passe, Sessions actives, Champ : current_password, Champ : new_password, Champ : confirm_password. Paramètres : current-password, new-password, confirm-password.",
+  "route": "/profile/security",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "staff",
+      "manager",
+      "admin"
+    ],
+    "group": "Compte",
+    "dom_h1": "Sécurité"
+  },
+  "params": {
+    "current-password": "password",
+    "new-password": "password",
+    "confirm-password": "password"
+  },
+  "features": [
+    "Authentification à deux facteurs",
+    "Changer le mot de passe",
+    "Sessions actives",
+    "Champ : current_password",
+    "Champ : new_password",
+    "Champ : confirm_password"
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Activer",
+      "trigger": "click",
+      "target_id": "page:profile",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Voir les sessions",
+      "trigger": "click",
+      "target_id": "page:admin-sessions",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Changer le mot de passe",
+      "trigger": "click",
+      "target_id": "modal:changer-le-mot-de-passe",
+      "node": {
+        "id": "modal:changer-le-mot-de-passe",
+        "type": "modal",
+        "name": "Changer le mot de passe",
+        "description": "Modal/panneau ouvert(e) par le bouton \"Changer le mot de passe\" sur la page Sécurité. Non extrait automatiquement.",
+        "attributes": {
+          "scan_status": "placeholder"
+        },
+        "params": {},
+        "features": [],
+        "children": []
+      }
+    }
+  ]
+}

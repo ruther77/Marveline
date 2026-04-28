@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marveline — Galerie écrans</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0d14;
+    --s1: #16161f;
+    --s2: #1e1e2a;
+    --border: rgba(255,255,255,.07);
+    --text: #f0f0f5;
+    --muted: #6b7280;
+    --pink: #e040fb;
+    --blue: #60a5fa;
+    --green: #4ade80;
+    --orange: #fb923c;
+    --accent: #b44af0;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── TOP BAR ── */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(13,13,20,.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 20px;
+  }
+  .topbar-logo {
+    font-size: 18px; font-weight: 800;
+    background: linear-gradient(135deg, var(--pink), #7030c8);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    letter-spacing: -.02em;
+  }
+  .topbar-count { font-size: 12px; color: var(--muted); }
+  .topbar-search {
+    margin-left: auto;
+    background: var(--s2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 8px 14px;
+    color: var(--text); font-size: 13px; outline: none; width: 220px;
+    transition: border-color .15s;
+  }
+  .topbar-search:focus { border-color: var(--accent); }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex; gap: 4px;
+    padding: 16px 24px 0;
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 53px; z-index: 99;
+    background: var(--bg);
+  }
+  .tab {
+    padding: 9px 18px; font-size: 13px; font-weight: 600;
+    border-radius: 10px 10px 0 0; cursor: pointer;
+    border: 1px solid transparent; border-bottom: none;
+    color: var(--muted); transition: all .15s;
+  }
+  .tab:hover { color: var(--text); background: var(--s1); }
+  .tab.active {
+    color: var(--text); background: var(--s1);
+    border-color: var(--border);
+  }
+  .tab-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--s2); border-radius: 20px;
+    padding: 1px 7px; font-size: 11px; font-weight: 700;
+    margin-left: 6px; color: var(--muted);
+  }
+  .tab.active .tab-badge { background: var(--accent); color: #fff; }
+
+  /* ── SECTIONS ── */
+  .section { display: none; padding: 24px; }
+  .section.active { display: block; }
+
+  .group { margin-bottom: 40px; }
+  .group-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .1em; color: var(--muted);
+    padding: 0 4px 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .group-title-count {
+    font-size: 10px; background: var(--s2);
+    border-radius: 20px; padding: 2px 8px; color: var(--muted);
+  }
+
+  /* ── GRID ── */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+  }
+
+  /* ── CARD ── */
+  .card {
+    cursor: pointer; border-radius: 16px;
+    border: 1px solid var(--border);
+    overflow: hidden; background: var(--s1);
+    transition: transform .15s, border-color .15s, box-shadow .15s;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent);
+    box-shadow: 0 8px 32px rgba(180,74,240,.15);
+  }
+  .card.hidden { display: none; }
+
+  .card-img-wrap {
+    width: 100%; aspect-ratio: 390/844;
+    overflow: hidden; background: #0a0a12;
+    position: relative;
+  }
+  .card-img-wrap img {
+    width: 100%; height: 100%; object-fit: cover; object-position: top;
+    display: block; transition: opacity .2s;
+  }
+  .card-label {
+    padding: 8px 10px;
+    font-size: 11px; font-weight: 600; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    border-top: 1px solid var(--border);
+  }
+  .card:hover .card-label { color: var(--text); }
+
+  /* ── LIGHTBOX ── */
+  .lightbox {
+    display: none; position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,.92);
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .lightbox.open { display: flex; }
+
+  .lb-inner {
+    position: relative; display: flex; align-items: flex-start; gap: 32px;
+    max-height: 95vh;
+  }
+
+  /* iPhone frame */
+  .lb-phone {
+    flex-shrink: 0;
+    width: 280px;
+    background: #1a1a1a;
+    border-radius: 44px;
+    border: 6px solid #2a2a2a;
+    box-shadow:
+      0 0 0 1px #3a3a3a,
+      0 40px 80px rgba(0,0,0,.8),
+      inset 0 0 0 1px rgba(255,255,255,.05);
+    padding: 14px 10px;
+    position: relative;
+  }
+  .lb-phone::before {
+    content: '';
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    width: 80px; height: 26px;
+    background: #111; border-radius: 13px;
+    box-shadow: 0 0 0 1px #222;
+    z-index: 2;
+  }
+  .lb-screen {
+    width: 100%; border-radius: 34px; overflow: hidden;
+    aspect-ratio: 390/844; background: #000;
+  }
+  .lb-screen img {
+    width: 100%; height: 100%; object-fit: cover; object-position: top;
+    display: block;
+  }
+
+  .lb-info {
+    color: #fff; max-width: 260px; padding-top: 8px;
+  }
+  .lb-id {
+    font-size: 11px; color: var(--accent); font-family: monospace;
+    margin-bottom: 8px;
+  }
+  .lb-name {
+    font-size: 22px; font-weight: 800; line-height: 1.2;
+    margin-bottom: 16px;
+  }
+  .lb-type {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; padding: 4px 10px;
+    border-radius: 20px; margin-bottom: 24px;
+  }
+  .lb-type.screen { background: rgba(96,165,250,.15); color: var(--blue); }
+  .lb-type.modal  { background: rgba(180,74,240,.15); color: var(--accent); }
+
+  .lb-nav { display: flex; gap: 10px; margin-top: 16px; }
+  .lb-btn {
+    background: var(--s2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 16px;
+    color: var(--text); font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all .15s;
+  }
+  .lb-btn:hover { background: var(--s1); border-color: var(--accent); }
+  .lb-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .lb-btn.primary:hover { opacity: .85; }
+
+  .lb-close {
+    position: absolute; top: -10px; right: -10px;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--s2); border: 1px solid var(--border);
+    color: var(--muted); font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all .15s;
+  }
+  .lb-close:hover { background: var(--s1); color: var(--text); }
+
+  .lb-counter {
+    font-size: 12px; color: var(--muted); margin-top: 24px;
+  }
+
+  /* ── EMPTY STATE ── */
+  .empty {
+    text-align: center; padding: 60px 0; color: var(--muted);
+    font-size: 14px; display: none;
+  }
+  .empty.visible { display: block; }
+
+  @media (max-width: 600px) {
+    .lb-inner { flex-direction: column; align-items: center; }
+    .lb-info { max-width: 100%; padding-top: 0; }
+    .lb-phone { width: 200px; }
+    .grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-logo">Marveline</div>
+  <div class="topbar-count" id="count-label">219 éléments</div>
+  <input class="topbar-search" type="search" placeholder="Rechercher un écran…" id="search" oninput="filterCards(this.value)" />
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('screens',this)">
+    Écrans <span class="tab-badge">120</span>
+  </div>
+  <div class="tab" onclick="switchTab('modals',this)">
+    Modals <span class="tab-badge">99</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+  SECTION ÉCRANS
+════════════════════════════════════════ -->
+<div class="section active" id="sec-screens">
+
+  <div class="group" data-group="screens">
+    <div class="group-title">Dashboard & Planning <span class="group-title-count">7</span></div>
+    <div class="grid">
+      <div class="card" onclick="openLightbox('screens/s-home.png','s-home','Accueil','screen',0)"><div class="card-img-wrap"><img src="screens/s-home.png" loading="lazy"></div><div class="card-label">s-home</div></div>
+      <div class="card" onclick="openLightbox('screens/s-finances.png','s-finances','Finances','screen',1)"><div class="card-img-wrap"><img src="screens/s-finances.png" loading="lazy"></div><div class="card-label">s-finances</div></div>
+      <div class="card" onclick="openLightbox('screens/s-rapport-mensuel.png','s-rapport-mensuel','Rapport mensuel','screen',2)"><div class="card-img-wrap"><img src="screens/s-rapport-mensuel.png" loading="lazy"></div><div class="card-label">s-rapport-mensuel</div></div>
+      <div class="card" onclick="openLightbox('screens/s-planning-mois.png','s-planning-mois','Planning · Mois','screen',3)"><div class="card-img-wrap"><img src="screens/s-planning-mois.png" loading="lazy"></div><div class="card-label">s-planning-mois</div></div>
+      <div class="card" onclick="openLightbox('screens/s-planning-semaine.png','s-planning-semaine','Planning · Semaine','screen',4)"><div class="card-img-wrap"><img src="screens/s-planning-semaine.png" loading="lazy"></div><div class="card-label">s-planning-semaine</div></div>
+      <div class="card" onclick="openLightbox('screens/s-planning-jour.png','s-planning-jour','Planning · Jour','screen',5)"><div class="card-img-wrap"><img src="screens/s-planning-jour.png" loading="lazy"></div><div class="card-label">s-planning-jour</div></div>
+      <div class="card" onclick="openLightbox('screens/s-planning-ressources.png','s-planning-ressources','Planning · Ressources','screen',6)"><div class="card-img-wrap"><img src="screens/s-planning-ressources.png" loading="lazy"></div><div class="card-label">s-planning-ressources</div></div>
+      <div class="card" onclick="openLightbox('screens/s-planning-affectation.png','s-planning-affectation','Planning · Affectation','screen',7)"><div class="card-img-wrap"><img src="screens/s-planning-affectation.png" loading="lazy"></div><div class="card-label">s-planning-affectation</div></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Événements <span class="group-title-count">9</span></div>
+    <div class="grid">
+      <div class="card" onclick="openLightbox('screens/s-events-list.png','s-events-list','Événements · Liste','screen',8)"><div class="card-img-wrap"><img src="screens/s-events-list.png" loading="lazy"></div><div class="card-label">s-events-list</div></div>
+      <div class="card" onclick="openLightbox('screens/s-event-prevu.png','s-event-prevu','Événement · Prévu','screen',9)"><div class="card-img-wrap"><img src="screens/s-event-prevu.png" loading="lazy"></div><div class="card-label">s-event-prevu</div></div>
+      <div class="card" onclick="openLightbox('screens/s-event-prevu-risque.png','s-event-prevu-risque','Événement · Risque','screen',10)"><div class="card-img-wrap"><img src="screens/s-event-prevu-risque.png" loading="lazy"></div><div class="card-label">s-event-prevu-risque</div></div>
+      <div class="card" onclick="openLightbox('screens/s-event-en-cours.png','s-event-en-cours','Événement · En cours','screen',11)"><div class="card-img-wrap"><img src="screens/s-event-en-cours.png" loading="lazy"></div><div class="card-label">s-event-en-cours</div></div>
+      <div class="card" onclick="openLightbox('screens/s-event-en-cours-incident.png','s-event-en-cours-incident','Événement · Incident','screen',12)"><div class="card-img-wrap"><img src="screens/s-event-en-cours-incident.png" loading="lazy"></div><div class="card-label">s-event-en-cours-incident</div></div>
+      <div class="card" onclick="openLightbox('screens/s-event-annule.png','s-event-annule','Événement · Annulé','screen',13)"><div class="card-img-wrap"><img src="screens/s-event-annule.png" loading="lazy"></div><div class="card-label">s-event-annule</div></div>
+      <div class="card" onclick="openLightbox('screens/s-event-retourne.png','s-event-retourne','Événement · Retourné','screen',14)"><div class="card-img-wrap"><img src="screens/s-event-retourne.png" loading="lazy"></div><div class="card-label">s-event-retourne</div></div>
+      <div class="card" onclick="openLightbox('screens/s-event-retourne-casse.png','s-event-retourne-casse','Événement · Casse','screen',15)"><div class="card-img-wrap"><img src="screens/s-event-retourne-casse.png" loading="lazy"></div><div class="card-label">s-event-retourne-casse</div></div>
+      <div class="card" onclick="openLightbox('screens/s-event-termine.png','s-event-termine','Événement · Terminé','screen',16)"><div class="card-img-wrap"><img src="screens/s-event-termine.png" loading="lazy"></div><div class="card-label">s-event-termine</div></div>
+      <div class="card" onclick="openLightbox('screens/s-event-action-plan.png','s-event-action-plan','Événement · Plan action','screen',17)"><div class="card-img-wrap"><img src="screens/s-event-action-plan.png" loading="lazy"></div><div class="card-label">s-event-action-plan</div></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Réservations <span class="group-title-count">17</span></div>
+    <div class="grid">
+      <div class="card" onclick="openLightbox('screens/s-reservations.png','s-reservations','Réservations','screen',18)"><div class="card-img-wrap"><img src="screens/s-reservations.png" loading="lazy"></div><div class="card-label">s-reservations</div></div>
+      <div class="card" onclick="openLightbox('screens/s-reservations-list.png','s-reservations-list','Réservations · Liste','screen',19)"><div class="card-img-wrap"><img src="screens/s-reservations-list.png" loading="lazy"></div><div class="card-label">s-reservations-list</div></div>
+      <div class="card" onclick="openLightbox('screens/s-resa-create.png','s-resa-create','Nouvelle résa','screen',20)"><div class="card-img-wrap"><img src="screens/s-resa-create.png" loading="lazy"></div><div class="card-label">s-resa-create</div></div>
+      <div class="card" onclick="openLightbox('screens/s-resa-brouillon.png','s-resa-brouillon','Résa · Brouillon','screen',21)"><div class="card-img-wrap"><img src="screens/s-resa-brouillon.png" loading="lazy"></div><div class="card-label">s-resa-brouillon</div></div>
+      <div class="card" onclick="openLightbox('screens/s-resa-brouillon-incomplet.png','s-resa-brouillon-incomplet','Résa · Incomplet','screen',22)"><div class="card-img-wrap"><img src="screens/s-resa-brouillon-incomplet.png" loading="lazy"></div><div class="card-label">s-resa-brouillon-incomplet</div></div>
+      <div class="card" onclick="openLightbox('screens/s-resa-confirmee-sans-caution.png','s-resa-confirmee-sans-caution','Résa · Confirmée','screen',23)"><div class="card-img-wrap"><img src="screens/s-resa-confirmee-sans-caution.png" loading="lazy"></div><div class="card-label">s-resa-confirmee-sans-caution</div></div>
+      <div class="card" onclick="openLightbox('screens/s-resa-confirmee-avec-caution.png','s-resa-confirmee-avec-caution','Résa · Avec caution','screen',24)"><div class="card-img-wrap"><img src="screens/s-resa-confirmee-avec-caution.png" loading="lazy"></div><div class="card-label">s-resa-confirmee-avec-caution</div></div>
+      <div class="card" onclick="openLightbox('screens/s-resa-confirmee-risque.png','s-resa-confirmee-risque','Résa · Risque','screen',25)"><div class="card-img-wrap"><img src="screens/s-resa-confirmee-risque.png" loading="lazy"></div><div class="card-label">s-resa-confirmee-risque</div></div>
+      <div class="card" onclick="openLightbox('screens/s-resa-confirmee-prete.png','s-resa-confirmee-prete','Résa · Prête','screen',26)"><div class="card-img-wrap"><img src="screens/s-resa-confirmee-prete.png" loading="lazy"></div><div class="card-label">s-resa-confirmee-prete</div></div>
+      <div class="card" onclick="openLightbox('screens/s-resa-precheck-legal.png','s-resa-precheck-legal','Résa · Pré-check','screen',27)"><div class="card-img-wrap"><img src="screens/s-resa-precheck-legal.png" loading="lazy"></div><div class="card-label">s-resa-precheck-legal</div></div>
+      <div class="card" onclick="openLightbox('screens/s-resa-en-cours.png','s-resa-en-cours','Résa · En cours','screen',28)"><div class="card-img-wrap"><img src="screens/s-resa-en-cours.png" loading="lazy"></div><div class="card-label">s-resa-en-cours</div></div>
+      <div class="card" onclick="openLightbox('screens/s-resa-en-cours-prolongee.png','s-resa-en-cours-prolongee','Résa · Prolongée','screen',29)"><div class="card-img-wrap"><img src="screens/s-resa-en-cours-prolongee.png" loading="lazy"></div><div class="card-label">s-resa-en-cours-prolongee</div></div>
+      <div class="card" onclick="openLightbox('screens/s-resa-retournee.png','s-resa-retournee','Résa · Retournée','screen',30)"><div class="card-img-wrap"><img src="screens/s-resa-retournee.png" loading="lazy"></div><div class="card-label">s-resa-retournee</div></div>
+      <div class="card" onclick="openLightbox('screens/s-resa-retournee-litige.png','s-resa-retournee-litige','Résa · Litige','screen',31)"><div class="card-img-wrap"><img src="screens/s-resa-retournee-litige.png" loading="lazy"></div><div class="card-label">s-resa-retournee-litige</div></div>
+      <div class="card" onclick="openLightbox('screens/s-resa-terminee.png','s-resa-terminee','Résa · Terminée','screen',32)"><div class="card-img-wrap"><img src="screens/s-resa-terminee.png" loading="lazy"></div><div class="card-label">s-resa-terminee</div></div>
+      <div class="card" onclick="openLightbox('screens/s-resa-terminee-archive.png','s-resa-terminee-archive','Résa · Archive','screen',33)"><div class="card-img-wrap"><img src="screens/s-resa-terminee-archive.png" loading="lazy"></div><div class="card-label">s-resa-terminee-archive</div></div>
+      <div class="card" onclick="openLightbox('screens/s-resa-annulee.png','s-resa-annulee','Résa · Annulée','screen',34)"><div class="card-img-wrap"><img src="screens/s-resa-annulee.png" loading="lazy"></div><div class="card-label">s-resa-annulee</div></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Logistique départ / retour <span class="group-title-count">6</span></div>
+    <div class="grid">
+      <div class="card" onclick="openLightbox('screens/s-depart-inventaire.png','s-depart-inventaire','Départ · Inventaire','screen',35)"><div class="card-img-wrap"><img src="screens/s-depart-inventaire.png" loading="lazy"></div><div class="card-label">s-depart-inventaire</div></div>
+      <div class="card" onclick="openLightbox('screens/s-depart-from-resa.png','s-depart-from-resa','Départ · Depuis resa','screen',36)"><div class="card-img-wrap"><img src="screens/s-depart-from-resa.png" loading="lazy"></div><div class="card-label">s-depart-from-resa</div></div>
+      <div class="card" onclick="openLightbox('screens/s-depart-bloque.png','s-depart-bloque','Départ · Bloqué','screen',37)"><div class="card-img-wrap"><img src="screens/s-depart-bloque.png" loading="lazy"></div><div class="card-label">s-depart-bloque</div></div>
+      <div class="card" onclick="openLightbox('screens/s-retour-inventaire.png','s-retour-inventaire','Retour · Inventaire','screen',38)"><div class="card-img-wrap"><img src="screens/s-retour-inventaire.png" loading="lazy"></div><div class="card-label">s-retour-inventaire</div></div>
+      <div class="card" onclick="openLightbox('screens/s-dommage-declare.png','s-dommage-declare','Dommage déclaré','screen',39)"><div class="card-img-wrap"><img src="screens/s-dommage-declare.png" loading="lazy"></div><div class="card-label">s-dommage-declare</div></div>
+      <div class="card" onclick="openLightbox('screens/s-check-article.png','s-check-article','Check article','screen',40)"><div class="card-img-wrap"><img src="screens/s-check-article.png" loading="lazy"></div><div class="card-label">s-check-article</div></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Clients <span class="group-title-count">6</span></div>
+    <div class="grid">
+      <div class="card" onclick="openLightbox('screens/s-clients-list.png','s-clients-list','Clients · Liste','screen',41)"><div class="card-img-wrap"><img src="screens/s-clients-list.png" loading="lazy"></div><div class="card-label">s-clients-list</div></div>
+      <div class="card" onclick="openLightbox('screens/s-client-detail.png','s-client-detail','Client · Détail','screen',42)"><div class="card-img-wrap"><img src="screens/s-client-detail.png" loading="lazy"></div><div class="card-label">s-client-detail</div></div>
+      <div class="card" onclick="openLightbox('screens/s-client-edit.png','s-client-edit','Client · Éditer','screen',43)"><div class="card-img-wrap"><img src="screens/s-client-edit.png" loading="lazy"></div><div class="card-label">s-client-edit</div></div>
+      <div class="card" onclick="openLightbox('screens/s-client-nouveau.png','s-client-nouveau','Nouveau client','screen',44)"><div class="card-img-wrap"><img src="screens/s-client-nouveau.png" loading="lazy"></div><div class="card-label">s-client-nouveau</div></div>
+      <div class="card" onclick="openLightbox('screens/s-client-relance.png','s-client-relance','Client · Relance','screen',45)"><div class="card-img-wrap"><img src="screens/s-client-relance.png" loading="lazy"></div><div class="card-label">s-client-relance</div></div>
+      <div class="card" onclick="openLightbox('screens/s-relances-planifiees.png','s-relances-planifiees','Relances planifiées','screen',46)"><div class="card-img-wrap"><img src="screens/s-relances-planifiees.png" loading="lazy"></div><div class="card-label">s-relances-planifiees</div></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Catalogue <span class="group-title-count">18</span></div>
+    <div class="grid">
+      <div class="card" onclick="openLightbox('screens/s-catalogue-produit.png','s-catalogue-produit','Catalogue · Produit','screen',47)"><div class="card-img-wrap"><img src="screens/s-catalogue-produit.png" loading="lazy"></div><div class="card-label">s-catalogue-produit</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-categorie.png','s-catalogue-categorie','Catalogue · Catégorie','screen',48)"><div class="card-img-wrap"><img src="screens/s-catalogue-categorie.png" loading="lazy"></div><div class="card-label">s-catalogue-categorie</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-packs.png','s-catalogue-packs','Catalogue · Packs','screen',49)"><div class="card-img-wrap"><img src="screens/s-catalogue-packs.png" loading="lazy"></div><div class="card-label">s-catalogue-packs</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-variantes.png','s-catalogue-variantes','Catalogue · Variantes','screen',50)"><div class="card-img-wrap"><img src="screens/s-catalogue-variantes.png" loading="lazy"></div><div class="card-label">s-catalogue-variantes</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-disponibilite.png','s-catalogue-disponibilite','Disponibilité','screen',51)"><div class="card-img-wrap"><img src="screens/s-catalogue-disponibilite.png" loading="lazy"></div><div class="card-label">s-catalogue-disponibilite</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-collections.png','s-catalogue-collections','Collections','screen',52)"><div class="card-img-wrap"><img src="screens/s-catalogue-collections.png" loading="lazy"></div><div class="card-label">s-catalogue-collections</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-builder.png','s-catalogue-builder','Builder pack','screen',53)"><div class="card-img-wrap"><img src="screens/s-catalogue-builder.png" loading="lazy"></div><div class="card-label">s-catalogue-builder</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-comparateur.png','s-catalogue-comparateur','Comparateur','screen',54)"><div class="card-img-wrap"><img src="screens/s-catalogue-comparateur.png" loading="lazy"></div><div class="card-label">s-catalogue-comparateur</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-audit.png','s-catalogue-audit','Audit produit','screen',55)"><div class="card-img-wrap"><img src="screens/s-catalogue-audit.png" loading="lazy"></div><div class="card-label">s-catalogue-audit</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-fournisseurs.png','s-catalogue-fournisseurs','Fournisseurs','screen',56)"><div class="card-img-wrap"><img src="screens/s-catalogue-fournisseurs.png" loading="lazy"></div><div class="card-label">s-catalogue-fournisseurs</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-qr.png','s-catalogue-qr','QR produit','screen',57)"><div class="card-img-wrap"><img src="screens/s-catalogue-qr.png" loading="lazy"></div><div class="card-label">s-catalogue-qr</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-upload.png','s-catalogue-upload','Upload photo','screen',58)"><div class="card-img-wrap"><img src="screens/s-catalogue-upload.png" loading="lazy"></div><div class="card-label">s-catalogue-upload</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-etats.png','s-catalogue-etats','États matériel','screen',59)"><div class="card-img-wrap"><img src="screens/s-catalogue-etats.png" loading="lazy"></div><div class="card-label">s-catalogue-etats</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-outils.png','s-catalogue-outils','Options avancées','screen',60)"><div class="card-img-wrap"><img src="screens/s-catalogue-outils.png" loading="lazy"></div><div class="card-label">s-catalogue-outils</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-outils-produit.png','s-catalogue-outils-produit','Options · Produit','screen',61)"><div class="card-img-wrap"><img src="screens/s-catalogue-outils-produit.png" loading="lazy"></div><div class="card-label">s-catalogue-outils-produit</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-outils-media.png','s-catalogue-outils-media','Options · Médias','screen',62)"><div class="card-img-wrap"><img src="screens/s-catalogue-outils-media.png" loading="lazy"></div><div class="card-label">s-catalogue-outils-media</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-outils-pilotage.png','s-catalogue-outils-pilotage','Options · Pilotage','screen',63)"><div class="card-img-wrap"><img src="screens/s-catalogue-outils-pilotage.png" loading="lazy"></div><div class="card-label">s-catalogue-outils-pilotage</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-photos.png','s-catalogue-photos','Galerie produit','screen',64)"><div class="card-img-wrap"><img src="screens/s-catalogue-photos.png" loading="lazy"></div><div class="card-label">s-catalogue-photos</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-recherche.png','s-catalogue-recherche','Recherche avancée','screen',65)"><div class="card-img-wrap"><img src="screens/s-catalogue-recherche.png" loading="lazy"></div><div class="card-label">s-catalogue-recherche</div></div>
+      <div class="card" onclick="openLightbox('screens/s-catalogue-picker.png','s-catalogue-picker','Picker produit','screen',66)"><div class="card-img-wrap"><img src="screens/s-catalogue-picker.png" loading="lazy"></div><div class="card-label">s-catalogue-picker</div></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Stock & inventaire <span class="group-title-count">11</span></div>
+    <div class="grid">
+      <div class="card" onclick="openLightbox('screens/s-stock.png','s-stock','Stock','screen',67)"><div class="card-img-wrap"><img src="screens/s-stock.png" loading="lazy"></div><div class="card-label">s-stock</div></div>
+      <div class="card" onclick="openLightbox('screens/s-stock-faible.png','s-stock-faible','Stock · Faible','screen',68)"><div class="card-img-wrap"><img src="screens/s-stock-faible.png" loading="lazy"></div><div class="card-label">s-stock-faible</div></div>
+      <div class="card" onclick="openLightbox('screens/s-stock-reassort.png','s-stock-reassort','Stock · Réassort','screen',69)"><div class="card-img-wrap"><img src="screens/s-stock-reassort.png" loading="lazy"></div><div class="card-label">s-stock-reassort</div></div>
+      <div class="card" onclick="openLightbox('screens/s-stock-resolu.png','s-stock-resolu','Stock · Résolu','screen',70)"><div class="card-img-wrap"><img src="screens/s-stock-resolu.png" loading="lazy"></div><div class="card-label">s-stock-resolu</div></div>
+      <div class="card" onclick="openLightbox('screens/s-stock-historique.png','s-stock-historique','Stock · Historique','screen',71)"><div class="card-img-wrap"><img src="screens/s-stock-historique.png" loading="lazy"></div><div class="card-label">s-stock-historique</div></div>
+      <div class="card" onclick="openLightbox('screens/s-stock-item-detail.png','s-stock-item-detail','Article · Détail','screen',72)"><div class="card-img-wrap"><img src="screens/s-stock-item-detail.png" loading="lazy"></div><div class="card-label">s-stock-item-detail</div></div>
+      <div class="card" onclick="openLightbox('screens/s-stock-etats.png','s-stock-etats','Stock · États','screen',73)"><div class="card-img-wrap"><img src="screens/s-stock-etats.png" loading="lazy"></div><div class="card-label">s-stock-etats</div></div>
+      <div class="card" onclick="openLightbox('screens/s-inventaire-physique.png','s-inventaire-physique','Inventaire physique','screen',74)"><div class="card-img-wrap"><img src="screens/s-inventaire-physique.png" loading="lazy"></div><div class="card-label">s-inventaire-physique</div></div>
+      <div class="card" onclick="openLightbox('screens/s-scan-qr.png','s-scan-qr','Scanner QR','screen',75)"><div class="card-img-wrap"><img src="screens/s-scan-qr.png" loading="lazy"></div><div class="card-label">s-scan-qr</div></div>
+      <div class="card" onclick="openLightbox('screens/s-maintenance-produit.png','s-maintenance-produit','Maintenance','screen',76)"><div class="card-img-wrap"><img src="screens/s-maintenance-produit.png" loading="lazy"></div><div class="card-label">s-maintenance-produit</div></div>
+      <div class="card" onclick="openLightbox('screens/s-tarification.png','s-tarification','Tarification','screen',77)"><div class="card-img-wrap"><img src="screens/s-tarification.png" loading="lazy"></div><div class="card-label">s-tarification</div></div>
+      <div class="card" onclick="openLightbox('screens/s-ligne-edit.png','s-ligne-edit','Modifier ligne','screen',78)"><div class="card-img-wrap"><img src="screens/s-ligne-edit.png" loading="lazy"></div><div class="card-label">s-ligne-edit</div></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Factures <span class="group-title-count">10</span></div>
+    <div class="grid">
+      <div class="card" onclick="openLightbox('screens/s-factures.png','s-factures','Factures','screen',79)"><div class="card-img-wrap"><img src="screens/s-factures.png" loading="lazy"></div><div class="card-label">s-factures</div></div>
+      <div class="card" onclick="openLightbox('screens/s-facture-brouillon.png','s-facture-brouillon','Facture · Brouillon','screen',80)"><div class="card-img-wrap"><img src="screens/s-facture-brouillon.png" loading="lazy"></div><div class="card-label">s-facture-brouillon</div></div>
+      <div class="card" onclick="openLightbox('screens/s-facture-detail.png','s-facture-detail','Facture · Détail','screen',81)"><div class="card-img-wrap"><img src="screens/s-facture-detail.png" loading="lazy"></div><div class="card-label">s-facture-detail</div></div>
+      <div class="card" onclick="openLightbox('screens/s-facture-emise.png','s-facture-emise','Facture · Émise','screen',82)"><div class="card-img-wrap"><img src="screens/s-facture-emise.png" loading="lazy"></div><div class="card-label">s-facture-emise</div></div>
+      <div class="card" onclick="openLightbox('screens/s-facture-payee.png','s-facture-payee','Facture · Payée','screen',83)"><div class="card-img-wrap"><img src="screens/s-facture-payee.png" loading="lazy"></div><div class="card-label">s-facture-payee</div></div>
+      <div class="card" onclick="openLightbox('screens/s-facture-retard.png','s-facture-retard','Facture · Retard','screen',84)"><div class="card-img-wrap"><img src="screens/s-facture-retard.png" loading="lazy"></div><div class="card-label">s-facture-retard</div></div>
+      <div class="card" onclick="openLightbox('screens/s-facture-create.png','s-facture-create','Créer facture','screen',85)"><div class="card-img-wrap"><img src="screens/s-facture-create.png" loading="lazy"></div><div class="card-label">s-facture-create</div></div>
+      <div class="card" onclick="openLightbox('screens/s-facture-avoir.png','s-facture-avoir','Avoir','screen',86)"><div class="card-img-wrap"><img src="screens/s-facture-avoir.png" loading="lazy"></div><div class="card-label">s-facture-avoir</div></div>
+      <div class="card" onclick="openLightbox('screens/s-facture-casse.png','s-facture-casse','Facture · Casse','screen',87)"><div class="card-img-wrap"><img src="screens/s-facture-casse.png" loading="lazy"></div><div class="card-label">s-facture-casse</div></div>
+      <div class="card" onclick="openLightbox('screens/s-facture-audit.png','s-facture-audit','Facture · Audit','screen',88)"><div class="card-img-wrap"><img src="screens/s-facture-audit.png" loading="lazy"></div><div class="card-label">s-facture-audit</div></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Devis <span class="group-title-count">15</span></div>
+    <div class="grid">
+      <div class="card" onclick="openLightbox('screens/s-devis-list.png','s-devis-list','Devis · Liste','screen',89)"><div class="card-img-wrap"><img src="screens/s-devis-list.png" loading="lazy"></div><div class="card-label">s-devis-list</div></div>
+      <div class="card" onclick="openLightbox('screens/s-devis-create.png','s-devis-create','Nouveau devis','screen',90)"><div class="card-img-wrap"><img src="screens/s-devis-create.png" loading="lazy"></div><div class="card-label">s-devis-create</div></div>
+      <div class="card" onclick="openLightbox('screens/s-devis-detail.png','s-devis-detail','Devis · Détail','screen',91)"><div class="card-img-wrap"><img src="screens/s-devis-detail.png" loading="lazy"></div><div class="card-label">s-devis-detail</div></div>
+      <div class="card" onclick="openLightbox('screens/s-devis-brouillon.png','s-devis-brouillon','Devis · Brouillon','screen',92)"><div class="card-img-wrap"><img src="screens/s-devis-brouillon.png" loading="lazy"></div><div class="card-label">s-devis-brouillon</div></div>
+      <div class="card" onclick="openLightbox('screens/s-devis-expire.png','s-devis-expire','Devis · Expiré','screen',93)"><div class="card-img-wrap"><img src="screens/s-devis-expire.png" loading="lazy"></div><div class="card-label">s-devis-expire</div></div>
+      <div class="card" onclick="openLightbox('screens/s-devis-refuse.png','s-devis-refuse','Devis · Refusé','screen',94)"><div class="card-img-wrap"><img src="screens/s-devis-refuse.png" loading="lazy"></div><div class="card-label">s-devis-refuse</div></div>
+      <div class="card" onclick="openLightbox('screens/s-devis-source.png','s-devis-source','Devis · Source','screen',95)"><div class="card-img-wrap"><img src="screens/s-devis-source.png" loading="lazy"></div><div class="card-label">s-devis-source</div></div>
+      <div class="card" onclick="openLightbox('screens/s-devis-couverture.png','s-devis-couverture','Devis · Couverture','screen',96)"><div class="card-img-wrap"><img src="screens/s-devis-couverture.png" loading="lazy"></div><div class="card-label">s-devis-couverture</div></div>
+      <div class="card" onclick="openLightbox('screens/s-devis-change-request.png','s-devis-change-request','Change Request','screen',97)"><div class="card-img-wrap"><img src="screens/s-devis-change-request.png" loading="lazy"></div><div class="card-label">s-devis-change-request</div></div>
+      <div class="card" onclick="openLightbox('screens/s-devis-phases.png','s-devis-phases','Devis · Phases','screen',98)"><div class="card-img-wrap"><img src="screens/s-devis-phases.png" loading="lazy"></div><div class="card-label">s-devis-phases</div></div>
+      <div class="card" onclick="openLightbox('screens/s-devis-module-socle.png','s-devis-module-socle','Module · Socle','screen',99)"><div class="card-img-wrap"><img src="screens/s-devis-module-socle.png" loading="lazy"></div><div class="card-label">s-devis-module-socle</div></div>
+      <div class="card" onclick="openLightbox('screens/s-devis-module-stock.png','s-devis-module-stock','Module · Stock','screen',100)"><div class="card-img-wrap"><img src="screens/s-devis-module-stock.png" loading="lazy"></div><div class="card-label">s-devis-module-stock</div></div>
+      <div class="card" onclick="openLightbox('screens/s-devis-module-facturation.png','s-devis-module-facturation','Module · Facturation','screen',101)"><div class="card-img-wrap"><img src="screens/s-devis-module-facturation.png" loading="lazy"></div><div class="card-label">s-devis-module-facturation</div></div>
+      <div class="card" onclick="openLightbox('screens/s-devis-module-securite.png','s-devis-module-securite','Module · Sécurité','screen',102)"><div class="card-img-wrap"><img src="screens/s-devis-module-securite.png" loading="lazy"></div><div class="card-label">s-devis-module-securite</div></div>
+      <div class="card" onclick="openLightbox('screens/s-devis-module-services.png','s-devis-module-services','Module · Services','screen',103)"><div class="card-img-wrap"><img src="screens/s-devis-module-services.png" loading="lazy"></div><div class="card-label">s-devis-module-services</div></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Ventes <span class="group-title-count">6</span></div>
+    <div class="grid">
+      <div class="card" onclick="openLightbox('screens/s-ventes.png','s-ventes','Ventes','screen',104)"><div class="card-img-wrap"><img src="screens/s-ventes.png" loading="lazy"></div><div class="card-label">s-ventes</div></div>
+      <div class="card" onclick="openLightbox('screens/s-vente-brouillon.png','s-vente-brouillon','Vente · Brouillon','screen',105)"><div class="card-img-wrap"><img src="screens/s-vente-brouillon.png" loading="lazy"></div><div class="card-label">s-vente-brouillon</div></div>
+      <div class="card" onclick="openLightbox('screens/s-vente-acompte.png','s-vente-acompte','Vente · Acompte','screen',106)"><div class="card-img-wrap"><img src="screens/s-vente-acompte.png" loading="lazy"></div><div class="card-label">s-vente-acompte</div></div>
+      <div class="card" onclick="openLightbox('screens/s-vente-multi.png','s-vente-multi','Vente · Multi','screen',107)"><div class="card-img-wrap"><img src="screens/s-vente-multi.png" loading="lazy"></div><div class="card-label">s-vente-multi</div></div>
+      <div class="card" onclick="openLightbox('screens/s-vente-solde.png','s-vente-solde','Vente · Soldée','screen',108)"><div class="card-img-wrap"><img src="screens/s-vente-solde.png" loading="lazy"></div><div class="card-label">s-vente-solde</div></div>
+      <div class="card" onclick="openLightbox('screens/s-vente-retard.png','s-vente-retard','Vente · Retard','screen',109)"><div class="card-img-wrap"><img src="screens/s-vente-retard.png" loading="lazy"></div><div class="card-label">s-vente-retard</div></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Profil & Divers <span class="group-title-count">7</span></div>
+    <div class="grid">
+      <div class="card" onclick="openLightbox('screens/s-profil.png','s-profil','Mon profil','screen',110)"><div class="card-img-wrap"><img src="screens/s-profil.png" loading="lazy"></div><div class="card-label">s-profil</div></div>
+      <div class="card" onclick="openLightbox('screens/s-plus.png','s-plus','Plus','screen',111)"><div class="card-img-wrap"><img src="screens/s-plus.png" loading="lazy"></div><div class="card-label">s-plus</div></div>
+      <div class="card" onclick="openLightbox('screens/s-parametres.png','s-parametres','Paramètres','screen',112)"><div class="card-img-wrap"><img src="screens/s-parametres.png" loading="lazy"></div><div class="card-label">s-parametres</div></div>
+      <div class="card" onclick="openLightbox('screens/s-notifications.png','s-notifications','Notifications','screen',113)"><div class="card-img-wrap"><img src="screens/s-notifications.png" loading="lazy"></div><div class="card-label">s-notifications</div></div>
+      <div class="card" onclick="openLightbox('screens/s-recherche-globale.png','s-recherche-globale','Recherche','screen',114)"><div class="card-img-wrap"><img src="screens/s-recherche-globale.png" loading="lazy"></div><div class="card-label">s-recherche-globale</div></div>
+      <div class="card" onclick="openLightbox('screens/s-signature-contrat.png','s-signature-contrat','Signature contrat','screen',115)"><div class="card-img-wrap"><img src="screens/s-signature-contrat.png" loading="lazy"></div><div class="card-label">s-signature-contrat</div></div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="group-title">Administration <span class="group-title-count">4</span></div>
+    <div class="grid">
+      <div class="card" onclick="openLightbox('screens/s-admin-utilisateurs.png','s-admin-utilisateurs','Utilisateurs','screen',116)"><div class="card-img-wrap"><img src="screens/s-admin-utilisateurs.png" loading="lazy"></div><div class="card-label">s-admin-utilisateurs</div></div>
+      <div class="card" onclick="openLightbox('screens/s-admin-audit.png','s-admin-audit','Audit logs','screen',117)"><div class="card-img-wrap"><img src="screens/s-admin-audit.png" loading="lazy"></div><div class="card-label">s-admin-audit</div></div>
+      <div class="card" onclick="openLightbox('screens/s-admin-apikeys.png','s-admin-apikeys','Clés API','screen',118)"><div class="card-img-wrap"><img src="screens/s-admin-apikeys.png" loading="lazy"></div><div class="card-label">s-admin-apikeys</div></div>
+      <div class="card" onclick="openLightbox('screens/s-admin-parametres.png','s-admin-parametres','Config système','screen',119)"><div class="card-img-wrap"><img src="screens/s-admin-parametres.png" loading="lazy"></div><div class="card-label">s-admin-parametres</div></div>
+    </div>
+  </div>
+
+  <div class="empty" id="empty-screens">Aucun résultat</div>
+</div>
+
+<!-- ═══════════════════════════════════════
+  SECTION MODALS
+════════════════════════════════════════ -->
+<div class="section" id="sec-modals">
+  <div class="grid" id="grid-modals">
+    <div class="card" onclick="openLightbox('modals/m-creer-event.png','m-creer-event','Créer événement','modal',0)"><div class="card-img-wrap"><img src="modals/m-creer-event.png" loading="lazy"></div><div class="card-label">m-creer-event</div></div>
+    <div class="card" onclick="openLightbox('modals/m-modifier-event.png','m-modifier-event','Modifier événement','modal',1)"><div class="card-img-wrap"><img src="modals/m-modifier-event.png" loading="lazy"></div><div class="card-label">m-modifier-event</div></div>
+    <div class="card" onclick="openLightbox('modals/m-annuler-event.png','m-annuler-event','Annuler événement','modal',2)"><div class="card-img-wrap"><img src="modals/m-annuler-event.png" loading="lazy"></div><div class="card-label">m-annuler-event</div></div>
+    <div class="card" onclick="openLightbox('modals/m-reprogrammer-event.png','m-reprogrammer-event','Reprogrammer','modal',3)"><div class="card-img-wrap"><img src="modals/m-reprogrammer-event.png" loading="lazy"></div><div class="card-label">m-reprogrammer-event</div></div>
+    <div class="card" onclick="openLightbox('modals/m-cloturer-event.png','m-cloturer-event','Clôturer événement','modal',4)"><div class="card-img-wrap"><img src="modals/m-cloturer-event.png" loading="lazy"></div><div class="card-label">m-cloturer-event</div></div>
+    <div class="card" onclick="openLightbox('modals/m-remboursement-event.png','m-remboursement-event','Remboursement','modal',5)"><div class="card-img-wrap"><img src="modals/m-remboursement-event.png" loading="lazy"></div><div class="card-label">m-remboursement-event</div></div>
+    <div class="card" onclick="openLightbox('modals/m-rapport-event.png','m-rapport-event','Rapport événement','modal',6)"><div class="card-img-wrap"><img src="modals/m-rapport-event.png" loading="lazy"></div><div class="card-label">m-rapport-event</div></div>
+    <div class="card" onclick="openLightbox('modals/m-relancer-caution.png','m-relancer-caution','Relancer caution','modal',7)"><div class="card-img-wrap"><img src="modals/m-relancer-caution.png" loading="lazy"></div><div class="card-label">m-relancer-caution</div></div>
+    <div class="card" onclick="openLightbox('modals/m-creer-resa.png','m-creer-resa','Créer résa','modal',8)"><div class="card-img-wrap"><img src="modals/m-creer-resa.png" loading="lazy"></div><div class="card-label">m-creer-resa</div></div>
+    <div class="card" onclick="openLightbox('modals/m-modifier-resa.png','m-modifier-resa','Modifier résa','modal',9)"><div class="card-img-wrap"><img src="modals/m-modifier-resa.png" loading="lazy"></div><div class="card-label">m-modifier-resa</div></div>
+    <div class="card" onclick="openLightbox('modals/m-confirmer-resa.png','m-confirmer-resa','Confirmer résa','modal',10)"><div class="card-img-wrap"><img src="modals/m-confirmer-resa.png" loading="lazy"></div><div class="card-label">m-confirmer-resa</div></div>
+    <div class="card" onclick="openLightbox('modals/m-supprimer-resa.png','m-supprimer-resa','Supprimer résa','modal',11)"><div class="card-img-wrap"><img src="modals/m-supprimer-resa.png" loading="lazy"></div><div class="card-label">m-supprimer-resa</div></div>
+    <div class="card" onclick="openLightbox('modals/m-prolonger-resa.png','m-prolonger-resa','Prolonger résa','modal',12)"><div class="card-img-wrap"><img src="modals/m-prolonger-resa.png" loading="lazy"></div><div class="card-label">m-prolonger-resa</div></div>
+    <div class="card" onclick="openLightbox('modals/m-archiver-resa.png','m-archiver-resa','Archiver résa','modal',13)"><div class="card-img-wrap"><img src="modals/m-archiver-resa.png" loading="lazy"></div><div class="card-label">m-archiver-resa</div></div>
+    <div class="card" onclick="openLightbox('modals/m-bloquer-depart.png','m-bloquer-depart','Bloquer départ','modal',14)"><div class="card-img-wrap"><img src="modals/m-bloquer-depart.png" loading="lazy"></div><div class="card-label">m-bloquer-depart</div></div>
+    <div class="card" onclick="openLightbox('modals/m-valider-depart.png','m-valider-depart','Valider départ','modal',15)"><div class="card-img-wrap"><img src="modals/m-valider-depart.png" loading="lazy"></div><div class="card-label">m-valider-depart</div></div>
+    <div class="card" onclick="openLightbox('modals/m-valider-inventaire-sortie.png','m-valider-inventaire-sortie','Valider sortie','modal',16)"><div class="card-img-wrap"><img src="modals/m-valider-inventaire-sortie.png" loading="lazy"></div><div class="card-label">m-valider-inventaire-sortie</div></div>
+    <div class="card" onclick="openLightbox('modals/m-valider-inventaire-retour.png','m-valider-inventaire-retour','Valider retour','modal',17)"><div class="card-img-wrap"><img src="modals/m-valider-inventaire-retour.png" loading="lazy"></div><div class="card-label">m-valider-inventaire-retour</div></div>
+    <div class="card" onclick="openLightbox('modals/m-cloturer-retour.png','m-cloturer-retour','Clôturer retour','modal',18)"><div class="card-img-wrap"><img src="modals/m-cloturer-retour.png" loading="lazy"></div><div class="card-label">m-cloturer-retour</div></div>
+    <div class="card" onclick="openLightbox('modals/m-clore-litige-resa.png','m-clore-litige-resa','Clore litige','modal',19)"><div class="card-img-wrap"><img src="modals/m-clore-litige-resa.png" loading="lazy"></div><div class="card-label">m-clore-litige-resa</div></div>
+    <div class="card" onclick="openLightbox('modals/m-photo-depart.png','m-photo-depart','Photo départ','modal',20)"><div class="card-img-wrap"><img src="modals/m-photo-depart.png" loading="lazy"></div><div class="card-label">m-photo-depart</div></div>
+    <div class="card" onclick="openLightbox('modals/m-filter-reservations.png','m-filter-reservations','Filtres résa','modal',21)"><div class="card-img-wrap"><img src="modals/m-filter-reservations.png" loading="lazy"></div><div class="card-label">m-filter-reservations</div></div>
+    <div class="card" onclick="openLightbox('modals/m-modifier-client.png','m-modifier-client','Modifier client','modal',22)"><div class="card-img-wrap"><img src="modals/m-modifier-client.png" loading="lazy"></div><div class="card-label">m-modifier-client</div></div>
+    <div class="card" onclick="openLightbox('modals/m-supprimer-client.png','m-supprimer-client','Supprimer client','modal',23)"><div class="card-img-wrap"><img src="modals/m-supprimer-client.png" loading="lazy"></div><div class="card-label">m-supprimer-client</div></div>
+    <div class="card" onclick="openLightbox('modals/m-filter-clients.png','m-filter-clients','Filtres clients','modal',24)"><div class="card-img-wrap"><img src="modals/m-filter-clients.png" loading="lazy"></div><div class="card-label">m-filter-clients</div></div>
+    <div class="card" onclick="openLightbox('modals/m-relancer-client.png','m-relancer-client','Relancer client','modal',25)"><div class="card-img-wrap"><img src="modals/m-relancer-client.png" loading="lazy"></div><div class="card-label">m-relancer-client</div></div>
+    <div class="card" onclick="openLightbox('modals/m-ajouter-produit.png','m-ajouter-produit','Ajouter produit','modal',26)"><div class="card-img-wrap"><img src="modals/m-ajouter-produit.png" loading="lazy"></div><div class="card-label">m-ajouter-produit</div></div>
+    <div class="card" onclick="openLightbox('modals/m-supprimer-produit.png','m-supprimer-produit','Supprimer produit','modal',27)"><div class="card-img-wrap"><img src="modals/m-supprimer-produit.png" loading="lazy"></div><div class="card-label">m-supprimer-produit</div></div>
+    <div class="card" onclick="openLightbox('modals/m-ajuster-stock.png','m-ajuster-stock','Ajuster stock','modal',28)"><div class="card-img-wrap"><img src="modals/m-ajuster-stock.png" loading="lazy"></div><div class="card-label">m-ajuster-stock</div></div>
+    <div class="card" onclick="openLightbox('modals/m-filter-stock.png','m-filter-stock','Filtres stock','modal',29)"><div class="card-img-wrap"><img src="modals/m-filter-stock.png" loading="lazy"></div><div class="card-label">m-filter-stock</div></div>
+    <div class="card" onclick="openLightbox('modals/m-declarer-casse.png','m-declarer-casse','Déclarer casse','modal',30)"><div class="card-img-wrap"><img src="modals/m-declarer-casse.png" loading="lazy"></div><div class="card-label">m-declarer-casse</div></div>
+    <div class="card" onclick="openLightbox('modals/m-contact-fournisseur.png','m-contact-fournisseur','Contact fournisseur','modal',31)"><div class="card-img-wrap"><img src="modals/m-contact-fournisseur.png" loading="lazy"></div><div class="card-label">m-contact-fournisseur</div></div>
+    <div class="card" onclick="openLightbox('modals/m-lancer-reassort.png','m-lancer-reassort','Lancer réassort','modal',32)"><div class="card-img-wrap"><img src="modals/m-lancer-reassort.png" loading="lazy"></div><div class="card-label">m-lancer-reassort</div></div>
+    <div class="card" onclick="openLightbox('modals/m-cloturer-reassort.png','m-cloturer-reassort','Clôturer réassort','modal',33)"><div class="card-img-wrap"><img src="modals/m-cloturer-reassort.png" loading="lazy"></div><div class="card-label">m-cloturer-reassort</div></div>
+    <div class="card" onclick="openLightbox('modals/m-reception-reassort.png','m-reception-reassort','Réception réassort','modal',34)"><div class="card-img-wrap"><img src="modals/m-reception-reassort.png" loading="lazy"></div><div class="card-label">m-reception-reassort</div></div>
+    <div class="card" onclick="openLightbox('modals/m-maintenance-new.png','m-maintenance-new','Nouvelle maintenance','modal',35)"><div class="card-img-wrap"><img src="modals/m-maintenance-new.png" loading="lazy"></div><div class="card-label">m-maintenance-new</div></div>
+    <div class="card" onclick="openLightbox('modals/m-inv-phys-count.png','m-inv-phys-count','Inv. physique · Comptage','modal',36)"><div class="card-img-wrap"><img src="modals/m-inv-phys-count.png" loading="lazy"></div><div class="card-label">m-inv-phys-count</div></div>
+    <div class="card" onclick="openLightbox('modals/m-inv-phys-ecart.png','m-inv-phys-ecart','Inv. physique · Écart','modal',37)"><div class="card-img-wrap"><img src="modals/m-inv-phys-ecart.png" loading="lazy"></div><div class="card-label">m-inv-phys-ecart</div></div>
+    <div class="card" onclick="openLightbox('modals/m-scan-result.png','m-scan-result','Résultat scan','modal',38)"><div class="card-img-wrap"><img src="modals/m-scan-result.png" loading="lazy"></div><div class="card-label">m-scan-result</div></div>
+    <div class="card" onclick="openLightbox('modals/m-scan-manual.png','m-scan-manual','Scan manuel','modal',39)"><div class="card-img-wrap"><img src="modals/m-scan-manual.png" loading="lazy"></div><div class="card-label">m-scan-manual</div></div>
+    <div class="card" onclick="openLightbox('modals/m-sig-options.png','m-sig-options','Options signature','modal',40)"><div class="card-img-wrap"><img src="modals/m-sig-options.png" loading="lazy"></div><div class="card-label">m-sig-options</div></div>
+    <div class="card" onclick="openLightbox('modals/m-res-affecter.png','m-res-affecter','Affecter ressource','modal',41)"><div class="card-img-wrap"><img src="modals/m-res-affecter.png" loading="lazy"></div><div class="card-label">m-res-affecter</div></div>
+    <div class="card" onclick="openLightbox('modals/m-ajouter-ligne-facture.png','m-ajouter-ligne-facture','Ajouter ligne facture','modal',42)"><div class="card-img-wrap"><img src="modals/m-ajouter-ligne-facture.png" loading="lazy"></div><div class="card-label">m-ajouter-ligne-facture</div></div>
+    <div class="card" onclick="openLightbox('modals/m-supprimer-facture.png','m-supprimer-facture','Supprimer facture','modal',43)"><div class="card-img-wrap"><img src="modals/m-supprimer-facture.png" loading="lazy"></div><div class="card-label">m-supprimer-facture</div></div>
+    <div class="card" onclick="openLightbox('modals/m-envoyer-facture.png','m-envoyer-facture','Envoyer facture','modal',44)"><div class="card-img-wrap"><img src="modals/m-envoyer-facture.png" loading="lazy"></div><div class="card-label">m-envoyer-facture</div></div>
+    <div class="card" onclick="openLightbox('modals/m-marquer-payee.png','m-marquer-payee','Marquer payée','modal',45)"><div class="card-img-wrap"><img src="modals/m-marquer-payee.png" loading="lazy"></div><div class="card-label">m-marquer-payee</div></div>
+    <div class="card" onclick="openLightbox('modals/m-relancer-facture.png','m-relancer-facture','Relancer facture','modal',46)"><div class="card-img-wrap"><img src="modals/m-relancer-facture.png" loading="lazy"></div><div class="card-label">m-relancer-facture</div></div>
+    <div class="card" onclick="openLightbox('modals/m-export-factures.png','m-export-factures','Export factures','modal',47)"><div class="card-img-wrap"><img src="modals/m-export-factures.png" loading="lazy"></div><div class="card-label">m-export-factures</div></div>
+    <div class="card" onclick="openLightbox('modals/m-avoir-facture.png','m-avoir-facture','Avoir','modal',48)"><div class="card-img-wrap"><img src="modals/m-avoir-facture.png" loading="lazy"></div><div class="card-label">m-avoir-facture</div></div>
+    <div class="card" onclick="openLightbox('modals/m-frais-supp.png','m-frais-supp','Frais supplémentaires','modal',49)"><div class="card-img-wrap"><img src="modals/m-frais-supp.png" loading="lazy"></div><div class="card-label">m-frais-supp</div></div>
+    <div class="card" onclick="openLightbox('modals/m-facturer-casse.png','m-facturer-casse','Facturer casse','modal',50)"><div class="card-img-wrap"><img src="modals/m-facturer-casse.png" loading="lazy"></div><div class="card-label">m-facturer-casse</div></div>
+    <div class="card" onclick="openLightbox('modals/m-ajouter-paiement-multi.png','m-ajouter-paiement-multi','Paiement multi','modal',51)"><div class="card-img-wrap"><img src="modals/m-ajouter-paiement-multi.png" loading="lazy"></div><div class="card-label">m-ajouter-paiement-multi</div></div>
+    <div class="card" onclick="openLightbox('modals/m-recu-paiement.png','m-recu-paiement','Reçu paiement','modal',52)"><div class="card-img-wrap"><img src="modals/m-recu-paiement.png" loading="lazy"></div><div class="card-label">m-recu-paiement</div></div>
+    <div class="card" onclick="openLightbox('modals/m-facture-brouillon.png','m-facture-brouillon','Facture brouillon','modal',53)"><div class="card-img-wrap"><img src="modals/m-facture-brouillon.png" loading="lazy"></div><div class="card-label">m-facture-brouillon</div></div>
+    <div class="card" onclick="openLightbox('modals/m-creer-devis.png','m-creer-devis','Créer devis','modal',54)"><div class="card-img-wrap"><img src="modals/m-creer-devis.png" loading="lazy"></div><div class="card-label">m-creer-devis</div></div>
+    <div class="card" onclick="openLightbox('modals/m-ajouter-ligne-devis.png','m-ajouter-ligne-devis','Ajouter ligne devis','modal',55)"><div class="card-img-wrap"><img src="modals/m-ajouter-ligne-devis.png" loading="lazy"></div><div class="card-label">m-ajouter-ligne-devis</div></div>
+    <div class="card" onclick="openLightbox('modals/m-modifier-ligne-devis.png','m-modifier-ligne-devis','Modifier ligne devis','modal',56)"><div class="card-img-wrap"><img src="modals/m-modifier-ligne-devis.png" loading="lazy"></div><div class="card-label">m-modifier-ligne-devis</div></div>
+    <div class="card" onclick="openLightbox('modals/m-envoyer-devis.png','m-envoyer-devis','Envoyer devis','modal',57)"><div class="card-img-wrap"><img src="modals/m-envoyer-devis.png" loading="lazy"></div><div class="card-label">m-envoyer-devis</div></div>
+    <div class="card" onclick="openLightbox('modals/m-accepter-devis.png','m-accepter-devis','Accepter devis','modal',58)"><div class="card-img-wrap"><img src="modals/m-accepter-devis.png" loading="lazy"></div><div class="card-label">m-accepter-devis</div></div>
+    <div class="card" onclick="openLightbox('modals/m-refuser-devis.png','m-refuser-devis','Refuser devis','modal',59)"><div class="card-img-wrap"><img src="modals/m-refuser-devis.png" loading="lazy"></div><div class="card-label">m-refuser-devis</div></div>
+    <div class="card" onclick="openLightbox('modals/m-devis-refuse.png','m-devis-refuse','Devis refusé','modal',60)"><div class="card-img-wrap"><img src="modals/m-devis-refuse.png" loading="lazy"></div><div class="card-label">m-devis-refuse</div></div>
+    <div class="card" onclick="openLightbox('modals/m-dupliquer-devis.png','m-dupliquer-devis','Dupliquer devis','modal',61)"><div class="card-img-wrap"><img src="modals/m-dupliquer-devis.png" loading="lazy"></div><div class="card-label">m-dupliquer-devis</div></div>
+    <div class="card" onclick="openLightbox('modals/m-versionner-devis.png','m-versionner-devis','Versionner devis','modal',62)"><div class="card-img-wrap"><img src="modals/m-versionner-devis.png" loading="lazy"></div><div class="card-label">m-versionner-devis</div></div>
+    <div class="card" onclick="openLightbox('modals/m-renouveler-devis.png','m-renouveler-devis','Renouveler devis','modal',63)"><div class="card-img-wrap"><img src="modals/m-renouveler-devis.png" loading="lazy"></div><div class="card-label">m-renouveler-devis</div></div>
+    <div class="card" onclick="openLightbox('modals/m-import-devis.png','m-import-devis','Importer devis','modal',64)"><div class="card-img-wrap"><img src="modals/m-import-devis.png" loading="lazy"></div><div class="card-label">m-import-devis</div></div>
+    <div class="card" onclick="openLightbox('modals/m-export-devis.png','m-export-devis','Exporter devis','modal',65)"><div class="card-img-wrap"><img src="modals/m-export-devis.png" loading="lazy"></div><div class="card-label">m-export-devis</div></div>
+    <div class="card" onclick="openLightbox('modals/m-pdf-devis.png','m-pdf-devis','PDF devis','modal',66)"><div class="card-img-wrap"><img src="modals/m-pdf-devis.png" loading="lazy"></div><div class="card-label">m-pdf-devis</div></div>
+    <div class="card" onclick="openLightbox('modals/m-pdf-document.png','m-pdf-document','PDF document','modal',67)"><div class="card-img-wrap"><img src="modals/m-pdf-document.png" loading="lazy"></div><div class="card-label">m-pdf-document</div></div>
+    <div class="card" onclick="openLightbox('modals/m-encaisser-caution.png','m-encaisser-caution','Encaisser caution','modal',68)"><div class="card-img-wrap"><img src="modals/m-encaisser-caution.png" loading="lazy"></div><div class="card-label">m-encaisser-caution</div></div>
+    <div class="card" onclick="openLightbox('modals/m-encaisser-solde.png','m-encaisser-solde','Encaisser solde','modal',69)"><div class="card-img-wrap"><img src="modals/m-encaisser-solde.png" loading="lazy"></div><div class="card-label">m-encaisser-solde</div></div>
+    <div class="card" onclick="openLightbox('modals/m-relancer-vente.png','m-relancer-vente','Relancer vente','modal',70)"><div class="card-img-wrap"><img src="modals/m-relancer-vente.png" loading="lazy"></div><div class="card-label">m-relancer-vente</div></div>
+    <div class="card" onclick="openLightbox('modals/m-notif-detail.png','m-notif-detail','Détail notification','modal',71)"><div class="card-img-wrap"><img src="modals/m-notif-detail.png" loading="lazy"></div><div class="card-label">m-notif-detail</div></div>
+    <div class="card" onclick="openLightbox('modals/m-notif-facture-retard.png','m-notif-facture-retard','Notif facture retard','modal',72)"><div class="card-img-wrap"><img src="modals/m-notif-facture-retard.png" loading="lazy"></div><div class="card-label">m-notif-facture-retard</div></div>
+    <div class="card" onclick="openLightbox('modals/m-profil-nom.png','m-profil-nom','Éditer nom','modal',73)"><div class="card-img-wrap"><img src="modals/m-profil-nom.png" loading="lazy"></div><div class="card-label">m-profil-nom</div></div>
+    <div class="card" onclick="openLightbox('modals/m-profil-email.png','m-profil-email','Éditer email','modal',74)"><div class="card-img-wrap"><img src="modals/m-profil-email.png" loading="lazy"></div><div class="card-label">m-profil-email</div></div>
+    <div class="card" onclick="openLightbox('modals/m-profil-mdp.png','m-profil-mdp','Changer mdp','modal',75)"><div class="card-img-wrap"><img src="modals/m-profil-mdp.png" loading="lazy"></div><div class="card-label">m-profil-mdp</div></div>
+    <div class="card" onclick="openLightbox('modals/m-profil-theme.png','m-profil-theme','Thème','modal',76)"><div class="card-img-wrap"><img src="modals/m-profil-theme.png" loading="lazy"></div><div class="card-label">m-profil-theme</div></div>
+    <div class="card" onclick="openLightbox('modals/m-profil-deconnexion.png','m-profil-deconnexion','Déconnexion','modal',77)"><div class="card-img-wrap"><img src="modals/m-profil-deconnexion.png" loading="lazy"></div><div class="card-label">m-profil-deconnexion</div></div>
+    <div class="card" onclick="openLightbox('modals/m-changer-photo.png','m-changer-photo','Changer photo','modal',78)"><div class="card-img-wrap"><img src="modals/m-changer-photo.png" loading="lazy"></div><div class="card-label">m-changer-photo</div></div>
+    <div class="card" onclick="openLightbox('modals/m-date-range.png','m-date-range','Plage de dates','modal',79)"><div class="card-img-wrap"><img src="modals/m-date-range.png" loading="lazy"></div><div class="card-label">m-date-range</div></div>
+    <div class="card" onclick="openLightbox('modals/m-admin-user.png','m-admin-user','Fiche utilisateur','modal',80)"><div class="card-img-wrap"><img src="modals/m-admin-user.png" loading="lazy"></div><div class="card-label">m-admin-user</div></div>
+    <div class="card" onclick="openLightbox('modals/m-admin-inviter.png','m-admin-inviter','Inviter utilisateur','modal',81)"><div class="card-img-wrap"><img src="modals/m-admin-inviter.png" loading="lazy"></div><div class="card-label">m-admin-inviter</div></div>
+    <div class="card" onclick="openLightbox('modals/m-audit-detail.png','m-audit-detail','Détail audit','modal',82)"><div class="card-img-wrap"><img src="modals/m-audit-detail.png" loading="lazy"></div><div class="card-label">m-audit-detail</div></div>
+    <div class="card" onclick="openLightbox('modals/m-audit-export.png','m-audit-export','Export logs','modal',83)"><div class="card-img-wrap"><img src="modals/m-audit-export.png" loading="lazy"></div><div class="card-label">m-audit-export</div></div>
+    <div class="card" onclick="openLightbox('modals/m-apikey-detail.png','m-apikey-detail','Détail clé API','modal',84)"><div class="card-img-wrap"><img src="modals/m-apikey-detail.png" loading="lazy"></div><div class="card-label">m-apikey-detail</div></div>
+    <div class="card" onclick="openLightbox('modals/m-apikey-create.png','m-apikey-create','Créer clé API','modal',85)"><div class="card-img-wrap"><img src="modals/m-apikey-create.png" loading="lazy"></div><div class="card-label">m-apikey-create</div></div>
+    <div class="card" onclick="openLightbox('modals/m-apikey-new-reveal.png','m-apikey-new-reveal','Clé créée','modal',86)"><div class="card-img-wrap"><img src="modals/m-apikey-new-reveal.png" loading="lazy"></div><div class="card-label">m-apikey-new-reveal</div></div>
+    <div class="card" onclick="openLightbox('modals/m-sys-param.png','m-sys-param','Sys · Param','modal',87)"><div class="card-img-wrap"><img src="modals/m-sys-param.png" loading="lazy"></div><div class="card-label">m-sys-param</div></div>
+    <div class="card" onclick="openLightbox('modals/m-sys-text.png','m-sys-text','Sys · Texte','modal',88)"><div class="card-img-wrap"><img src="modals/m-sys-text.png" loading="lazy"></div><div class="card-label">m-sys-text</div></div>
+    <div class="card" onclick="openLightbox('modals/m-sys-confirm.png','m-sys-confirm','Sys · Confirmer','modal',89)"><div class="card-img-wrap"><img src="modals/m-sys-confirm.png" loading="lazy"></div><div class="card-label">m-sys-confirm</div></div>
+    <div class="card" onclick="openLightbox('modals/m-sys-danger.png','m-sys-danger','Sys · Danger','modal',90)"><div class="card-img-wrap"><img src="modals/m-sys-danger.png" loading="lazy"></div><div class="card-label">m-sys-danger</div></div>
+    <div class="card" onclick="openLightbox('modals/m-param-color.png','m-param-color','Param couleur','modal',91)"><div class="card-img-wrap"><img src="modals/m-param-color.png" loading="lazy"></div><div class="card-label">m-param-color</div></div>
+    <div class="card" onclick="openLightbox('modals/m-param-edit.png','m-param-edit','Param édition','modal',92)"><div class="card-img-wrap"><img src="modals/m-param-edit.png" loading="lazy"></div><div class="card-label">m-param-edit</div></div>
+    <div class="card" onclick="openLightbox('modals/m-param-text.png','m-param-text','Param texte','modal',93)"><div class="card-img-wrap"><img src="modals/m-param-text.png" loading="lazy"></div><div class="card-label">m-param-text</div></div>
+    <div class="card" onclick="openLightbox('modals/m-tarif-edit.png','m-tarif-edit','Tarif','modal',94)"><div class="card-img-wrap"><img src="modals/m-tarif-edit.png" loading="lazy"></div><div class="card-label">m-tarif-edit</div></div>
+    <div class="card" onclick="openLightbox('modals/m-rapport-export.png','m-rapport-export','Export rapport','modal',95)"><div class="card-img-wrap"><img src="modals/m-rapport-export.png" loading="lazy"></div><div class="card-label">m-rapport-export</div></div>
+    <div class="card" onclick="openLightbox('modals/m-relance-action.png','m-relance-action','Action relance','modal',96)"><div class="card-img-wrap"><img src="modals/m-relance-action.png" loading="lazy"></div><div class="card-label">m-relance-action</div></div>
+    <div class="card" onclick="openLightbox('modals/m-plan-action-incident.png','m-plan-action-incident','Plan action incident','modal',97)"><div class="card-img-wrap"><img src="modals/m-plan-action-incident.png" loading="lazy"></div><div class="card-label">m-plan-action-incident</div></div>
+    <div class="card" onclick="openLightbox('modals/m-verifier-retour-produit.png','m-verifier-retour-produit','Vérifier retour','modal',98)"><div class="card-img-wrap"><img src="modals/m-verifier-retour-produit.png" loading="lazy"></div><div class="card-label">m-verifier-retour-produit</div></div>
+  </div>
+  <div class="empty" id="empty-modals">Aucun résultat</div>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="if(event.target===this)closeLightbox()">
+  <div class="lb-inner">
+    <div class="lb-phone">
+      <div class="lb-screen">
+        <img id="lb-img" src="" alt="">
+      </div>
+    </div>
+    <div class="lb-info">
+      <div class="lb-id" id="lb-id"></div>
+      <div class="lb-name" id="lb-name"></div>
+      <div class="lb-type" id="lb-type"></div>
+      <div class="lb-nav">
+        <button class="lb-btn" onclick="lbNav(-1)">← Préc.</button>
+        <button class="lb-btn" onclick="lbNav(1)">Suiv. →</button>
+      </div>
+      <div class="lb-counter" id="lb-counter"></div>
+    </div>
+    <div class="lb-close" onclick="closeLightbox()">✕</div>
+  </div>
+</div>
+
+<script>
+  let currentSection = 'screens'
+  let lbSrc, lbIdx, lbItems = []
+
+  function switchTab(name, el) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
+    el.classList.add('active')
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'))
+    document.getElementById('sec-' + name).classList.add('active')
+    currentSection = name
+    filterCards(document.getElementById('search').value)
+  }
+
+  function filterCards(q) {
+    const term = q.toLowerCase().trim()
+    const sec = document.getElementById('sec-' + currentSection)
+    const cards = sec.querySelectorAll('.card')
+    let visible = 0
+    cards.forEach(c => {
+      const label = c.querySelector('.card-label').textContent.toLowerCase()
+      const show = !term || label.includes(term)
+      c.classList.toggle('hidden', !show)
+      if (show) visible++
+    })
+    const empty = document.getElementById('empty-' + currentSection)
+    empty.classList.toggle('visible', visible === 0)
+    document.getElementById('count-label').textContent = `${visible} éléments`
+  }
+
+  function openLightbox(src, id, name, type, idx) {
+    lbIdx = idx
+    const sec = document.getElementById('sec-' + (type === 'screen' ? 'screens' : 'modals'))
+    lbItems = Array.from(sec.querySelectorAll('.card:not(.hidden)'))
+      .map(c => ({
+        src: c.querySelector('img').src,
+        id: c.querySelector('.card-label').textContent,
+        name: c.querySelector('.card-label').textContent,
+        type
+      }))
+    lbIdx = lbItems.findIndex(i => i.id === id)
+    if (lbIdx < 0) lbIdx = 0
+    renderLightbox()
+  }
+
+  function renderLightbox() {
+    const item = lbItems[lbIdx]
+    if (!item) return
+    document.getElementById('lb-img').src = item.src
+    document.getElementById('lb-id').textContent = item.id
+    document.getElementById('lb-name').textContent = item.id.replace(/^[sm]-/, '').replace(/-/g, ' ')
+    const typeEl = document.getElementById('lb-type')
+    typeEl.textContent = item.type === 'screen' ? '📱 Écran' : '◻ Modal'
+    typeEl.className = 'lb-type ' + item.type
+    document.getElementById('lb-counter').textContent = `${lbIdx + 1} / ${lbItems.length}`
+    document.getElementById('lightbox').classList.add('open')
+  }
+
+  function lbNav(dir) {
+    lbIdx = (lbIdx + dir + lbItems.length) % lbItems.length
+    renderLightbox()
+  }
+
+  function closeLightbox() {
+    document.getElementById('lightbox').classList.remove('open')
+  }
+
+  document.addEventListener('keydown', e => {
+    if (!document.getElementById('lightbox').classList.contains('open')) return
+    if (e.key === 'ArrowRight') lbNav(1)
+    if (e.key === 'ArrowLeft')  lbNav(-1)
+    if (e.key === 'Escape') closeLightbox()
+  })
+</script>
+</body>
+</html>

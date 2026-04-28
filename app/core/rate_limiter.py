@@ -37,7 +37,7 @@ Notes:
 import logging
 import time
 from typing import Tuple, Dict, Any
-from redis import Redis
+from redis.asyncio import Redis as AsyncRedis
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class RateLimiter:
         redis_client: Client Redis pour stockage compteurs
     """
 
-    def __init__(self, redis_client: Redis):
+    def __init__(self, redis_client: AsyncRedis):
         """Initialise le rate limiter.
 
         Args:
@@ -62,7 +62,7 @@ class RateLimiter:
         """
         self.redis = redis_client
 
-    def check_rate_limit(
+    async def check_rate_limit(
         self,
         key: str,
         limit: int,
@@ -101,22 +101,22 @@ class RateLimiter:
         Notes:
             - INCR est atomique (thread-safe, concurrent-safe)
             - TTL définit uniquement au premier INCR (count=1)
-            - Si Redis down, retourne (True, {}) pour fail-open (disponibilité > sécurité)
+            - Si Redis down, retourne (False, {}) FAIL-CLOSED (securite > disponibilite)
             - Fenêtre glissante approximative (précision = 1 seconde)
         """
         try:
             # INCR atomique (retourne nouvelle valeur)
-            current_count = self.redis.incr(key)
+            current_count = await self.redis.incr(key)
 
             # Si premier accès, définir TTL
             if current_count == 1:
-                self.redis.expire(key, window_seconds)
+                await self.redis.expire(key, window_seconds)
 
             # Récupérer TTL restant pour calculer reset timestamp
-            ttl = self.redis.ttl(key)
+            ttl = await self.redis.ttl(key)
             if ttl == -1:
                 # Pas de TTL défini (race condition possible), le définir
-                self.redis.expire(key, window_seconds)
+                await self.redis.expire(key, window_seconds)
                 ttl = window_seconds
 
             # Calculer timestamps
@@ -140,17 +140,16 @@ class RateLimiter:
             return allowed, metadata
 
         except Exception as e:
-            # Fail-open : en cas d'erreur Redis, autoriser requête
-            # Priorité : disponibilité > sécurité (éviter denial of service)
-            # Log l'erreur pour investigation
-            logger.error("Rate limiter error: %s", e)
-            return True, {
+            # FAIL-CLOSED : Redis down = bloquer (securite > disponibilite)
+            # Le monitoring doit alerter sur cette erreur immediatement
+            logger.critical("Rate limiter Redis DOWN — FAIL-CLOSED (503): %s", e)
+            return False, {
                 "limit": limit,
-                "remaining": limit,
-                "reset": int(time.time()) + window_seconds,
-                "retry_after": 0,
+                "remaining": 0,
+                "reset": int(time.time()) + 30,
+                "retry_after": 30,
                 "current": 0,
-                "error": str(e)
+                "error": "rate_limiter_unavailable",
             }
 
     def get_scope_config(self, scope: str) -> Tuple[int, int]:
@@ -180,9 +179,15 @@ class RateLimiter:
         configs = {
             RateLimitScope.GLOBAL_IP: (1000, 60),  # 1000 req/minute
             RateLimitScope.LOGIN: (5, 60),  # 5 req/minute (strict)
-            RateLimitScope.USER_AUTHENTICATED: (200, 60),  # 200 req/minute
+            RateLimitScope.USER_AUTHENTICATED: (200, 60),  # 200 req/minute (Marveline)
+            RateLimitScope.API_KEY_AUTHENTICATED: (1000, 60),  # 1000 req/minute (M2M)
             RateLimitScope.MUTATIONS: (100, 60),  # 100 mutations/minute
             RateLimitScope.READS: (300, 60),  # 300 reads/minute
+            # App-specific — quotas adaptés au profil d'usage
+            RateLimitScope.EPICERIE_AUTHENTICATED: (500, 60),  # POS scan haute fréquence
+            RateLimitScope.EPICERIE_MUTATIONS: (300, 60),  # Ventes POS rapides
+            RateLimitScope.RESTAURANT_AUTHENTICATED: (500, 60),  # Service salle rapide
+            RateLimitScope.RESTAURANT_MUTATIONS: (300, 60),  # Commandes cuisine temps réel
         }
 
         if scope not in configs:

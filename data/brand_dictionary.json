@@ -1,0 +1,741 @@
+{
+  "1664": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "33 EXPORT": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "7UP": {
+    "categories": [
+      "BOIS_SODA"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "86": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "ABSOLUT": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "AFFLIGEM": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "AMORA": {
+    "categories": [
+      "COND_SAUCE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "AMSTEL": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "ARO": {
+    "categories": [
+      "_PRIVATE_LABEL"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "BACARDI": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "BADOIT": {
+    "categories": [
+      "BOIS_EAU"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "BAILEYS": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "BALLANTINE'S": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "BECK": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "BEEFEATER": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "BELVEDERE": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "BOMBAY": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "BUDWEISER": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "CAPRI SUN": {
+    "categories": [
+      "BOIS_SODA"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "CAPRISUN": {
+    "categories": [
+      "BOIS_SODA"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "CAPTAIN MORGAN": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "CARLSBERG": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "CHIVAS": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "CIROC": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "COCA COLA": {
+    "categories": [
+      "BOIS_SODA"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "COINTREAU": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "CORONA": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "COURVOISIER": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "CRISTALINE": {
+    "categories": [
+      "BOIS_EAU"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "DESPERADOS": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "DOLCE GUSTO": {
+    "categories": [
+      "BOIS_CAFE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "DOM PERIGNON": {
+    "categories": [
+      "ALC_CHAMPAGNE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "ERISTOFF": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "EVIAN": {
+    "categories": [
+      "BOIS_EAU"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "FANTA": {
+    "categories": [
+      "BOIS_SODA"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "FISCHER": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "GET": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "GET 27": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "GILBERT": {
+    "categories": [
+      "BOIS_JUS",
+      "BOIS_SIROP",
+      "COND_SAUCE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "GLENFIDDICH": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "GRAND MARNIER": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "GREY GOOSE": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "GRIMBERGEN": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "GUINNESS": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "HAVANA CLUB": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "HEINEKEN": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "HEINZ": {
+    "categories": [
+      "COND_SAUCE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "HENDRICK'S": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "HENNESSY": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "HINANO": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "HOEGAARDEN": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "JACK DANIEL'S": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "JAGERMEISTER": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "JOHNNIE WALKER": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "JOKER": {
+    "categories": [
+      "BOIS_JUS"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "JUPILER": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "KRONENBOURG": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "LEFFE": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "MAAZA": {
+    "categories": [
+      "BOIS_JUS"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "MAILLE": {
+    "categories": [
+      "COND_SAUCE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "MALIBU": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "MANTA": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "MARQUE COMMUNE": {
+    "categories": [
+      "_PRIVATE_LABEL"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "MARTELL": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "METRO CHEF": {
+    "categories": [
+      "_PRIVATE_LABEL"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "METRO PROFESSIONAL": {
+    "categories": [
+      "_PRIVATE_LABEL"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "MOET": {
+    "categories": [
+      "ALC_CHAMPAGNE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "MONSTER": {
+    "categories": [
+      "BOIS_ENERG"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "MPRO": {
+    "categories": [
+      "_PRIVATE_LABEL"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "MUMM": {
+    "categories": [
+      "ALC_CHAMPAGNE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "NESPRESSO": {
+    "categories": [
+      "BOIS_CAFE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "NESTLE": {
+    "categories": [
+      "BOIS_CHOCO",
+      "SUCR_CHOCO",
+      "SURG_GLACE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "NICOLAS FEUILLATTE": {
+    "categories": [
+      "ALC_CHAMPAGNE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "NUMBER ONE": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "NUTELLA": {
+    "categories": [
+      "SUCR_CONF"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "OASIS": {
+    "categories": [
+      "BOIS_SODA"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "ORANGINA": {
+    "categories": [
+      "BOIS_SODA"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "PASTIS 51": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "PELFORTH": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "PEPSI": {
+    "categories": [
+      "BOIS_SODA"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "PERONI": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "PERRIER": {
+    "categories": [
+      "BOIS_EAU"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "POLIAKOV": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "POWERADE": {
+    "categories": [
+      "BOIS_ENERG"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "PRESIDENT": {
+    "categories": [
+      "LAIT_FROMAGE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "PRIMUS": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "RED BULL": {
+    "categories": [
+      "BOIS_ENERG"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "REMY MARTIN": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "RICARD": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "RUINART": {
+    "categories": [
+      "ALC_CHAMPAGNE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "SAN PELLEGRINO": {
+    "categories": [
+      "BOIS_EAU"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "SCHWEPPES": {
+    "categories": [
+      "BOIS_SODA"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "SENSEO": {
+    "categories": [
+      "BOIS_CAFE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "SKOL": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "SMIRNOFF": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "SPRITE": {
+    "categories": [
+      "BOIS_SODA"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "STELLA ARTOIS": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "SUPER BOCK": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "TAITTINGER": {
+    "categories": [
+      "ALC_CHAMPAGNE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "TANQUERAY": {
+    "categories": [
+      "ALC_SPIRITUEUX"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "TROPICANA": {
+    "categories": [
+      "BOIS_JUS"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "TUBORG": {
+    "categories": [
+      "ALC_BIERE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "VEUVE CLICQUOT": {
+    "categories": [
+      "ALC_CHAMPAGNE"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "VITTEL": {
+    "categories": [
+      "BOIS_EAU"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  },
+  "VOLVIC": {
+    "categories": [
+      "BOIS_EAU"
+    ],
+    "source": "seed",
+    "usage_count": 0
+  }
+}

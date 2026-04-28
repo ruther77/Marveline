@@ -1,0 +1,164 @@
+{
+  "id": "page:products",
+  "type": "page",
+  "name": "Produits",
+  "description": "Page principale \"Produits\". Contient : Champ : Rechercher par nom ou SKU.... Paramètres : rechercher-par-nom-ou-sku.",
+  "route": "/products",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "staff",
+      "manager",
+      "admin"
+    ],
+    "group": "Catalogue",
+    "dom_h1": "Produits"
+  },
+  "params": {
+    "rechercher-par-nom-ou-sku": "text"
+  },
+  "features": [
+    "Champ : Rechercher par nom ou SKU..."
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Vue tableau",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Vue grille",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Importer CSV",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nouveau produit",
+      "trigger": "click",
+      "target_id": "modal:nouveau-produit",
+      "node": {
+        "id": "modal:nouveau-produit",
+        "type": "form",
+        "name": "Nouveau produit",
+        "description": "Formulaire \"Nouveau produit\". Contient : Champ : Chaise Napoleon III, Champ : CHR-NAP-001, Champ : category, Champ : 0.00, Champ : 0, Champ : tva_rate. Paramètres : name, sku, category, price-per-day-euros, stock-quantity, tva-rate, condition, is-active.",
+        "attributes": {
+          "depth": 1,
+          "opened_from_depth": 0
+        },
+        "params": {
+          "name": "text",
+          "sku": "text",
+          "category": "select",
+          "price-per-day-euros": "number",
+          "stock-quantity": "number",
+          "tva-rate": "select",
+          "condition": "select",
+          "is-active": "checkbox"
+        },
+        "features": [
+          "Champ : Chaise Napoleon III",
+          "Champ : CHR-NAP-001",
+          "Champ : category",
+          "Champ : 0.00",
+          "Champ : 0",
+          "Champ : tva_rate",
+          "Champ : condition",
+          "Champ : is_active",
+          "Fermer",
+          "Annuler",
+          "Créer"
+        ],
+        "children": [
+          {
+            "link_type": "action",
+            "label": "Fermer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "action",
+            "label": "Annuler",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "form_submit",
+            "label": "Créer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          }
+        ]
+      }
+    },
+    {
+      "link_type": "action",
+      "label": "Categorie",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

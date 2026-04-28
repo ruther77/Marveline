@@ -1,20 +1,27 @@
 """Endpoints d'authentification pour login et refresh tokens."""
 import logging
 import secrets
-from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+import redis.exceptions as redis_exc
+from datetime import datetime, timezone
+from typing import Annotated, Optional
+
+from fastapi import APIRouter, Depends, Form, Header, HTTPException, status, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.config import settings
+from app.core.database import get_async_db
+from app.core.deps import UserCompat, get_current_user_async
 from app.core.exceptions import AppException
-from app.core.permissions import get_effective_permissions_cached
+from app.services.rbac import get_role_scopes
 from app.core.redis import redis_client
-from app.services.auth import AuthService, MFARequiredResult
+from app.core.security import decode_token
+from app.services.auth_v2 import AuthV2Service, MFARequiredResult
+from app.services.account import AccountService
 from app.services.audit import AuditService
-from app.services.session import session_service
+from app.repositories.account_session import AsyncAccountSessionRepository
 from app.schemas.auth import (
     TokenResponse, RefreshTokenRequest, LogoutRequest, LogoutResponse,
     CSRFTokenResponse, UserInfo, ChangePasswordRequest,
@@ -22,8 +29,9 @@ from app.schemas.auth import (
     ResetPasswordRequest, ResetPasswordResponse,
 )
 from app.schemas.mfa import MFALoginResponse
-from app.models.user import User
+from app.models.account_session import AccountSession
 from app.constants import ErrorMessages
+from app.constants.security import SessionConfig
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +39,43 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
+_REFRESH_COOKIE_MAX_AGE = 7 * 24 * 3600  # 7 jours en secondes
+
+
+async def _resolve_tenant_id_for_email(
+    db: AsyncSession,
+    email: str,
+) -> Optional[int]:
+    """Fallback : résout le premier tenant actif d'un account par email.
+
+    Utilisé quand le champ tenant_id est absent du login form.
+    Retourne None si l'email n'existe pas ou n'a aucun membership actif.
+    """
+    from app.repositories.account import AsyncAccountRepository
+    from app.repositories.tenant_membership import AsyncTenantMembershipRepository
+
+    repo_account = AsyncAccountRepository(db)
+    account = await repo_account.get_active_by_email(email.lower().strip())
+    if not account:
+        return None
+
+    repo_membership = AsyncTenantMembershipRepository(db)
+    memberships = await repo_membership.list_by_account(account.id)
+    if not memberships:
+        return None
+
+    return memberships[0].tenant_id
+
+
 @router.post("/login", status_code=status.HTTP_200_OK)
-def login(
+async def login(
     request: Request,
+    response: Response,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db),
+    captcha_token_header: Optional[str] = Header(default=None, alias="X-Captcha-Token"),
+    captcha_token_form: Optional[str] = Form(default=None, alias="captcha_token"),
+    tenant_id: Optional[int] = Form(default=None, alias="tenant_id"),
 ):
     """Authentifie un utilisateur et retourne les JWT tokens (ou MFA session token).
 
@@ -43,6 +83,7 @@ def login(
         request: FastAPI Request (pour extraction IP, User-Agent, request_id)
         form_data: Formulaire OAuth2 avec username (email) et password
         db: Session de base de données
+        tenant_id: ID du tenant cible (optionnel — fallback: premier membership actif)
 
     Returns:
         - TokenResponse si pas de MFA
@@ -51,31 +92,32 @@ def login(
     Raises:
         HTTPException 401: Si credentials invalides
         HTTPException 403: Si compte inactif ou verrouillé (brute force)
-
-    Security:
-        - Email normalisé en lowercase
-        - Password vérifié avec Argon2id/bcrypt
-        - Si MFA activé : retourne mfa_session_token (pas de JWT)
-        - Compte doit être actif (is_active=True)
-        - Audit log LOGIN_SUCCESS (seulement si pas de MFA) ou LOGIN_FAILED
     """
-    auth_service = AuthService(db)
-
-    # Extraire infos pour audit log
     ip_address = request.client.host if request.client else None
     user_agent = request.headers.get("User-Agent")
     request_id = getattr(request.state, "request_id", None)
 
+    # Résoudre tenant_id si absent (fallback single-tenant / migration)
+    effective_tenant_id = tenant_id
+    if effective_tenant_id is None:
+        effective_tenant_id = await _resolve_tenant_id_for_email(db, form_data.username)
+    if effective_tenant_id is None:
+        # Anti-énumération : passer un sentinel qui sera rejeté par AuthV2Service
+        effective_tenant_id = 0
+
+    auth_service = AuthV2Service(db)
+
     try:
-        result = auth_service.login(
-            email=form_data.username,  # OAuth2 spec uses 'username' field
+        result = await auth_service.login(
+            email=form_data.username,
             password=form_data.password,
+            tenant_id=effective_tenant_id,
             ip_address=ip_address,
             user_agent=user_agent,
-            request_id=request_id
+            request_id=request_id,
+            captcha_token=captcha_token_header or captcha_token_form,
         )
 
-        # MFA requis — retourner mfa_session_token
         if isinstance(result, MFARequiredResult):
             return MFALoginResponse(
                 mfa_required=True,
@@ -83,57 +125,67 @@ def login(
                 token_type="mfa_session",
             )
 
-        # Pas de MFA — retourner tokens JWT
-        access_token, refresh_token, expires_in = result
+        access_token, refresh_token, expires_in, password_change_required = result
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=settings.COOKIE_SECURE,
+            samesite="lax",
+            max_age=_REFRESH_COOKIE_MAX_AGE,
+        )
         return TokenResponse(
             access_token=access_token,
-            refresh_token=refresh_token,
             token_type="bearer",
-            expires_in=expires_in
+            expires_in=expires_in,
+            password_change_required=password_change_required,
         )
 
     except HTTPException:
         raise
     except AppException:
-        raise  # AccountLocked etc. — handled by exception handler middleware
+        raise
     except Exception:
         logger.exception("Unexpected error during login")
         raise
 
 
 @router.post("/refresh", response_model=TokenResponse, status_code=status.HTTP_200_OK)
-def refresh_token(
-    request: RefreshTokenRequest,
-    db: Session = Depends(get_db)
+async def refresh_token(
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_async_db),
 ) -> TokenResponse:
     """Rotation de refresh token : invalide l'ancien, émet un nouveau.
 
-    Args:
-        request: RefreshTokenRequest contenant le refresh_token
-        db: Session de base de données
-
-    Returns:
-        TokenResponse avec nouveau access_token ET nouveau refresh_token
-
     Raises:
-        HTTPException 401: Si refresh token invalide, expiré, révoqué, ou replay détecté
+        HTTPException 401: Si cookie absent, token invalide, expiré, révoqué, ou replay détecté
         HTTPException 403: Si compte inactif
-
-    Security:
-        - Vérifie JTI dans whitelist Redis
-        - Rotation: ancien refresh invalidé, nouveau émis (même famille)
-        - Replay detection: si ancien JTI réutilisé → toute la famille révoquée
     """
-    auth_service = AuthService(db)
-
-    try:
-        new_access_token, new_refresh_token, expires_in = auth_service.refresh_access_token(
-            refresh_token=request.refresh_token
+    refresh_token_value = request.cookies.get("refresh_token")
+    if not refresh_token_value:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token manquant"
         )
 
+    auth_service = AuthV2Service(db)
+
+    try:
+        new_access_token, new_refresh_token, expires_in = await auth_service.refresh(
+            refresh_token=refresh_token_value
+        )
+
+        response.set_cookie(
+            key="refresh_token",
+            value=new_refresh_token,
+            httponly=True,
+            secure=settings.COOKIE_SECURE,
+            samesite="lax",
+            max_age=_REFRESH_COOKIE_MAX_AGE,
+        )
         return TokenResponse(
             access_token=new_access_token,
-            refresh_token=new_refresh_token,
             token_type="bearer",
             expires_in=expires_in
         )
@@ -146,65 +198,65 @@ def refresh_token(
 
 
 @router.post("/logout", response_model=LogoutResponse, status_code=status.HTTP_200_OK)
-def logout(
+async def logout(
     request: Request,
+    response: Response,
     body: LogoutRequest = None,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: UserCompat = Depends(get_current_user_async),
+    db: AsyncSession = Depends(get_async_db),
 ) -> LogoutResponse:
-    """Déconnecte l'utilisateur et révoque ses tokens.
-
-    Args:
-        request: FastAPI Request (pour extraction IP, User-Agent, token)
-        body: LogoutRequest optionnel contenant le refresh_token
-        current_user: Utilisateur authentifié (JWT validé)
-        db: Session de base de données
-
-    Returns:
-        LogoutResponse avec confirmation
-
-    Security:
-        - Access token blacklisté (ne sera plus accepté par get_current_user)
-        - Refresh token supprimé de whitelist Redis (si fourni)
-        - Token family désactivée (si refresh_token fourni)
-        - Tous les tokens CSRF de l'utilisateur révoqués
-        - Audit log LOGOUT créé
-    """
-    auth_service = AuthService(db)
-
-    # Extraire access token du header Authorization
+    """Déconnecte l'utilisateur et révoque ses tokens."""
     auth_header = request.headers.get("Authorization", "")
-    access_token = auth_header.replace("Bearer ", "") if auth_header.startswith("Bearer ") else ""
+    access_token = auth_header.removeprefix("Bearer ") if auth_header.startswith("Bearer ") else ""
 
-    # Extraire refresh token du body (optionnel)
-    refresh_token = body.refresh_token if body and body.refresh_token else None
+    # Extraire membership_id du claim mid — UserCompat ne l'expose pas directement
+    membership_id = 0
+    if access_token:
+        try:
+            payload = decode_token(access_token)
+            mid_raw = payload.get("mid")
+            if mid_raw:
+                membership_id = int(mid_raw)
+        except Exception as e:
+            # P2-14 : logger au lieu de silencer
+            logger.debug("Token decode au logout (attendu si expire): %s", type(e).__name__)
 
-    # Extraire infos pour audit
     ip_address = request.client.host if request.client else None
     user_agent = request.headers.get("User-Agent")
     request_id = getattr(request.state, "request_id", None)
 
+    auth_service = AuthV2Service(db)
     try:
-        auth_service.logout(
+        await auth_service.logout(
             access_token=access_token,
-            user=current_user,
-            refresh_token=refresh_token,
+            account_id=current_user.id,
+            membership_id=membership_id,
+            tenant_id=current_user.tenant_id,
             ip_address=ip_address,
             user_agent=user_agent,
             request_id=request_id,
         )
+        response.delete_cookie(key="refresh_token")
         return LogoutResponse(message="Logged out successfully", tokens_revoked=True)
+    except redis_exc.RedisError as exc:
+        logger.critical("Redis-SEC down during logout — tokens may be zombie: %s", exc)
+        response.delete_cookie(key="refresh_token")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=ErrorMessages.REDIS_UNAVAILABLE,
+        ) from exc
     except Exception:
         logger.exception("Unexpected error during logout")
-        return LogoutResponse(message="Logged out with errors", tokens_revoked=False)
+        raise
 
 
 @router.get("/me", response_model=UserInfo, status_code=status.HTTP_200_OK)
-def get_current_user_info(
-    current_user: User = Depends(get_current_user),
+async def get_current_user_info(
+    current_user: UserCompat = Depends(get_current_user_async),
+    db: AsyncSession = Depends(get_async_db),
 ) -> UserInfo:
     """Retourne les informations de l'utilisateur authentifié avec ses permissions effectives."""
-    perms = get_effective_permissions_cached(current_user.role)
+    scopes = await get_role_scopes(current_user.role, db)
     return UserInfo(
         id=current_user.id,
         email=current_user.email,
@@ -212,58 +264,39 @@ def get_current_user_info(
         role=current_user.role,
         tenant_id=current_user.tenant_id,
         is_active=current_user.is_active,
-        permissions=sorted(p.value for p in perms),
+        permissions=sorted(scopes),
         created_at=str(current_user.created_at) if current_user.created_at else None,
+        password_change_required=current_user.password_change_required,
     )
 
 
 @router.get("/csrf", response_model=CSRFTokenResponse, status_code=status.HTTP_200_OK)
-def get_csrf_token(
-    current_user: User = Depends(get_current_user)
+async def get_csrf_token(
+    request: Request,
+    current_user: UserCompat = Depends(get_current_user_async),
 ) -> CSRFTokenResponse:
-    """Génère un nouveau token CSRF pour l'utilisateur authentifié.
+    """Génère un nouveau token CSRF pour la session courante (§04 §4.3)."""
+    auth_header = request.headers.get("Authorization", "")
+    session_id = None
+    if auth_header.startswith("Bearer "):
+        try:
+            payload = decode_token(auth_header.replace("Bearer ", "", 1))
+            session_id = payload.get("sid")
+        except Exception:
+            pass
 
-    Args:
-        current_user: Utilisateur authentifié (JWT)
+    if not session_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Session ID manquant dans le token"
+        )
 
-    Returns:
-        CSRFTokenResponse avec csrf_token et expires_in
-
-    Raises:
-        HTTPException 401: Si JWT invalide ou manquant
-        HTTPException 500: Si erreur Redis
-
-    Example:
-        GET /api/v1/auth/csrf
-        Authorization: Bearer eyJhbGc...
-
-        Response:
-        {
-            "csrf_token": "abc123xyz789...",
-            "expires_in": 900
-        }
-
-    Usage:
-        1. Le client appelle cet endpoint après login pour obtenir un token CSRF
-        2. Le token est stocké dans Redis : csrf:{user_id}:{token}
-        3. Le client inclut le token dans le header X-CSRF-Token pour toutes requêtes modifiantes
-        4. Le CSRFProtectionMiddleware valide le token avant chaque POST/PUT/PATCH/DELETE
-
-    Security:
-        - Token unique (secrets.token_urlsafe(32))
-        - TTL 15 minutes (rotation fréquente)
-        - Multi-tab support (plusieurs tokens actifs par utilisateur)
-        - Automatiquement révoqué lors du logout
-    """
-    # Générer token CSRF unique
     csrf_token = secrets.token_urlsafe(32)
-
-    # Stocker dans Redis avec TTL 15 minutes
-    ttl_seconds = 900  # 15 minutes
-    success = redis_client.store_csrf_token(
-        user_id=current_user.id,
+    ttl_seconds = SessionConfig.SESSION_TTL_SECONDS  # aligné sur la session (7j) — P2-01
+    success = await redis_client.store_csrf_token(
+        session_id=session_id,
         token=csrf_token,
-        ttl_seconds=ttl_seconds
+        ttl_seconds=ttl_seconds,
     )
 
     if not success:
@@ -279,59 +312,59 @@ def get_csrf_token(
 
 
 @router.post("/change-password", status_code=status.HTTP_200_OK)
-def change_password(
+async def change_password(
     request: Request,
     body: ChangePasswordRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: UserCompat = Depends(get_current_user_async),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Change le mot de passe de l'utilisateur authentifié.
 
     Exige le mot de passe actuel pour preuve d'identité.
     Invalide toutes les sessions sauf la courante après changement.
-
-    Returns:
-        Message de confirmation
-
-    Raises:
-        HTTPException 401: Si current_password incorrect
-        HTTPException 400: Si new_password trop faible
     """
-    auth_service = AuthService(db)
+    account_service = AccountService(db)
 
-    auth_service.change_password(
-        user_id=current_user.id,
+    await account_service.change_password(
+        account_id=current_user.id,
         current_password=body.current_password,
         new_password=body.new_password,
     )
 
-    # Invalider toutes les sessions sauf la courante
+    current_did = ""
+    current_sid = ""
     auth_header = request.headers.get("Authorization", "")
-    current_access_token = auth_header.replace("Bearer ", "") if auth_header.startswith("Bearer ") else None
-    current_family_id = None
-    if current_access_token:
+    raw_token = auth_header.removeprefix("Bearer ") if auth_header.startswith("Bearer ") else None
+    if raw_token:
         try:
-            from app.core.security import decode_token
-            payload = decode_token(current_access_token)
-            current_family_id = payload.get("family_id")
+            payload = decode_token(raw_token)
+            current_did = payload.get("did", "")
+            current_sid = payload.get("sid", "")
         except Exception:
-            logger.debug("Failed to decode current access token for family_id extraction")
+            logger.error(
+                "Impossible d'extraire did/sid depuis le JWT pour account=%s — révocation annulée",
+                current_user.id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Session ID missing — cannot target revocation",
+            )
 
-    # Révoquer toutes les sessions puis recréer la courante si possible
-    session_service.revoke_all_sessions(current_user.id)
-    redis_client.revoke_all_csrf_tokens(current_user.id)
+    await redis_client.logout_other_sessions(current_user.id, current_did, current_sid)
+    await AsyncAccountSessionRepository(db).revoke_all_by_account(
+        current_user.id, reason="password_change", except_device_id=current_did or None
+    )
 
-    # Audit log
     ip_address = request.client.host if request.client else None
     user_agent = request.headers.get("User-Agent")
     request_id = getattr(request.state, "request_id", None)
 
     audit_service = AuditService(db)
-    audit_service.log_action(
+    await audit_service.log_action(
         action="PASSWORD_CHANGE",
         tenant_id=current_user.tenant_id,
         user_id=current_user.id,
-        entity_type="User",
+        entity_type="Account",
         entity_id=current_user.id,
         description="Password changed by user",
         ip_address=ip_address,
@@ -339,9 +372,76 @@ def change_password(
         request_id=request_id,
     )
 
-    db.commit()
+    await db.commit()
 
     return {"message": "Password changed successfully"}
+
+
+@router.post("/logout/device/{device_id}", status_code=status.HTTP_200_OK)
+async def logout_device(
+    device_id: str,
+    request: Request,
+    current_user: UserCompat = Depends(get_current_user_async),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Révoque toutes les sessions d'un device spécifique (§4.3 S-09.1)."""
+    # Vérifier que le device appartient bien à l'utilisateur courant
+    device_exists = (
+        await db.execute(
+            select(AccountSession.id)
+            .where(
+                AccountSession.account_id == current_user.id,
+                AccountSession.device_id == device_id,
+            )
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if device_exists is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ErrorMessages.DEVICE_REVOKED,
+        )
+
+    # Révocation Redis via Lua (atomique — §4.3)
+    sessions_revoked_redis = await redis_client.logout_device(current_user.id, device_id)
+
+    # Révocation DB — toutes les sessions actives du device
+    revoke_time = datetime.now(timezone.utc)
+    result = await db.execute(
+        update(AccountSession)
+        .where(
+            AccountSession.account_id == current_user.id,
+            AccountSession.device_id == device_id,
+            AccountSession.revoked_at.is_(None),
+        )
+        .values(revoked_at=revoke_time, revoke_reason="device_logout")
+    )
+    sessions_revoked_db = result.rowcount
+
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("User-Agent")
+    request_id = getattr(request.state, "request_id", None)
+
+    audit_service = AuditService(db)
+    await audit_service.log_action(
+        action="USER_LOGOUT_DEVICE",
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        entity_type="Device",
+        entity_id=current_user.id,
+        description=f"Device logout: device_id={device_id}",
+        ip_address=ip_address,
+        user_agent=user_agent,
+        request_id=request_id,
+    )
+
+    await db.commit()
+
+    return {
+        "status": "logged_out",
+        "device_id": device_id,
+        "sessions_revoked": max(sessions_revoked_redis, sessions_revoked_db),
+    }
 
 
 @router.post(
@@ -349,26 +449,22 @@ def change_password(
     response_model=ForgotPasswordResponse,
     status_code=status.HTTP_200_OK,
 )
-def forgot_password(
+async def forgot_password(
     request: Request,
     body: ForgotPasswordRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ) -> ForgotPasswordResponse:
     """Demande de réinitialisation de mot de passe.
 
-    Envoie un email avec un lien de reset si l'email est enregistré.
     Retourne toujours 200 (anti-énumération d'emails).
-
-    Returns:
-        ForgotPasswordResponse (message identique dans tous les cas)
     """
-    auth_service = AuthService(db)
+    auth_service = AuthV2Service(db)
 
     ip_address = request.client.host if request.client else None
     user_agent = request.headers.get("User-Agent")
     request_id = getattr(request.state, "request_id", None)
 
-    auth_service.forgot_password(
+    await auth_service.forgot_password(
         email=body.email,
         ip_address=ip_address,
         user_agent=user_agent,
@@ -383,29 +479,23 @@ def forgot_password(
     response_model=ResetPasswordResponse,
     status_code=status.HTTP_200_OK,
 )
-def reset_password(
+async def reset_password(
     request: Request,
     body: ResetPasswordRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ) -> ResetPasswordResponse:
     """Réinitialise le mot de passe avec un token reçu par email.
 
     Le token est single-use et expire après 30 minutes.
     Toutes les sessions sont révoquées après le reset.
-
-    Returns:
-        ResetPasswordResponse avec confirmation
-
-    Raises:
-        HTTPException 400: Si token invalide/expiré ou password faible
     """
-    auth_service = AuthService(db)
+    auth_service = AuthV2Service(db)
 
     ip_address = request.client.host if request.client else None
     user_agent = request.headers.get("User-Agent")
     request_id = getattr(request.state, "request_id", None)
 
-    auth_service.reset_password(
+    await auth_service.reset_password(
         token=body.token,
         new_password=body.new_password,
         ip_address=ip_address,

@@ -1,0 +1,201 @@
+════════════════════════════════════════════════════════════════════════════════
+  E2E MONITORING REPORT — 2026-04-11T20-52-25_scenario-a-best-case
+  Generated: 2026-04-11T20:52:52.639Z
+  Total duration: 26.7s
+  Total API calls: 73
+  Total errors: 0
+  Duplicate call patterns: 10
+  Coherence issues: 0
+════════════════════════════════════════════════════════════════════════════════
+
+  AXE 1 — TRACE D'EXÉCUTION (77 actions)
+────────────────────────────────────────────────────────────────────────────────
+  20:52:25.900  +      10ms  LOGIN                email=demo@marveline.fr
+  20:52:30.049  +    4159ms  LOGIN_OK             Authentifie — URL: http://localhost:3000/dashboard
+  20:52:30.049  +    4159ms  FIXTURE              Creation client + recuperation produit
+  20:52:30.050  +    4160ms  API_CALL             GET produit
+  20:52:30.107  +    4217ms  API_OK               GET produit → 200
+  20:52:30.111  +    4221ms  API_CALL             Creer client
+  20:52:30.154  +    4264ms  API_OK               Creer client → 201
+  20:52:30.154  +    4265ms  STEP_1               Creation devis draft
+  20:52:30.155  +    4265ms  API_CALL             Creer devis
+  20:52:30.198  +    4308ms  API_OK               Creer devis → 201
+  20:52:30.201  +    4311ms  ASSERT               Devis DEV-2026-0007 cree en draft
+  20:52:32.545  +    6655ms  UI_CHECK             Page devis DEV-2026-0007 chargee
+  20:52:32.545  +    6655ms  STEP_2               Envoi puis acceptation
+  20:52:32.545  +    6655ms  API_CALL             Envoyer devis
+  20:52:32.594  +    6704ms  API_OK               Envoyer devis → 200
+  20:52:32.595  +    6705ms  API_CALL             Accepter devis
+  20:52:32.632  +    6743ms  API_OK               Accepter devis → 200
+  20:52:32.634  +    6744ms  ASSERT               Devis accepte
+  20:52:32.634  +    6744ms  STEP_3               Conversion devis → reservation
+  20:52:32.634  +    6744ms  API_CALL             Convertir devis
+  20:52:32.671  +    6782ms  API_OK               Convertir devis → 200
+  20:52:32.673  +    6783ms  API_CALL             Verif devis converted
+  20:52:32.698  +    6808ms  API_OK               Verif devis converted → 200
+  20:52:32.699  +    6809ms  API_CALL             GET reservation
+  20:52:32.723  +    6833ms  API_OK               GET reservation → 200
+  20:52:32.726  +    6836ms  ASSERT               Reservation RES-2026-0007 creee, liee au devis
+  20:52:35.114  +    9224ms  UI_CHECK             Page reservation RES-2026-0007
+  20:52:35.114  +    9224ms  STEP_4               Confirmation reservation
+  20:52:35.114  +    9224ms  API_CALL             Confirmer
+  20:52:35.243  +    9353ms  API_OK               Confirmer → 200
+  20:52:35.244  +    9354ms  ASSERT               Reservation confirmed
+  20:52:35.244  +    9354ms  API_CALL             GET pre-check items
+  20:52:35.263  +    9373ms  API_OK               GET pre-check items → 200
+  20:52:35.264  +    9374ms  API_CALL             Cocher item #7
+  20:52:35.294  +    9404ms  API_OK               Cocher item #7 → 200
+  20:52:35.295  +    9405ms  API_CALL             Valider pre-check
+  20:52:35.348  +    9458ms  API_OK               Valider pre-check → 200
+  20:52:35.349  +    9459ms  ASSERT               Reservation en pre_check
+  20:52:35.349  +    9459ms  API_CALL             GET reservation full
+  20:52:35.397  +    9507ms  API_OK               GET reservation full → 200
+  20:52:35.397  +    9507ms  API_CALL             Créer caution
+  20:52:35.421  +    9531ms  API_OK               Créer caution → 201
+  20:52:35.421  +    9531ms  ASSERT               Caution 1404c encaissée
+  20:52:35.421  +    9531ms  API_CALL             GET factures
+  20:52:35.442  +    9552ms  API_OK               GET factures → 200
+  20:52:35.443  +    9553ms  ASSERT               1 facture(s) creee(s)
+  20:52:38.198  +   12308ms  CROSS_NAV            Lien devis visible: true
+  20:52:38.198  +   12308ms  STEP_5               Facturation — INV #12
+  20:52:38.198  +   12308ms  API_CALL             Envoyer facture
+  20:52:38.238  +   12348ms  API_OK               Envoyer facture → 200
+  20:52:38.238  +   12348ms  API_CALL             GET facture
+  20:52:38.268  +   12378ms  API_OK               GET facture → 200
+  20:52:38.269  +   12379ms  API_CALL             Paiement facture (solde)
+  20:52:38.307  +   12417ms  API_OK               Paiement facture (solde) → 201
+  20:52:38.307  +   12417ms  API_CALL             Verif statut facture
+  20:52:38.334  +   12444ms  API_OK               Verif statut facture → 200
+  20:52:38.335  +   12445ms  ASSERT               Facture statut: paid
+  20:52:40.652  +   14762ms  STEP_6               Depart materiel
+  20:52:40.721  +   14832ms  API_CALL             Verif delivered
+  20:52:40.754  +   14864ms  API_OK               Verif delivered → 200
+  20:52:40.755  +   14865ms  ASSERT               Reservation statut: delivered
+  20:52:43.348  +   17458ms  API_CALL             Verif avant retour
+  20:52:43.385  +   17495ms  API_OK               Verif avant retour → 200
+  20:52:43.386  +   17496ms  STEP_7               Retour materiel
+  20:52:43.411  +   17521ms  API_CALL             Verif returned
+  20:52:43.445  +   17555ms  API_OK               Verif returned → 200
+  20:52:43.445  +   17555ms  ASSERT               Reservation statut: returned
+  20:52:45.887  +   19997ms  API_CALL             Verif avant completion
+  20:52:45.957  +   20067ms  API_OK               Verif avant completion → 200
+  20:52:45.958  +   20068ms  STEP_8               Completion reservation
+  20:52:45.958  +   20068ms  API_CALL             Completer
+  20:52:46.014  +   20124ms  API_OK               Completer → 200
+  20:52:46.015  +   20125ms  ASSERT               Reservation terminee
+  20:52:48.744  +   22854ms  CROSS_NAV_TEST       Verification liens croises
+  20:52:50.961  +   25071ms  CROSS_NAV            Reservation → Devis : OK
+  20:52:52.637  +   26747ms  CROSS_NAV            Devis → Reservation : OK
+  20:52:52.637  +   26747ms  DONE                 Scenario A termine
+
+  AXE 2 — TEMPS D'EXÉCUTION
+────────────────────────────────────────────────────────────────────────────────
+
+  API Latency: avg=67ms  p95=117ms  max=134ms
+
+  All API Calls:
+  Method  Path                                                                   Status       Size     Time
+  POST    /api/v1/auth/v2/refresh                                                200         2.4KB     43ms
+  GET     /api/v1/auth/v2/me                                                     200         1.3KB     93ms
+  GET     /api/v1/users/me                                                       200          293B     95ms
+  GET     /api/v1/auth/csrf                                                      200           80B     15ms
+  GET     /api/v1/notifications                                                  200           60B      3ms
+  GET     /api/v1/dashboard/stats                                                200          257B      6ms
+  GET     /api/v1/dashboard/urgent-alert                                         200          115B     89ms
+  GET     /api/v1/dashboard/today                                                200           30B     92ms
+  GET     /api/v1/dashboard/activity                                             200          855B     95ms
+  POST    /api/v1/auth/v2/refresh                                                200         2.4KB     30ms
+  GET     /api/v1/users/me                                                       200          293B     88ms
+  GET     /api/v1/auth/v2/me                                                     200         1.3KB     90ms
+  GET     /api/v1/devis/7                                                        200         1.6KB     62ms
+  GET     /api/v1/notifications                                                  200           60B     72ms
+  GET     /api/v1/devis/7/versions                                               200            2B     80ms
+  POST    /api/v1/auth/v2/refresh                                                200         2.4KB     38ms
+  GET     /api/v1/users/me                                                       200          293B     90ms
+  GET     /api/v1/auth/v2/me                                                     200         1.3KB     91ms
+  GET     /api/v1/notifications                                                  200           60B     46ms
+  GET     /api/v1/reservations/15/deposits                                       200            2B     50ms
+  GET     /api/v1/reservations/15/full                                           200         2.5KB     59ms
+  POST    /api/v1/auth/v2/refresh                                                200         2.4KB     36ms
+  GET     /api/v1/users/me                                                       200          293B     77ms
+  GET     /api/v1/auth/v2/me                                                     200         1.3KB     80ms
+  GET     /api/v1/reservations/15/deposits                                       200          260B     40ms
+  GET     /api/v1/notifications                                                  200           60B     48ms
+  GET     /api/v1/reservations/15/full                                           200         2.9KB     73ms
+  GET     /api/v1/reservations/15/pre-check                                      200          179B     51ms
+  GET     /api/v1/invoices?skip=0&limit=20&reservation_id=15                     200          539B     62ms
+  GET     /api/v1/users?skip=0&limit=500                                         200          914B     64ms
+  POST    /api/v1/auth/v2/refresh                                                200         2.4KB     36ms
+  GET     /api/v1/users/me                                                       200          293B    104ms
+  GET     /api/v1/auth/v2/me                                                     200         1.3KB    106ms
+  GET     /api/v1/notifications                                                  200           60B     53ms
+  GET     /api/v1/admin/settings                                                 200          254B     55ms
+  GET     /api/v1/invoices/sequence/gaps?year=2026                               200           33B     57ms
+  GET     /api/v1/invoices?skip=0&limit=20                                       200         4.4KB     68ms
+  POST    /api/v1/auth/v2/refresh                                                200         2.4KB     37ms
+  GET     /api/v1/users/me                                                       200          293B     88ms
+  GET     /api/v1/auth/v2/me                                                     200         1.3KB     91ms
+  GET     /api/v1/reservations/15/deposits                                       200          260B     48ms
+  GET     /api/v1/notifications                                                  200           60B     66ms
+  GET     /api/v1/reservations/15/full                                           200         2.9KB     69ms
+  GET     /api/v1/invoices?skip=0&limit=20&reservation_id=15                     200          540B     43ms
+  GET     /api/v1/users?skip=0&limit=500                                         200          914B     45ms
+  POST    /api/v1/auth/v2/refresh                                                200         2.4KB     49ms
+  GET     /api/v1/users/me                                                       200          293B     95ms
+  GET     /api/v1/auth/v2/me                                                     200         1.3KB     97ms
+  GET     /api/v1/notifications                                                  200           60B     51ms
+  GET     /api/v1/reservations/15/deposits                                       200          260B     52ms
+  GET     /api/v1/reservations/15/full                                           200         2.9KB     73ms
+  GET     /api/v1/invoices?skip=0&limit=20&reservation_id=15                     200          540B     59ms
+  GET     /api/v1/users?skip=0&limit=500                                         200          914B     62ms
+  POST    /api/v1/auth/v2/refresh                                                200         2.4KB     56ms
+  GET     /api/v1/users/me                                                       200          293B    114ms
+  GET     /api/v1/auth/v2/me                                                     200         1.3KB    117ms
+  GET     /api/v1/notifications                                                  200           60B     96ms
+  GET     /api/v1/reservations/15/deposits                                       200          260B    100ms
+  GET     /api/v1/reservations/15/full                                           200         2.9KB    134ms
+  GET     /api/v1/invoices?skip=0&limit=20&reservation_id=15                     200          540B     32ms
+  POST    /api/v1/auth/v2/refresh                                                200         2.4KB     38ms
+  GET     /api/v1/users/me                                                       200          293B    118ms
+  GET     /api/v1/auth/v2/me                                                     200         1.3KB    119ms
+  GET     /api/v1/notifications                                                  200           60B     71ms
+  GET     /api/v1/reservations/15/deposits                                       200          260B     73ms
+  GET     /api/v1/reservations/15/full                                           200         2.9KB     75ms
+  GET     /api/v1/invoices?skip=0&limit=20&reservation_id=15                     200          540B     42ms
+  POST    /api/v1/auth/v2/refresh                                                200         2.4KB     33ms
+  GET     /api/v1/users/me                                                       200          293B     76ms
+  GET     /api/v1/auth/v2/me                                                     200         1.3KB     77ms
+  GET     /api/v1/devis/7/versions                                               200          419B     47ms
+  GET     /api/v1/notifications                                                  200           60B     51ms
+  GET     /api/v1/devis/7                                                        200         1.6KB     52ms
+
+  AXE 3 — PARASITAGE D'APPELS (10 patterns dupliqués)
+────────────────────────────────────────────────────────────────────────────────
+  [CRITIQUE] POST /api/v1/auth/v2/refresh × 10 (total: 396ms)
+  [CRITIQUE] GET /api/v1/auth/v2/me × 10 (total: 961ms)
+  [CRITIQUE] GET /api/v1/users/me × 10 (total: 945ms)
+  [CRITIQUE] GET /api/v1/notifications × 10 (total: 557ms)
+  [CRITIQUE] GET /api/v1/reservations/:id/deposits × 6 (total: 363ms)
+  [CRITIQUE] GET /api/v1/reservations/:id/full × 6 (total: 483ms)
+  [CRITIQUE] GET /api/v1/invoices?skip=0&limit=20&reservation_id=15 × 5 (total: 238ms)
+  [ATTENTION] GET /api/v1/users?skip=0&limit=500 × 3 (total: 171ms)
+  [INFO] GET /api/v1/devis/:id × 2 (total: 114ms)
+  [INFO] GET /api/v1/devis/:id/versions × 2 (total: 127ms)
+
+  AXE 4 — COHÉRENCE BACKEND/FRONTEND (0 issues)
+────────────────────────────────────────────────────────────────────────────────
+  Aucune incohérence détectée.
+
+  AXE 5 — LOGS ERREURS ET ACTIVITÉS (0 erreurs)
+────────────────────────────────────────────────────────────────────────────────
+  Aucune erreur détectée.
+
+════════════════════════════════════════════════════════════════════════════════
+  RÉSUMÉ
+════════════════════════════════════════════════════════════════════════════════
+  Status codes: 200×73
+  Erreurs totales: 0
+  Appels dupliqués: 54 appels superflus
+  Cohérence issues: 0
+  Verdict: PASS
+════════════════════════════════════════════════════════════════════════════════

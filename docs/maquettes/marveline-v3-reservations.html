@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
+  <title>Marveline V3 — Reservations 360</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+  <style>
+    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+    html,body{width:100%;height:100%;overflow:hidden;font-family:'Manrope',sans-serif;background:#000;-webkit-font-smoothing:antialiased;}
+    :root{--gold:#c9a84c;--gold-light:#e4cc7a;--gold-pale:#f5e6b8;--gold-warm:#d4a843;--navy:#090e1a;}
+
+    /* Panorama viewer */
+    #pano{position:fixed;inset:0;z-index:0;}
+    /* Hide pannellum default controls */
+    .pnlm-controls-container,.pnlm-panorama-info,.pnlm-load-box,.pnlm-about-msg{display:none!important;}
+
+    /* ━━━ HOTSPOT — Table dans la salle ━━━ */
+    .hs-table{
+      width:90px;height:110px;
+      display:flex;flex-direction:column;align-items:center;
+      cursor:pointer;
+      transition:transform .3s ease,filter .3s ease;
+      transform:translate(-50%,-50%);
+      animation:hsAppear .8s ease forwards;
+    }
+    @keyframes hsAppear{from{opacity:0;transform:translate(-50%,-50%) scale(.5);}to{opacity:1;transform:translate(-50%,-50%) scale(1);}}
+    .hs-table:hover,.hs-table:active{transform:translate(-50%,-50%) scale(1.15)!important;filter:brightness(1.2);}
+
+    /* Table SVG */
+    .hs-svg{filter:drop-shadow(0 6px 18px rgba(0,0,0,.6));}
+
+    /* Glow under table */
+    .hs-glow{
+      width:70px;height:20px;border-radius:50%;
+      margin-top:-6px;filter:blur(10px);
+      opacity:.5;animation:hGl 4s ease-in-out infinite;
+    }
+    @keyframes hGl{0%,100%{opacity:.3;}50%{opacity:.6;}}
+
+    /* Label */
+    .hs-label{
+      text-align:center;margin-top:4px;
+      background:rgba(0,0,0,.6);backdrop-filter:blur(8px);
+      border-radius:8px;padding:4px 8px;
+      border:.5px solid rgba(255,255,255,.06);
+    }
+    .hs-ref{font-size:8px;font-weight:600;color:var(--gold);letter-spacing:.3px;}
+    .hs-client{font-family:'Cormorant Garamond',serif;font-size:11px;font-style:italic;color:rgba(255,255,255,.8);}
+    .hs-meta{font-size:7px;color:rgba(255,255,255,.3);}
+
+    /* Status colors */
+    .hs-table[data-status="draft"] .hs-glow{background:#4a5568;opacity:.15;}
+    .hs-table[data-status="confirmed"] .hs-glow{background:var(--gold);}
+    .hs-table[data-status="ready"] .hs-glow{background:#48bb78;}
+    .hs-table[data-status="risk"] .hs-glow{background:#e53e3e;animation:rG 1.5s ease-in-out infinite;}
+    @keyframes rG{0%,100%{opacity:.3;}50%{opacity:.75;}}
+    .hs-table[data-status="active"] .hs-glow{background:var(--gold-warm);}
+    .hs-table[data-status="returned"] .hs-glow{background:#667eea;}
+    .hs-table[data-status="done"] .hs-glow{background:#a0aec0;opacity:.12;}
+    .hs-table[data-status="cancelled"] .hs-glow{display:none;}
+    .hs-table[data-status="cancelled"] .hs-svg{opacity:.4;}
+
+    /* Dimmed (filtered out) */
+    .hs-table.dimmed{opacity:.06!important;filter:blur(2px) brightness(.2)!important;pointer-events:none;}
+
+    /* ━━━ HUD ━━━ */
+    .hud{position:fixed;inset:0;z-index:30;pointer-events:none;}
+    .hud>*{pointer-events:auto;}
+    .hud-hdr{
+      position:absolute;top:0;left:0;right:0;
+      padding:40px 20px 16px;
+      background:linear-gradient(180deg,rgba(0,0,0,.75) 0%,rgba(0,0,0,.3) 70%,transparent 100%);
+    }
+    .hud-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+    .hbtn{width:36px;height:36px;border-radius:12px;background:rgba(255,255,255,.06);border:.5px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.5);}
+    .htit{font-family:'Cormorant Garamond',serif;font-weight:300;font-size:22px;color:#fff;letter-spacing:2px;}
+    .htit em{font-style:italic;background:linear-gradient(135deg,var(--gold-pale),var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+    .hcnt{font-size:11px;color:rgba(255,255,255,.3);margin-top:2px;}
+    .flt{display:flex;gap:8px;overflow-x:auto;padding:4px 0;scrollbar-width:none;}
+    .flt::-webkit-scrollbar{display:none;}
+    .fp{flex-shrink:0;padding:6px 14px;border-radius:20px;font-size:11px;font-weight:500;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);border:.5px solid rgba(255,255,255,.08);color:rgba(255,255,255,.35);cursor:pointer;transition:all .4s ease;white-space:nowrap;}
+    .fp.active{background:rgba(201,168,76,.12);border-color:rgba(201,168,76,.25);color:var(--gold);}
+    .fp .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+    .swipe-hint{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);font-size:11px;color:rgba(255,255,255,.2);letter-spacing:1px;animation:hF 4s ease-in-out infinite;pointer-events:none;}
+    @keyframes hF{0%,100%{opacity:0;}50%{opacity:1;}}
+    .dock{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:4px;padding:8px 14px;border-radius:24px;background:rgba(0,0,0,.55);backdrop-filter:blur(20px);border:.5px solid rgba(255,255,255,.05);}
+    .dk{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.3);border:none;background:none;cursor:pointer;position:relative;}
+    .dk.active{color:var(--gold);background:rgba(201,168,76,.08);}
+    .dk.active::after{content:'';position:absolute;bottom:6px;width:3px;height:3px;border-radius:50%;background:var(--gold);}
+
+    /* ━━━ DETAIL PANEL ━━━ */
+    .detail{
+      position:fixed;inset:0;z-index:50;
+      background:var(--navy);
+      transform:translateY(100%);
+      transition:transform .7s cubic-bezier(.16,1,.3,1);
+      overflow-y:auto;overflow-x:hidden;
+      pointer-events:auto;
+    }
+    .detail.open{transform:translateY(0);}
+    .detail-hero{position:relative;min-height:220px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;padding:24px;}
+    .dhbg{position:absolute;inset:0;}
+    .dhbg-confirmed{background:linear-gradient(160deg,rgba(201,168,76,.08) 0%,var(--navy) 70%);}
+    .dhbg-active{background:linear-gradient(160deg,rgba(212,168,67,.08) 0%,var(--navy) 70%);}
+    .dhbg-risk{background:linear-gradient(160deg,rgba(229,62,62,.08) 0%,var(--navy) 70%);}
+    .dhbg-ready{background:linear-gradient(160deg,rgba(72,187,120,.08) 0%,var(--navy) 70%);}
+    .dhbg-draft,.dhbg-done,.dhbg-returned,.dhbg-cancelled{background:var(--navy);}
+    .dclose{position:absolute;top:44px;left:20px;z-index:5;width:36px;height:36px;border-radius:12px;background:rgba(255,255,255,.06);border:.5px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.5);}
+    .dref{position:relative;z-index:2;font-size:11px;font-weight:600;color:var(--gold);letter-spacing:1px;}
+    .dclient{position:relative;z-index:2;font-family:'Cormorant Garamond',serif;font-weight:300;font-size:28px;color:#fff;margin-top:4px;}
+    .drow{position:relative;z-index:2;font-size:12px;color:rgba(255,255,255,.4);margin-top:6px;display:flex;align-items:center;gap:8px;}
+    .dbadge{padding:3px 10px;border-radius:10px;font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;}
+    .damt{position:relative;z-index:2;font-family:'Cormorant Garamond',serif;font-weight:400;font-size:30px;color:var(--gold-pale);margin-top:8px;}
+    .gsep{width:30px;height:.5px;background:linear-gradient(90deg,transparent,var(--gold),transparent);margin:20px auto;opacity:.5;}
+
+    /* Lustre */
+    .lustre-sec{padding:0 24px;}
+    .sec-t{font-family:'Cormorant Garamond',serif;font-size:16px;font-style:italic;color:rgba(255,255,255,.4);margin-bottom:14px;}
+    .lustre{display:flex;justify-content:center;gap:18px;padding:12px 0 20px;}
+    .cndl{display:flex;flex-direction:column;align-items:center;gap:5px;}
+    .cf{width:8px;height:14px;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;}
+    .cf.lit{background:linear-gradient(180deg,#ffd700,#ff8c00);box-shadow:0 0 10px rgba(255,215,0,.5),0 0 20px rgba(255,140,0,.2);animation:fl 2s ease-in-out infinite;}
+    .cf.off{background:rgba(255,255,255,.06);}
+    @keyframes fl{0%,100%{opacity:.9;transform:scaleY(1);}25%{opacity:1;transform:scaleY(1.1) scaleX(.9);}50%{opacity:.85;transform:scaleY(.95);}75%{opacity:1;transform:scaleY(1.05);}}
+    .cs{width:4px;height:22px;border-radius:2px;background:linear-gradient(180deg,var(--gold-pale),var(--gold));}
+    .cl{font-size:8px;color:rgba(255,255,255,.2);text-align:center;max-width:44px;}
+
+    /* Timeline */
+    .tl-sec{padding:0 24px;}
+    .tl-r{display:flex;align-items:center;padding:16px 0 24px;}
+    .tl-ln{flex:1;height:2px;background:rgba(255,255,255,.04);}
+    .tl-ln.ok{background:linear-gradient(90deg,var(--gold),var(--gold-light));box-shadow:0 0 6px rgba(212,168,83,.15);}
+    .tl-d{width:30px;height:30px;flex-shrink:0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;position:relative;}
+    .tl-d.ok{background:linear-gradient(135deg,var(--gold),var(--gold-warm));color:#1a1200;}
+    .tl-d.now{background:rgba(212,168,83,.12);border:1.5px solid var(--gold);color:var(--gold);}
+    .tl-d.wait{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);color:rgba(255,255,255,.15);}
+
+    /* Products */
+    .prods{padding:0 24px 24px;}
+    .prods-hdr{display:flex;justify-content:space-between;align-items:baseline;}
+    .ptot{font-size:13px;font-weight:600;color:var(--gold);}
+    .prod{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:.5px solid rgba(255,255,255,.03);}
+    .pn{flex:1;font-size:13px;color:rgba(255,255,255,.6);}
+    .pq{font-size:12px;color:rgba(255,255,255,.25);}
+    .pp{font-size:13px;font-weight:600;color:rgba(255,255,255,.45);min-width:55px;text-align:right;}
+
+    /* Invoices */
+    .invs{padding:0 24px 100px;}
+    .inv{display:flex;align-items:center;gap:14px;padding:14px 16px;background:rgba(255,255,255,.02);border-radius:12px;border:.5px solid rgba(255,255,255,.04);margin-bottom:8px;}
+    .inv-i{flex:1;}
+    .inv-r{font-size:12px;font-weight:600;color:rgba(255,255,255,.5);}
+    .inv-s{font-size:10px;color:rgba(255,255,255,.2);margin-top:2px;}
+    .inv-a{font-size:14px;font-weight:600;color:var(--gold);}
+    .payb{margin-top:14px;display:flex;align-items:center;gap:12px;}
+    .payt{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.04);overflow:hidden;}
+    .payf{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--gold),var(--gold-light));}
+    .payp{font-size:12px;font-weight:600;color:var(--gold);min-width:35px;}
+  </style>
+</head>
+<body>
+
+<!-- Pannellum panorama -->
+<div id="pano"></div>
+
+<!-- HUD -->
+<div class="hud">
+  <div class="hud-hdr">
+    <div class="hud-top">
+      <div class="hbtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></div>
+      <div style="text-align:center"><div class="htit">Le <em>Livre d'Or</em></div><div class="hcnt">10 reservations</div></div>
+      <div style="width:36px"></div>
+    </div>
+    <div class="flt" id="flt">
+      <div class="fp active" data-filter="all">Toutes</div>
+      <div class="fp" data-filter="confirmed"><span class="dot" style="background:#c9a84c"></span>Confirmee</div>
+      <div class="fp" data-filter="ready"><span class="dot" style="background:#48bb78"></span>Prete</div>
+      <div class="fp" data-filter="risk"><span class="dot" style="background:#e53e3e"></span>Risque</div>
+      <div class="fp" data-filter="active"><span class="dot" style="background:#d4a843"></span>En cours</div>
+      <div class="fp" data-filter="draft"><span class="dot" style="background:#4a5568"></span>Brouillon</div>
+      <div class="fp" data-filter="done"><span class="dot" style="background:#a0aec0"></span>Terminee</div>
+    </div>
+  </div>
+  <div class="swipe-hint">Glissez pour explorer la salle</div>
+  <div class="dock">
+    <button class="dk"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></button>
+    <button class="dk"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></button>
+    <button class="dk active"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg></button>
+    <button class="dk"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4"/></svg></button>
+    <button class="dk"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></button>
+  </div>
+</div>
+
+<!-- DETAIL PANEL -->
+<div class="detail" id="detail">
+  <div class="detail-hero">
+    <div class="dhbg" id="dhBg"></div>
+    <div class="dclose" id="dClose"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+    <div class="dref" id="dRef"></div>
+    <div class="dclient" id="dClient"></div>
+    <div class="drow"><span id="dDates"></span><span class="dbadge" id="dBadge"></span></div>
+    <div class="damt" id="dAmt"></div>
+  </div>
+  <div class="gsep"></div>
+  <div class="lustre-sec">
+    <div class="sec-t">Preparation</div>
+    <div class="lustre">
+      <div class="cndl"><div class="cf lit"></div><div class="cs"></div><div class="cl">Devis</div></div>
+      <div class="cndl"><div class="cf lit"></div><div class="cs"></div><div class="cl">Caution</div></div>
+      <div class="cndl"><div class="cf lit"></div><div class="cs"></div><div class="cl">Facture</div></div>
+      <div class="cndl"><div class="cf lit" style="animation-delay:.3s"></div><div class="cs"></div><div class="cl">Pre-check</div></div>
+      <div class="cndl"><div class="cf off"></div><div class="cs"></div><div class="cl">Depart</div></div>
+    </div>
+  </div>
+  <div class="gsep"></div>
+  <div class="tl-sec">
+    <div class="sec-t">Etapes terrain</div>
+    <div class="tl-r">
+      <div class="tl-d ok"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="tl-ln ok"></div>
+      <div class="tl-d ok"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div class="tl-ln ok"></div>
+      <div class="tl-d now">3</div>
+      <div class="tl-ln"></div>
+      <div class="tl-d wait">4</div>
+      <div class="tl-ln"></div>
+      <div class="tl-d wait">5</div>
+    </div>
+  </div>
+  <div class="gsep"></div>
+  <div class="prods">
+    <div class="prods-hdr"><span class="sec-t">Produits</span><span class="ptot" id="dPTot"></span></div>
+    <div class="prod"><div class="pn">Verre Vintage</div><div class="pq">x20</div><div class="pp">8,00 &euro;</div></div>
+    <div class="prod"><div class="pn">Assiette ronde 27cm</div><div class="pq">x20</div><div class="pp">7,34 &euro;</div></div>
+  </div>
+  <div class="gsep"></div>
+  <div class="invs">
+    <div class="sec-t">Factures</div>
+    <div class="inv">
+      <svg width="32" height="26" viewBox="0 0 40 32" fill="none"><rect x="2" y="6" width="36" height="24" rx="2" fill="rgba(255,255,255,.03)" stroke="rgba(255,255,255,.06)" stroke-width=".5"/><path d="M2 6L20 20L38 6" fill="rgba(255,255,255,.02)" stroke="rgba(255,255,255,.06)" stroke-width=".5"/></svg>
+      <div class="inv-i"><div class="inv-r">FAC-2026-0015</div><div class="inv-s">Envoyee le 18 mars</div></div>
+      <div class="inv-a">15,34 &euro;</div>
+    </div>
+    <div class="payb"><div class="payt"><div class="payf" style="width:65%"></div></div><div class="payp">65%</div></div>
+  </div>
+</div>
+
+<script>
+var data=[
+  {ref:'RES-2026-0010',client:'Les Bons Vivants',date:'19 mars',status:'done',amount:'15,34',type:'ANNIVERSAIRE'},
+  {ref:'RES-2026-0002',client:'Claire Thomas',date:'16 juin',status:'draft',amount:'280,80',type:'MARIAGE'},
+  {ref:'RES-2026-0003',client:'Claire Thomas',date:'16 juin',status:'active',amount:'280,80',type:'CORPORATE'},
+  {ref:'RES-2026-0004',client:'Marie Dupont',date:'22 juin',status:'confirmed',amount:'450,00',type:'MARIAGE'},
+  {ref:'RES-2026-0005',client:'Pierre Martin',date:'28 juin',status:'ready',amount:'320,50',type:'BAPTEME'},
+  {ref:'RES-2026-0006',client:'Sophie Leroy',date:'3 juil',status:'risk',amount:'890,00',type:'GALA'},
+  {ref:'RES-2026-0008',client:'Jean Moreau',date:'10 juil',status:'confirmed',amount:'156,00',type:'ANNIVERSAIRE'},
+  {ref:'RES-2026-0009',client:'Famille Petit',date:'15 juil',status:'active',amount:'1 240,00',type:'MARIAGE'},
+  {ref:'RES-2026-0011',client:'Assoc. Etoiles',date:'20 juil',status:'returned',amount:'520,00',type:'CORPORATE'},
+  {ref:'RES-2026-0012',client:'Anne Richard',date:'25 juil',status:'cancelled',amount:'340,00',type:'FETE'},
+];
+
+// Table SVG for each status
+function tblSVG(s){
+  var n={draft:'#2d3748',confirmed:'#2d2008',ready:'#0d2818',risk:'#2d0808',active:'#2d1f08',returned:'#0d0d2d',done:'#1a1a2e',cancelled:'#1a1a1a'}[s]||'#2d3748';
+  var candle=!['draft','done','cancelled'].includes(s);
+  var dressed=!['draft','cancelled'].includes(s);
+  var sv='<svg class="hs-svg" width="80" height="60" viewBox="0 0 100 70" fill="none">';
+  sv+='<path d="M15 38 Q15 60 25 65 L75 65 Q85 60 85 38" fill="'+n+'" opacity=".7"/>';
+  sv+='<ellipse cx="50" cy="38" rx="38" ry="14" fill="'+n+'"/>';
+  sv+='<ellipse cx="50" cy="38" rx="38" ry="14" fill="none" stroke="rgba(201,168,76,.12)" stroke-width=".5"/>';
+  sv+='<ellipse cx="50" cy="36" rx="34" ry="11" fill="rgba(0,0,0,.2)"/>';
+  if(dressed){
+    sv+='<ellipse cx="50" cy="34" rx="12" ry="4" fill="none" stroke="rgba(255,255,255,.15)" stroke-width=".5"/>';
+    sv+='<line x1="34" y1="30" x2="34" y2="42" stroke="rgba(200,200,200,.15)" stroke-width=".6" stroke-linecap="round"/>';
+    sv+='<line x1="66" y1="31" x2="66" y2="41" stroke="rgba(200,200,200,.15)" stroke-width=".6" stroke-linecap="round"/>';
+  }
+  if(candle){
+    sv+='<rect x="48" y="20" width="4" height="10" rx="1" fill="var(--gold-pale)" opacity=".5"/>';
+    sv+='<ellipse cx="50" cy="19" rx="3" ry="4" fill="#ffd700" opacity=".7"><animate attributeName="opacity" values=".4;.8;.4" dur="1.8s" repeatCount="indefinite"/></ellipse>';
+    sv+='<circle cx="50" cy="19" r="8" fill="rgba(255,215,0,.06)"><animate attributeName="r" values="6;10;6" dur="3s" repeatCount="indefinite"/></circle>';
+  }
+  if(s==='cancelled')sv+='<ellipse cx="50" cy="38" rx="38" ry="14" fill="rgba(0,0,0,.5)"/>';
+  sv+='</svg>';
+  return sv;
+}
+
+var labels={draft:'Brouillon',confirmed:'Confirmee',ready:'Prete',risk:'Risque',active:'En cours',returned:'Retournee',done:'Terminee',cancelled:'Annulee'};
+var badgeColors={draft:'rgba(74,85,104,.2);color:#a0aec0',confirmed:'rgba(201,168,76,.15);color:#c9a84c',ready:'rgba(72,187,120,.15);color:#68d391',risk:'rgba(229,62,62,.15);color:#fc8181',active:'rgba(212,168,67,.15);color:#e4cc7a',returned:'rgba(102,126,234,.15);color:#a3bffa',done:'rgba(160,174,192,.1);color:#a0aec0',cancelled:'rgba(45,55,72,.2);color:#718096'};
+
+// Hotspot positions (yaw, pitch) - spread around the room
+var spots=[
+  {yaw:0,pitch:5},    {yaw:40,pitch:8},   {yaw:80,pitch:3},
+  {yaw:130,pitch:6},  {yaw:170,pitch:10},  {yaw:-30,pitch:7},
+  {yaw:-70,pitch:4},  {yaw:-120,pitch:9},  {yaw:-160,pitch:5},
+  {yaw:-90,pitch:12}
+];
+
+// Build hotspots config
+var hotspots=[];
+data.forEach(function(r,i){
+  var sp=spots[i];
+  hotspots.push({
+    pitch:sp.pitch,
+    yaw:sp.yaw,
+    type:'info',
+    cssClass:'hs-table-wrap',
+    createTooltipFunc:function(div){
+      div.classList.add('hs-table-wrap');
+      var el=document.createElement('div');
+      el.className='hs-table';
+      el.setAttribute('data-status',r.status);
+      el.setAttribute('data-index',String(i));
+      el.insertAdjacentHTML('afterbegin',tblSVG(r.status));
+      var glow=document.createElement('div');glow.className='hs-glow';el.appendChild(glow);
+      var lb=document.createElement('div');lb.className='hs-label';
+      var lr=document.createElement('div');lr.className='hs-ref';lr.textContent=r.ref;
+      var lc=document.createElement('div');lc.className='hs-client';lc.textContent=r.client;
+      var lm=document.createElement('div');lm.className='hs-meta';lm.textContent=r.date+' \u00B7 '+r.type;
+      lb.appendChild(lr);lb.appendChild(lc);lb.appendChild(lm);el.appendChild(lb);
+      el.addEventListener('click',function(e){e.stopPropagation();openDetail(r);});
+      div.appendChild(el);
+    },
+    clickHandlerFunc:function(){}
+  });
+});
+
+// Init Pannellum
+var viewer=pannellum.viewer('pano',{
+  type:'equirectangular',
+  panorama:'ballroom.jpg',
+  autoLoad:true,
+  showControls:false,
+  showFullscreenCtrl:false,
+  compass:false,
+  mouseZoom:false,
+  keyboardZoom:false,
+  disableKeyboardCtrl:true,
+  hfov:100,
+  minHfov:90,
+  maxHfov:110,
+  pitch:5,
+  yaw:0,
+  hotSpots:hotspots,
+  friction:.15,
+  autoRotate:-0.5,
+  autoRotateInactivityDelay:5000,
+});
+
+// Detail
+function openDetail(r){
+  document.getElementById('dRef').textContent=r.ref;
+  document.getElementById('dClient').textContent=r.client;
+  document.getElementById('dDates').textContent=r.date+' 2026';
+  document.getElementById('dAmt').textContent=r.amount+' \u20AC';
+  document.getElementById('dPTot').textContent=r.amount+' \u20AC';
+  var b=document.getElementById('dBadge');
+  b.textContent=labels[r.status];
+  b.style.cssText='background:'+badgeColors[r.status];
+  document.getElementById('dhBg').className='dhbg dhbg-'+r.status;
+  document.getElementById('detail').classList.add('open');
+}
+document.getElementById('dClose').addEventListener('click',function(){document.getElementById('detail').classList.remove('open');});
+
+// Filters
+document.querySelectorAll('.fp').forEach(function(f){
+  f.addEventListener('click',function(){
+    document.querySelectorAll('.fp').forEach(function(x){x.classList.remove('active');});
+    f.classList.add('active');
+    var v=f.getAttribute('data-filter');
+    document.querySelectorAll('.hs-table').forEach(function(t){
+      if(v==='all'||t.getAttribute('data-status')===v) t.classList.remove('dimmed');
+      else t.classList.add('dimmed');
+    });
+  });
+});
+</script>
+</body>
+</html>

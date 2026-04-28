@@ -1,0 +1,107 @@
+{
+  "sample_pdfs": [
+    "docs/METRO/Téléchargement(10)/135_15_88702_20201014162559_invoice_cus_copy_main.pdf",
+    "docs/METRO/Téléchargement(11)/135_16_167773_20220630224509_invoice_cus_copy_main.pdf",
+    "docs/METRO/Téléchargement(12)/135_12_310573_20231114224954_invoice_cus_copy_main.pdf",
+    "docs/METRO/Téléchargement(12)/135_15_211920_20230927194925_invoice_cus_copy_main.pdf",
+    "docs/METRO/Téléchargement(12)/135_16_182908_20221013121046_invoice_cus_copy_main.pdf",
+    "docs/METRO/Téléchargement(13)/135_16_243302_20240313191919_invoice_cus_copy_main.pdf",
+    "docs/METRO/Téléchargement(13)/135_26_22070_20240725154457_invoice_cus_copy_main.pdf",
+    "docs/METRO/Téléchargement(8)/135_11_288587_20240408220037_invoice_cus_copy_main.pdf",
+    "docs/METRO/Téléchargement(9)/135_12_360674_20240919200245_invoice_cus_copy_main.pdf",
+    "docs/METRO/Téléchargement(9)/135_16_282640_20250325010548_invoice_cus_copy_main.pdf"
+  ],
+  "rows": [
+    {
+      "pdf": "docs/METRO/Téléchargement(10)/135_15_88702_20201014162559_invoice_cus_copy_main.pdf",
+      "lines": 31,
+      "fallback_no_ean_count": 1,
+      "total_ht_declared": 561.01,
+      "montant_reconcilie": 744.44,
+      "ecart_ht_abs": 183.43,
+      "remises": 0.0
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(11)/135_16_167773_20220630224509_invoice_cus_copy_main.pdf",
+      "lines": 5,
+      "fallback_no_ean_count": 0,
+      "total_ht_declared": 28.65,
+      "montant_reconcilie": 38.49,
+      "ecart_ht_abs": 9.84,
+      "remises": 0.0
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(12)/135_12_310573_20231114224954_invoice_cus_copy_main.pdf",
+      "lines": 15,
+      "fallback_no_ean_count": 0,
+      "total_ht_declared": 280.49,
+      "montant_reconcilie": 291.59,
+      "ecart_ht_abs": 11.1,
+      "remises": -8.02
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(12)/135_15_211920_20230927194925_invoice_cus_copy_main.pdf",
+      "lines": 7,
+      "fallback_no_ean_count": 0,
+      "total_ht_declared": 2260.2,
+      "montant_reconcilie": 2863.64,
+      "ecart_ht_abs": 603.44,
+      "remises": 0.0
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(12)/135_16_182908_20221013121046_invoice_cus_copy_main.pdf",
+      "lines": 3,
+      "fallback_no_ean_count": 0,
+      "total_ht_declared": 16.14,
+      "montant_reconcilie": 17.03,
+      "ecart_ht_abs": 0.89,
+      "remises": 0.0
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(13)/135_16_243302_20240313191919_invoice_cus_copy_main.pdf",
+      "lines": 1,
+      "fallback_no_ean_count": 0,
+      "total_ht_declared": 0.0,
+      "montant_reconcilie": 0.0,
+      "ecart_ht_abs": 0.0,
+      "remises": 0.0
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(13)/135_26_22070_20240725154457_invoice_cus_copy_main.pdf",
+      "lines": 3,
+      "fallback_no_ean_count": 0,
+      "total_ht_declared": 28.26,
+      "montant_reconcilie": 28.26,
+      "ecart_ht_abs": 0.0,
+      "remises": 0.0
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(8)/135_11_288587_20240408220037_invoice_cus_copy_main.pdf",
+      "lines": 46,
+      "fallback_no_ean_count": 0,
+      "total_ht_declared": 735.53,
+      "montant_reconcilie": 735.53,
+      "ecart_ht_abs": 0.0,
+      "remises": -21.45
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(9)/135_12_360674_20240919200245_invoice_cus_copy_main.pdf",
+      "lines": 18,
+      "fallback_no_ean_count": 0,
+      "total_ht_declared": 956.32,
+      "montant_reconcilie": 1109.36,
+      "ecart_ht_abs": 153.04,
+      "remises": 0.0
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(9)/135_16_282640_20250325010548_invoice_cus_copy_main.pdf",
+      "lines": 17,
+      "fallback_no_ean_count": 0,
+      "total_ht_declared": 100.37,
+      "montant_reconcilie": 100.37,
+      "ecart_ht_abs": 0.0,
+      "remises": 0.0
+    }
+  ],
+  "avg_ecart_ht_abs": 96.174
+}

@@ -63,14 +63,16 @@ Example response /health/ready (503 Service Unavailable - DB down):
       }
     }
 """
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 
 from app.core.database import get_db
-from app.core.health import check_postgres, check_redis
-from app.core.redis import redis_client
+from app.core.health import check_postgres, check_redis_async
+from app.core.redis import redis_client, redis_sec, redis_cache
 from app.core.config import settings
 
 router = APIRouter(prefix="/health", tags=["Health"])
@@ -112,76 +114,72 @@ def liveness_probe() -> Dict[str, str]:
 
 
 @router.get("/ready", status_code=status.HTTP_200_OK)
-def readiness_probe(db: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Readiness probe avec vérification dépendances critiques.
-
-    Utilisé par Kubernetes readiness probe pour savoir si le pod peut recevoir du trafic.
-    Vérifie PostgreSQL + Redis avec timeout strict.
-
-    Args:
-        db: Session SQLAlchemy (dependency injection)
-
-    Returns:
-        Dict avec :
-        - status: "ready" | "not_ready"
-        - service: nom du service
-        - version: version applicative
-        - checks: dict des vérifications (postgres, redis)
-
-    Raises:
-        HTTPException 503 Service Unavailable si au moins une dépendance est down
-
-    Example succès (200):
-        >>> GET /health/ready
-        >>> {
-        ...   "status": "ready",
-        ...   "service": "CaroCorp",
-        ...   "version": "0.1.0",
-        ...   "checks": {
-        ...     "postgres": {"status": "healthy", "latency_ms": 3.45},
-        ...     "redis": {"status": "healthy", "latency_ms": 1.23}
-        ...   }
-        ... }
-
-    Example échec (503):
-        >>> GET /health/ready
-        >>> {
-        ...   "status": "not_ready",
-        ...   "checks": {
-        ...     "postgres": {"status": "unhealthy", "error": "connection refused"}
-        ...   }
-        ... }
-
-    Notes:
-        - Timeout total < 2 secondes (SELECT 1 + PING)
-        - Si échec → Kubernetes arrête d'envoyer du trafic au pod
-        - Retourne 503 Service Unavailable si not_ready
-        - Pool metrics utiles pour détecter saturation connexions
-    """
-    # Vérifier PostgreSQL
+async def readiness_probe(db: Session = Depends(get_db)):
+    """Readiness probe — verifie PostgreSQL + Redis + Celery."""
     postgres_healthy, postgres_metadata = check_postgres(db)
+    redis_healthy, redis_metadata = await check_redis_async(redis_client.client)
 
-    # Vérifier Redis
-    redis_healthy, redis_metadata = check_redis(redis_client.client)
+    # Celery health check via Redis broker ping
+    celery_healthy = False
+    celery_metadata = {"status": "unknown"}
+    try:
+        from app.tasks.celery_app import celery_app
+        inspector = celery_app.control.inspect(timeout=2.0)
+        active = inspector.active()
+        if active is not None:
+            worker_count = len(active)
+            celery_healthy = worker_count > 0
+            celery_metadata = {"status": "healthy" if celery_healthy else "no_workers", "workers": worker_count}
+        else:
+            celery_metadata = {"status": "unreachable"}
+    except Exception as e:
+        celery_metadata = {"status": "error", "detail": str(e)[:100]}
 
-    # Déterminer status global
-    all_healthy = postgres_healthy and redis_healthy
-
+    all_healthy = postgres_healthy and redis_healthy and celery_healthy
     response = {
         "status": "ready" if all_healthy else "not_ready",
         "service": "CaroCorp",
-        "version": "0.1.0",  # TODO: récupérer depuis settings ou pyproject.toml
+        "version": settings.APP_VERSION,
         "checks": {
             "postgres": postgres_metadata,
             "redis": redis_metadata,
+            "celery": celery_metadata,
         }
     }
 
-    # Retourner 503 si au moins une dépendance est down
     if not all_healthy:
-        return JSONResponse(
-            content=response,
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE
-        )
-
+        return JSONResponse(content=response, status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
     return response
+
+
+@router.get("/status", status_code=status.HTTP_200_OK)
+async def system_status() -> Dict[str, Any]:
+    """Status page publique — niveau de dégradation + composants."""
+    degradation_level = await redis_sec.get_degradation_level()
+
+    redis_sec_ok = await redis_sec.ping()
+    redis_cache_ok = await redis_cache.ping()
+
+    if degradation_level == "EMERGENCY_BYPASS":
+        overall = "major_outage"
+    elif degradation_level in ("AUTH_DOWN", "READ_ONLY"):
+        overall = "partial_outage"
+    elif not redis_sec_ok or not redis_cache_ok:
+        overall = "degraded_performance"
+    else:
+        overall = "operational"
+
+    return {
+        "status": overall,
+        "degradation_level": degradation_level,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "version": settings.APP_VERSION,
+        "components": {
+            "redis_sec":   "operational" if redis_sec_ok else "major_outage",
+            "redis_cache": "operational" if redis_cache_ok else "degraded_performance",
+            "api":         "operational",
+        },
+        "incidents": [] if overall == "operational" else [
+            {"level": degradation_level, "since": datetime.now(timezone.utc).isoformat()}
+        ],
+    }

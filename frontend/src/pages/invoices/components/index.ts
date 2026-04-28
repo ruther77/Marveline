@@ -1,1 +1,0 @@
-export { InvoiceDetailModal } from './InvoiceDetailModal'

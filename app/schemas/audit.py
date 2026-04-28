@@ -34,7 +34,7 @@ class AuditLogResponse(BaseSchema):
         json_schema_extra={
             "example": {
                 "id": 123,
-                "user_id": 42,
+                "account_id": 42,
                 "tenant_id": 1,
                 "action": "UPDATE",
                 "entity_type": "Reservation",
@@ -57,9 +57,9 @@ class AuditLogResponse(BaseSchema):
         description="ID unique de l'audit log"
     )
 
-    user_id: Optional[int] = Field(
+    account_id: Optional[int] = Field(
         None,
-        description="ID utilisateur ayant effectué l'action (NULL pour actions système)"
+        description="ID compte ayant effectué l'action (NULL pour actions système)"
     )
 
     tenant_id: int = Field(

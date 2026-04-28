@@ -250,22 +250,135 @@ def test_update_customer_duplicate_email(client: TestClient, test_db, test_custo
     assert "already used" in response.json()["detail"]
 
 
-def test_delete_customer_soft_delete(client: TestClient, test_customer, auth_headers_real):
-    """Test supprimer client (soft delete par défaut)."""
+def test_delete_customer_soft_delete(client: TestClient, test_customer, auth_headers_admin):
+    """Test supprimer client (soft delete par défaut). Requiert CUSTOMERS_DELETE = manager+."""
     response = client.delete(
         f"/api/v1/customers/{test_customer.id}?hard_delete=false",
-        headers=auth_headers_real
+        headers=auth_headers_admin
     )
 
     assert response.status_code == 204
 
     # Vérifier que client est is_active=False
-    get_response = client.get(f"/api/v1/customers/{test_customer.id}", headers=auth_headers_real)
+    get_response = client.get(f"/api/v1/customers/{test_customer.id}", headers=auth_headers_admin)
     assert get_response.status_code == 404  # Exclu par défaut
 
 
-def test_delete_customer_not_found(client: TestClient, auth_headers_real):
-    """Test supprimer client inexistant → 404."""
-    response = client.delete("/api/v1/customers/999999", headers=auth_headers_real)
+def test_delete_customer_not_found(client: TestClient, auth_headers_admin):
+    """Test supprimer client inexistant → 404. Requiert CUSTOMERS_DELETE = manager+."""
+    response = client.delete("/api/v1/customers/999999", headers=auth_headers_admin)
 
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Nouveaux tests (corrections audit 2026-03-02)
+# ---------------------------------------------------------------------------
+
+def test_create_customer_with_notes(client: TestClient, auth_headers_real):
+    """BUG-CUST-05 : notes doit être sauvegardé et retourné à la création."""
+    customer_data = {
+        "customer_type": "individual",
+        "first_name": "Note",
+        "last_name": "Tester",
+        "email": "note.tester@example.com",
+        "notes": "Client VIP — préfère les livraisons le matin",
+    }
+
+    response = client.post("/api/v1/customers", json=customer_data, headers=auth_headers_real)
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["notes"] == "Client VIP — préfère les livraisons le matin"
+
+
+def test_search_customer_by_email(client: TestClient, test_customer, auth_headers_real):
+    """BUG-CUST-01 : search_query doit trouver les clients par email."""
+    response = client.get(
+        f"/api/v1/customers?search_query={test_customer.email}",
+        headers=auth_headers_real,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 1
+    emails = [item["email"] for item in data["items"]]
+    assert test_customer.email in emails
+
+
+def test_list_customers_inactive(client: TestClient, test_db, auth_headers_real):
+    """BUG-CUST-02 : is_active=false doit inclure les clients soft-deleted."""
+    from app.models.customer import Customer as CustomerModel
+    from app.constants import CustomerType
+
+    inactive = CustomerModel(
+        tenant_id=1,
+        customer_type=CustomerType.INDIVIDUAL,
+        first_name="Inactif",
+        last_name="Soft",
+        email="inactif.soft@example.com",
+        is_active=False,
+    )
+    test_db.add(inactive)
+    test_db.commit()
+
+    # Sans filtre → exclu par défaut
+    response = client.get("/api/v1/customers", headers=auth_headers_real)
+    assert response.status_code == 200
+    emails_active_only = [i["email"] for i in response.json()["items"]]
+    assert "inactif.soft@example.com" not in emails_active_only
+
+    # is_active=false → inclut les inactifs
+    response_all = client.get("/api/v1/customers?is_active=false", headers=auth_headers_real)
+    assert response_all.status_code == 200
+    emails_all = [i["email"] for i in response_all.json()["items"]]
+    assert "inactif.soft@example.com" in emails_all
+
+
+def test_list_customers_combined_search_and_type(
+    client: TestClient, test_customer, test_company_customer, auth_headers_real
+):
+    """BUG-CUST-03 : search_query + customer_type doivent être combinables."""
+    # Jean Dupont est individual — doit être trouvé
+    response = client.get(
+        "/api/v1/customers?search_query=Dupont&customer_type=individual",
+        headers=auth_headers_real,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 1
+    for item in data["items"]:
+        assert item["customer_type"] == "individual"
+
+    # Jean Dupont est individual — filtre company doit l'exclure
+    response_company = client.get(
+        "/api/v1/customers?search_query=Dupont&customer_type=company",
+        headers=auth_headers_real,
+    )
+    assert response_company.status_code == 200
+    names = [f"{i.get('first_name','')} {i.get('last_name','')}".strip() for i in response_company.json()["items"]]
+    assert "Jean Dupont" not in names
+
+
+def test_import_csv_invalid_type_error_message(client: TestClient, auth_headers_real):
+    """BUG-CUST-05 (CSV) : erreur de validation doit être lisible, sans stacktrace Pydantic."""
+    import io
+    csv_content = "customer_type,email,first_name,last_name\nbad_type,test@example.com,Test,User\n"
+    csv_file = io.BytesIO(csv_content.encode("utf-8"))
+
+    response = client.post(
+        "/api/v1/customers/import",
+        headers=auth_headers_real,
+        files={"file": ("test.csv", csv_file, "text/csv")},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["created"] == 0
+    assert len(data["errors"]) >= 1
+    error_msg = data["errors"][0]["message"]
+    # Le message ne doit PAS contenir de stacktrace Pydantic brute
+    assert "validation error for CustomerCreate" not in error_msg
+    assert "For further information visit" not in error_msg
+    # Il doit contenir une indication lisible sur le problème
+    assert len(error_msg) < 200

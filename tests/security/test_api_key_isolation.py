@@ -26,9 +26,9 @@ from app.core.database import get_db_context
 class TestApiKeyTenantIsolation:
     """Tests isolation cross-tenant pour API keys."""
 
-    def test_cannot_list_other_tenant_api_keys(self, test_db, test_user, test_user_tenant2):
+    async def test_cannot_list_other_tenant_api_keys(self, async_db, test_user, test_user_tenant2):
         """Tenant A ne peut pas lister les API keys du Tenant B."""
-        api_key_service = ApiKeyService(test_db)
+        api_key_service = ApiKeyService(async_db)
 
         # Créer API key pour Tenant 1
         data1 = ApiKeyCreate(
@@ -37,7 +37,7 @@ class TestApiKeyTenantIsolation:
             rate_limit=1000,
             expires_at=None
         )
-        key1, _ = api_key_service.create_key(
+        key1, _ = await api_key_service.create_key(
             data=data1,
             tenant_id=1,
             created_by=test_user.id
@@ -53,11 +53,12 @@ class TestApiKeyTenantIsolation:
             created_by=test_user_tenant2.id,
             is_active=True
         )
-        test_db.add(key2_data)
-        test_db.commit()
+        async_db.add(key2_data)
+        await async_db.flush()
+        await async_db.commit()
 
         # Lister les keys du Tenant 1
-        keys_tenant1, total = api_key_service.list_keys(tenant_id=1)
+        keys_tenant1, total = await api_key_service.list_keys(tenant_id=1)
 
         # Vérifier isolation
         assert total == 1
@@ -69,7 +70,7 @@ class TestApiKeyTenantIsolation:
         key_ids = [k.id for k in keys_tenant1]
         assert key2_data.id not in key_ids
 
-    def test_cannot_get_other_tenant_api_key_by_id(self, test_db, test_user, test_user_tenant2):
+    async def test_cannot_get_other_tenant_api_key_by_id(self, async_db, test_user, test_user_tenant2):
         """Tenant A ne peut pas récupérer une API key du Tenant B par ID."""
         # Créer API key pour Tenant 2 (directement en DB)
         key_tenant2 = ApiKey(
@@ -81,22 +82,23 @@ class TestApiKeyTenantIsolation:
             created_by=test_user_tenant2.id,
             is_active=True
         )
-        test_db.add(key_tenant2)
-        test_db.commit()
-        test_db.refresh(key_tenant2)
+        async_db.add(key_tenant2)
+        await async_db.flush()
+        await async_db.commit()
+        await async_db.refresh(key_tenant2)
 
         # Essayer de récupérer avec get_key() du Tenant 1
         # get_key() lève HTTPException 404 si non trouvée pour le tenant
-        api_key_service = ApiKeyService(test_db)
+        api_key_service = ApiKeyService(async_db)
 
         from fastapi import HTTPException
         with pytest.raises(HTTPException) as exc_info:
-            api_key_service.get_key(api_key_id=key_tenant2.id, tenant_id=1)
+            await api_key_service.get_key(api_key_id=key_tenant2.id, tenant_id=1)
 
         # Vérifier que c'est bien une 404
         assert exc_info.value.status_code == 404
 
-    def test_cannot_revoke_other_tenant_api_key(self, test_db, test_user, test_user_tenant2):
+    async def test_cannot_revoke_other_tenant_api_key(self, async_db, test_user, test_user_tenant2):
         """Tenant A ne peut pas révoquer une API key du Tenant B."""
         # Créer API key pour Tenant 2 (directement en DB)
         key_tenant2 = ApiKey(
@@ -108,23 +110,24 @@ class TestApiKeyTenantIsolation:
             created_by=test_user_tenant2.id,
             is_active=True
         )
-        test_db.add(key_tenant2)
-        test_db.commit()
-        test_db.refresh(key_tenant2)
+        async_db.add(key_tenant2)
+        await async_db.flush()
+        await async_db.commit()
+        await async_db.refresh(key_tenant2)
 
         # Essayer de révoquer avec revoke_key() du Tenant 1
         # revoke_key() lève HTTPException 404 si non trouvée
-        api_key_service = ApiKeyService(test_db)
+        api_key_service = ApiKeyService(async_db)
 
         from fastapi import HTTPException
         with pytest.raises(HTTPException) as exc_info:
-            api_key_service.revoke_key(api_key_id=key_tenant2.id, tenant_id=1)
+            await api_key_service.revoke_key(api_key_id=key_tenant2.id, tenant_id=1)
 
         # Vérifier que c'est bien une 404
         assert exc_info.value.status_code == 404
 
         # Vérifier que la key du Tenant 2 est toujours active
-        test_db.refresh(key_tenant2)
+        await async_db.refresh(key_tenant2)
         assert key_tenant2.is_active is True
 
 
@@ -168,7 +171,7 @@ class TestApiKeyResourceIsolation:
             name="Assiette Tenant 2",
             sku="ASS-T2-001",
             category="assiettes",
-            price_per_day=250,
+            price_per_day_cents=250,
             stock_quantity=100,
             available_quantity=100
         )
@@ -210,8 +213,8 @@ class TestApiKeyResourceIsolation:
             delivery_date=date.today() + timedelta(days=29),
             return_date=date.today() + timedelta(days=31),
             status="confirmed",
-            deposit_amount=0,
-            total_amount=10000
+            deposit_amount_cents=0,
+            total_amount_cents=10000
         )
         test_db.add(reservation_tenant2)
         test_db.commit()
@@ -251,8 +254,8 @@ class TestApiKeyResourceIsolation:
             delivery_date=date.today() + timedelta(days=29),
             return_date=date.today() + timedelta(days=31),
             status="confirmed",
-            deposit_amount=0,
-            total_amount=10000
+            deposit_amount_cents=0,
+            total_amount_cents=10000
         )
         test_db.add(reservation_tenant2)
         test_db.commit()
@@ -266,8 +269,8 @@ class TestApiKeyResourceIsolation:
             issue_date=date.today(),
             due_date=date.today() + timedelta(days=30),
             status="draft",
-            total_amount=12000,
-            paid_amount=0
+            total_amount_cents=12000,
+            paid_amount_cents=0
         )
         test_db.add(invoice_tenant2)
         test_db.commit()
@@ -287,9 +290,9 @@ class TestApiKeyResourceIsolation:
 class TestApiKeyScopeRestrictions:
     """Tests que les scopes limitent correctement les permissions."""
 
-    def test_readonly_scope_prevents_write_operations(self, test_db, test_user):
+    async def test_readonly_scope_prevents_write_operations(self, async_db, test_user):
         """API key avec scope read-only ne peut pas faire d'opérations write."""
-        api_key_service = ApiKeyService(test_db)
+        api_key_service = ApiKeyService(async_db)
 
         # Créer API key avec scope products:read uniquement
         data = ApiKeyCreate(
@@ -298,7 +301,7 @@ class TestApiKeyScopeRestrictions:
             rate_limit=1000,
             expires_at=None
         )
-        api_key, _ = api_key_service.create_key(
+        api_key, _ = await api_key_service.create_key(
             data=data,
             tenant_id=1,
             created_by=test_user.id
@@ -311,9 +314,9 @@ class TestApiKeyScopeRestrictions:
         # Note: La vérification des permissions est faite au niveau des endpoints
         # Ce test vérifie uniquement que les scopes sont correctement stockés
 
-    def test_scoped_api_key_only_has_declared_scopes(self, test_db, test_user):
+    async def test_scoped_api_key_only_has_declared_scopes(self, async_db, test_user):
         """API key avec scopes limités ne doit avoir QUE ces scopes."""
-        api_key_service = ApiKeyService(test_db)
+        api_key_service = ApiKeyService(async_db)
 
         # Créer API key avec scopes spécifiques
         data = ApiKeyCreate(
@@ -322,7 +325,7 @@ class TestApiKeyScopeRestrictions:
             rate_limit=1000,
             expires_at=None
         )
-        api_key, _ = api_key_service.create_key(
+        api_key, _ = await api_key_service.create_key(
             data=data,
             tenant_id=1,
             created_by=test_user.id
@@ -338,7 +341,7 @@ class TestApiKeyScopeRestrictions:
 class TestApiKeyExpiration:
     """Tests expiration et révocation des API keys."""
 
-    def test_expired_api_key_is_rejected(self, test_db, test_user):
+    async def test_expired_api_key_is_rejected(self, async_db, test_user):
         """API key expirée doit être rejetée par validate_key()."""
         # Créer API key expirée (expires_at dans le passé) directement en DB
         expired_key = ApiKey(
@@ -351,21 +354,22 @@ class TestApiKeyExpiration:
             is_active=True,
             expires_at=datetime.now(timezone.utc) - timedelta(days=1)  # Expirée hier
         )
-        test_db.add(expired_key)
-        test_db.commit()
+        async_db.add(expired_key)
+        await async_db.flush()
+        await async_db.commit()
 
         # Essayer de valider la clé expirée
-        api_key_service = ApiKeyService(test_db)
-        result = api_key_service.validate_key("fake_key_value_expired")
+        api_key_service = ApiKeyService(async_db)
+        result = await api_key_service.validate_key("fake_key_value_expired")
 
         # Doit retourner None (clé expirée)
         # Note: validate_key() ne trouvera pas la clé car le hash ne correspond pas
         # Ce test vérifie le comportement général
         assert result is None
 
-    def test_revoked_api_key_is_rejected(self, test_db, test_user):
+    async def test_revoked_api_key_is_rejected(self, async_db, test_user):
         """API key révoquée (is_active=False) doit être rejetée."""
-        api_key_service = ApiKeyService(test_db)
+        api_key_service = ApiKeyService(async_db)
 
         # Créer puis révoquer une API key
         data = ApiKeyCreate(
@@ -374,7 +378,7 @@ class TestApiKeyExpiration:
             rate_limit=1000,
             expires_at=None
         )
-        api_key, _ = api_key_service.create_key(
+        api_key, _ = await api_key_service.create_key(
             data=data,
             tenant_id=1,
             created_by=test_user.id
@@ -382,18 +386,18 @@ class TestApiKeyExpiration:
         key_id = api_key.id
 
         # Révoquer
-        revoked = api_key_service.revoke_key(api_key_id=key_id, tenant_id=1)
+        revoked = await api_key_service.revoke_key(api_key_id=key_id, tenant_id=1)
         assert revoked is not None
         assert revoked.is_active is False
 
         # Essayer de valider la clé révoquée
         # Note: validate_key() vérifie is_active
-        test_db.refresh(revoked)
+        await async_db.refresh(revoked)
         assert revoked.is_active is False
 
-    def test_active_non_expired_key_is_accepted(self, test_db, test_user):
+    async def test_active_non_expired_key_is_accepted(self, async_db, test_user):
         """API key active et non expirée doit être acceptée."""
-        api_key_service = ApiKeyService(test_db)
+        api_key_service = ApiKeyService(async_db)
 
         # Créer API key valide (expires dans le futur)
         data = ApiKeyCreate(
@@ -402,7 +406,7 @@ class TestApiKeyExpiration:
             rate_limit=1000,
             expires_at=datetime.now(timezone.utc) + timedelta(days=365)
         )
-        api_key, _ = api_key_service.create_key(
+        api_key, _ = await api_key_service.create_key(
             data=data,
             tenant_id=1,
             created_by=test_user.id
@@ -416,27 +420,27 @@ class TestApiKeyExpiration:
 class TestApiKeyAuditLogging:
     """Tests que les actions API key sont correctement auditées."""
 
-    def test_api_key_action_logged_with_api_key_id(self, test_db, test_user):
+    async def test_api_key_action_logged_with_api_key_id(self, async_db, test_user):
         """Actions effectuées via API key doivent logger api_key_id dans audit_logs."""
         from app.services.audit import AuditService
 
         # Créer API key
-        api_key_service = ApiKeyService(test_db)
+        api_key_service = ApiKeyService(async_db)
         data = ApiKeyCreate(
             name="Test Audit Key",
             scopes=["products:read"],
             rate_limit=1000,
             expires_at=None
         )
-        api_key, _ = api_key_service.create_key(
+        api_key, _ = await api_key_service.create_key(
             data=data,
             tenant_id=1,
             created_by=test_user.id
         )
 
         # Logger une action avec api_key_id
-        audit_service = AuditService(test_db)
-        audit_log = audit_service.log_action(
+        audit_service = AuditService(async_db)
+        audit_log = await audit_service.log_action(
             action="READ_SENSITIVE",
             tenant_id=1,
             user_id=None,  # Pas de user pour auth API key
@@ -451,31 +455,31 @@ class TestApiKeyAuditLogging:
 
         # Vérifier que api_key_id est bien loggé
         assert audit_log.api_key_id == api_key.id
-        assert audit_log.user_id is None  # Pas de user_id pour auth API key
+        assert audit_log.account_id is None  # Pas de account pour auth API key
         assert audit_log.tenant_id == 1
         assert audit_log.action == "READ_SENSITIVE"
 
-    def test_api_key_audit_logs_isolated_by_tenant(self, test_db, test_user):
+    async def test_api_key_audit_logs_isolated_by_tenant(self, async_db, test_user):
         """Audit logs des API keys doivent être isolés par tenant."""
         from app.services.audit import AuditService
 
         # Créer API key Tenant 1
-        api_key_service = ApiKeyService(test_db)
+        api_key_service = ApiKeyService(async_db)
         data = ApiKeyCreate(
             name="Tenant 1 Key",
             scopes=["products:read"],
             rate_limit=1000,
             expires_at=None
         )
-        api_key_t1, _ = api_key_service.create_key(
+        api_key_t1, _ = await api_key_service.create_key(
             data=data,
             tenant_id=1,
             created_by=test_user.id
         )
 
         # Logger action Tenant 1
-        audit_service = AuditService(test_db)
-        audit_service.log_action(
+        audit_service = AuditService(async_db)
+        await audit_service.log_action(
             action="READ_SENSITIVE",
             tenant_id=1,
             user_id=None,
@@ -486,10 +490,10 @@ class TestApiKeyAuditLogging:
             ip_address="192.168.1.100",
             request_id="t1-request"
         )
-        test_db.commit()
+        await async_db.commit()
 
         # Logger action Tenant 2 (autre API key)
-        audit_service.log_action(
+        await audit_service.log_action(
             action="READ_SENSITIVE",
             tenant_id=2,
             user_id=None,
@@ -500,14 +504,15 @@ class TestApiKeyAuditLogging:
             ip_address="192.168.1.200",
             request_id="t2-request"
         )
-        test_db.commit()
+        await async_db.commit()
 
         # Query audit logs Tenant 1
         stmt = select(AuditLog).where(
             AuditLog.tenant_id == 1,
             AuditLog.api_key_id.isnot(None)
         )
-        logs_t1 = test_db.execute(stmt).scalars().all()
+        result = await async_db.execute(stmt)
+        logs_t1 = result.scalars().all()
 
         # Vérifier isolation
         assert len(logs_t1) >= 1

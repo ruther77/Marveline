@@ -6,294 +6,328 @@ Responsabilités:
     - Token family rotation (chaque refresh émet un nouveau refresh token)
     - Replay detection (réutilisation d'un ancien refresh → toute la famille révoquée)
 
-Architecture:
-    - Refresh tokens: WHITELIST (JTI stocké à l'émission, supprimé au logout/rotation)
-    - Access tokens: BLACKLIST (JTI ajouté au logout, TTL = temps restant)
-    - Token families: tracking de rotation (family_id partagé entre refresh successifs)
+Architecture CaroCorp v3 (§2.1-2.9):
+    - Whitelist : whitelist:refresh:{uid}:{did}:{sid} = JTI actif (STRING)
+    - Blacklist : blacklist:jti:{jti} = "1" (TTL résiduel)
+    - Famille   : family:{fid} = SET de JTIs (pour replay detection Lua)
+    - JTI meta  : jti:meta:{jti} = exp_timestamp (TTL résiduel pour Lua §2.6)
+    - Rotation atomique : Lua refresh_check_v3 (§2.6)
+
+Toutes les méthodes sont async (redis.asyncio, PHASE 2).
 """
 import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from app.core.redis import redis_client
+from app.core.redis import redis_sec
 from app.core.security import create_access_token, create_refresh_token, decode_token
 from app.core.config import settings
 from app.constants import Limits
 
 logger = logging.getLogger(__name__)
 
-# TTL du refresh token en secondes
-REFRESH_TTL_SECONDS = Limits.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600
+REFRESH_TTL_SECONDS = Limits.REFRESH_TOKEN_EXPIRE_SECONDS
 
 
 class TokenService:
-    """Service de gestion avancée des tokens JWT.
+    """Service de gestion avancée des tokens JWT — CaroCorp Auth v3 §2.1-2.9."""
 
-    Patterns:
-        - Refresh whitelist: seuls les JTI connus de Redis sont acceptés
-        - Access blacklist: les JTI ajoutés au logout sont rejetés par get_current_user
-        - Rotation: chaque refresh() invalide l'ancien refresh et émet un nouveau
-        - Replay detection: si un JTI déjà consommé est réutilisé, toute la famille est révoquée
-    """
-
-    # ========== Helpers: claims builders (fix M24 — pas de duplication) ==========
+    # ========== Helpers: claims builders (§1.4) ==========
 
     @staticmethod
-    def _build_access_claims(user_id: int, tenant_id: int, email: str, role: str) -> dict:
-        """Construit les claims pour un access token."""
-        return {
-            "sub": user_id,
-            "tenant_id": tenant_id,
-            "email": email,
+    async def _build_access_claims(
+        user_id: int,
+        tenant_id: int,
+        role: str,
+        device_id: str,
+        session_id: str,
+        membership_id: Optional[int] = None,
+    ) -> dict:
+        """Claims access token v3 (§1.2) : sub, tid, mid, did, sid, role, scopes."""
+        from app.services.rbac import get_role_scopes
+        scopes = await get_role_scopes(role, None)
+        claims: dict = {
+            "sub": str(user_id),
+            "tid": str(tenant_id),
+            "did": device_id,
+            "sid": session_id,
             "role": role,
+            "scopes": scopes,
         }
+        if membership_id is not None:
+            claims["mid"] = str(membership_id)
+        return claims
 
     @staticmethod
-    def _build_refresh_claims(user_id: int, tenant_id: int, family_id: str) -> dict:
-        """Construit les claims pour un refresh token."""
-        return {
-            "sub": user_id,
-            "tenant_id": tenant_id,
-            "family_id": family_id,
+    def _build_refresh_claims(
+        user_id: int,
+        tenant_id: int,
+        family_id: str,
+        device_id: str,
+        session_id: str,
+        membership_id: Optional[int] = None,
+    ) -> dict:
+        """Claims refresh token v3 (§1.4) : sub, tid, mid, did, sid, fid."""
+        claims: dict = {
+            "sub": str(user_id),
+            "tid": str(tenant_id),
+            "did": device_id,
+            "sid": session_id,
+            "fid": family_id,
         }
+        if membership_id is not None:
+            claims["mid"] = str(membership_id)
+        return claims
 
     # ========== Login: émettre tokens + enregistrer ==========
 
-    def issue_tokens(
+    async def issue_tokens(
         self,
         user_id: int,
         tenant_id: int,
-        email: str,
         role: str,
+        device_id: str,
+        session_id: str,
+        membership_id: Optional[int] = None,
+        app_code: Optional[str] = None,
     ) -> tuple[str, str, int]:
         """Émet une paire access+refresh tokens et enregistre dans Redis.
 
-        Args:
-            user_id: ID de l'utilisateur
-            tenant_id: ID du tenant
-            email: Email de l'utilisateur
-            role: Rôle RBAC
-
-        Returns:
-            Tuple (access_token, refresh_token, expires_in_seconds)
+        ISO-APP-01 : si `app_code` fourni, l'audience JWT est dérivée depuis
+        settings.JWT_AUDIENCES[app_code]. Sinon fallback sur JWT_AUDIENCE (legacy).
         """
         family_id = str(uuid.uuid4())
 
-        access_claims = self._build_access_claims(user_id, tenant_id, email, role)
-        refresh_claims = self._build_refresh_claims(user_id, tenant_id, family_id)
+        access_claims = await self._build_access_claims(
+            user_id, tenant_id, role, device_id, session_id, membership_id
+        )
+        refresh_claims = self._build_refresh_claims(
+            user_id, tenant_id, family_id, device_id, session_id, membership_id
+        )
 
-        access_token = create_access_token(access_claims)
-        refresh_token = create_refresh_token(refresh_claims)
+        audience = settings.JWT_AUDIENCES.get(app_code) if app_code else None
+        access_token = create_access_token(access_claims, audience=audience)
+        refresh_token = create_refresh_token(refresh_claims, audience=audience)
 
-        # Extraire JTI du refresh token pour whitelist
+        access_payload = decode_token(access_token)
+        access_jti = access_payload["jti"]
+        access_exp = int(access_payload["exp"])
+
         refresh_payload = decode_token(refresh_token)
         refresh_jti = refresh_payload["jti"]
 
-        # Stocker refresh JTI dans whitelist Redis
-        redis_client.store_refresh_jti(
+        # 1. Whitelist
+        await redis_sec.store_refresh_jti(
             jti=refresh_jti,
             user_id=user_id,
             tenant_id=tenant_id,
             family_id=family_id,
+            device_id=device_id,
+            session_id=session_id,
             ttl_seconds=REFRESH_TTL_SECONDS,
         )
 
-        # Créer la famille de tokens
-        redis_client.store_token_family(
+        # 2. Famille
+        await redis_sec.store_token_family(
             family_id=family_id,
-            user_id=user_id,
+            jti=refresh_jti,
             ttl_seconds=REFRESH_TTL_SECONDS,
         )
 
-        expires_in = settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60
-        return access_token, refresh_token, expires_in
+        # 3. JTI meta (avant Lua — P1-07 déjà correct, on maintient l'ordre)
+        await redis_sec.store_jti_meta(
+            jti_access=access_jti,
+            exp_timestamp=access_exp,
+            ttl_seconds=settings.JWT_ACCESS_TOKEN_EXPIRE_SECONDS + 60,
+        )
 
-    # ========== Refresh: rotation + replay detection ==========
+        return access_token, refresh_token, settings.JWT_ACCESS_TOKEN_EXPIRE_SECONDS
 
-    def rotate_refresh_token(
+    # ========== Switch-membership: access token only (§2.10) ==========
+
+    async def issue_access_only(
+        self,
+        user_id: int,
+        tenant_id: int,
+        role: str,
+        device_id: str,
+        session_id: str,
+        membership_id: Optional[int] = None,
+        app_code: Optional[str] = None,
+    ) -> tuple[str, int]:
+        """Émet uniquement un access token — sans rotation du refresh cookie.
+
+        Utilisé pour switch-membership : l'access token change de tenant (tid)
+        mais le refresh cookie reste inchangé (il appartient au tenant d'origine).
+        Le JTI de l'access token est enregistré dans redis_sec (TTL résiduel).
+
+        ISO-APP-01 : audience JWT dérivée de app_code si fourni.
+        """
+        access_claims = await self._build_access_claims(
+            user_id, tenant_id, role, device_id, session_id, membership_id
+        )
+        audience = settings.JWT_AUDIENCES.get(app_code) if app_code else None
+        access_token = create_access_token(access_claims, audience=audience)
+        access_payload = decode_token(access_token)
+        access_jti = access_payload["jti"]
+        access_exp = int(access_payload["exp"])
+
+        await redis_sec.store_jti_meta(
+            jti_access=access_jti,
+            exp_timestamp=access_exp,
+            ttl_seconds=settings.JWT_ACCESS_TOKEN_EXPIRE_SECONDS + 60,
+        )
+
+        return access_token, settings.JWT_ACCESS_TOKEN_EXPIRE_SECONDS
+
+    # ========== Refresh: rotation atomique via Lua (§2.6) ==========
+
+    async def rotate_refresh_token(
         self,
         old_refresh_token: str,
         user_id: int,
         tenant_id: int,
-        email: str,
         role: str,
+        membership_id: Optional[int] = None,
+        app_code: Optional[str] = None,
     ) -> tuple[str, str, int]:
-        """Effectue une rotation de refresh token.
+        """Rotation atomique via Lua refresh_check_v3 (§2.6).
 
-        1. Valide que le JTI de l'ancien refresh est dans la whitelist
-        2. Vérifie que la famille est encore active (pas de replay)
-        3. Invalide l'ancien refresh JTI
-        4. Émet un nouveau refresh token dans la même famille
-        5. Émet un nouveau access token
-
-        Args:
-            old_refresh_token: Refresh token actuel (sera invalidé)
-            user_id: ID du user (vérifié depuis DB par l'appelant)
-            tenant_id: tenant_id du user
-            email: email du user
-            role: rôle du user
-
-        Returns:
-            Tuple (new_access_token, new_refresh_token, expires_in)
-
-        Raises:
-            TokenRevoked: si le refresh JTI n'est plus dans la whitelist
-            TokenReplayDetected: si la famille est compromise
+        ISO-APP-01 : audience JWT dérivée de app_code si fourni.
         """
         from app.core.exceptions import TokenRevoked, TokenReplayDetected
 
         old_payload = decode_token(old_refresh_token)
         old_jti = old_payload.get("jti")
-        family_id = old_payload.get("family_id")
+        family_id = old_payload.get("fid")
+        device_id = old_payload.get("did")
+        session_id = old_payload.get("sid")
 
-        if not old_jti or not family_id:
+        if not old_jti or not family_id or not device_id or not session_id:
             raise TokenRevoked()
 
-        # Vérifier whitelist Redis
-        whitelist_data = redis_client.get_refresh_jti(old_jti)
-
-        if whitelist_data is None:
-            # JTI absent = soit révoqué, soit déjà consommé (replay!)
-            # Vérifier si la famille existe encore
-            family_data = redis_client.get_token_family(family_id)
-            if family_data and family_data.get("active"):
-                # Famille active mais JTI absent → REPLAY DETECTED
-                # Révoquer toute la famille (force re-login)
-                logger.warning(
-                    "Replay detected: jti=%s family=%s user=%s",
-                    old_jti, family_id, user_id,
-                )
-                self._revoke_family(family_id, user_id)
-                raise TokenReplayDetected()
-
-            # Famille inactive ou absente → token simplement révoqué
-            raise TokenRevoked()
-
-        # Vérifier que la famille est active
-        family_data = redis_client.get_token_family(family_id)
-        if not family_data or not family_data.get("active"):
-            raise TokenRevoked()
-
-        # ── Rotation: invalider ancien, émettre nouveau ──
-
-        # 1. Supprimer ancien JTI de la whitelist
-        redis_client.revoke_refresh_jti(old_jti)
-
-        # 2. Émettre nouveau refresh token (même famille)
-        new_refresh_claims = self._build_refresh_claims(user_id, tenant_id, family_id)
-        new_refresh_token = create_refresh_token(new_refresh_claims)
-
-        # 3. Enregistrer nouveau JTI
+        audience = settings.JWT_AUDIENCES.get(app_code) if app_code else None
+        new_refresh_claims = self._build_refresh_claims(
+            user_id, tenant_id, family_id, device_id, session_id
+        )
+        new_refresh_token = create_refresh_token(new_refresh_claims, audience=audience)
         new_payload = decode_token(new_refresh_token)
         new_jti = new_payload["jti"]
 
-        redis_client.store_refresh_jti(
-            jti=new_jti,
-            user_id=user_id,
-            tenant_id=tenant_id,
-            family_id=family_id,
-            ttl_seconds=REFRESH_TTL_SECONDS,
+        now = str(int(datetime.now(timezone.utc).timestamp()))
+        try:
+            result = await redis_sec.evalsha(
+                "refresh_check_v3",
+                old_jti,
+                str(user_id),
+                device_id,
+                session_id,
+                family_id,
+                now,
+                new_jti,
+            )
+        except RuntimeError:
+            result = await self._manual_rotate(
+                old_jti, user_id, tenant_id, device_id, session_id, family_id, new_jti
+            )
+
+        result_str = str(result)
+
+        if result_str == "REPLAY_DETECTED":
+            logger.warning(
+                "Replay detected: jti=%s family=%s user=%s",
+                old_jti, family_id, user_id,
+            )
+            raise TokenReplayDetected()
+
+        if result_str == "TOKEN_INVALID" or not result_str.startswith("OK:"):
+            raise TokenRevoked()
+
+        new_access_claims = await self._build_access_claims(
+            user_id, tenant_id, role, device_id, session_id, membership_id
+        )
+        new_access_token = create_access_token(new_access_claims, audience=audience)
+
+        new_access_payload = decode_token(new_access_token)
+        new_access_jti = new_access_payload["jti"]
+        new_access_exp = int(new_access_payload["exp"])
+
+        await redis_sec.store_jti_meta(
+            jti_access=new_access_jti,
+            exp_timestamp=new_access_exp,
+            ttl_seconds=settings.JWT_ACCESS_TOKEN_EXPIRE_SECONDS + 60,
         )
 
-        # 4. Émettre nouveau access token
-        new_access_claims = self._build_access_claims(user_id, tenant_id, email, role)
-        new_access_token = create_access_token(new_access_claims)
+        # P2-06 : sliding window — re-etendre le TTL whitelist a 7j
+        wl_key = f"whitelist:refresh:{user_id}:{device_id}:{session_id}"
+        await redis_sec.client.expire(wl_key, settings.JWT_REFRESH_TOKEN_EXPIRE_SECONDS)
 
-        expires_in = settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60
-        return new_access_token, new_refresh_token, expires_in
+        return new_access_token, new_refresh_token, settings.JWT_ACCESS_TOKEN_EXPIRE_SECONDS
 
-    # ========== Logout: révoquer tokens ==========
+    async def _manual_rotate(
+        self,
+        old_jti: str,
+        user_id: int,
+        tenant_id: int,
+        device_id: str,
+        session_id: str,
+        family_id: str,
+        new_jti: str,
+    ) -> str:
+        """Fallback refusé — rotation token interdite sans Lua atomique.
 
-    def revoke_on_logout(self, access_token: str, refresh_token: Optional[str] = None) -> None:
-        """Révoque les tokens lors d'un logout.
-
-        1. Blacklist l'access token (JTI + TTL restant)
-        2. Si refresh_token fourni: supprime son JTI de la whitelist
-
-        Args:
-            access_token: Access token JWT actuel
-            refresh_token: Refresh token JWT (optionnel)
+        F1 — FAIL-CLOSED : lever RuntimeError plutôt que tolérer une rotation
+        non-atomique en production (race condition token family).
+        Le démarrage charge les scripts Lua via main.py → cette méthode
+        ne devrait jamais être invoquée en conditions normales.
         """
-        # Blacklist access token
+        logger.critical(
+            "Lua scripts non chargés — rotation token interdite. "
+            "Redémarrer le serveur pour recharger les scripts. "
+            "user=%s device=%s session=%s",
+            user_id, device_id, session_id,
+        )
+        raise RuntimeError("Lua scripts requis pour rotation sécurisée")
+
+    # ========== Logout: révoquer tokens (§4.2) ==========
+
+    async def revoke_on_logout(
+        self,
+        access_token: str,
+        user_id: int,
+        device_id: str,
+        session_id: str,
+        refresh_token: Optional[str] = None,
+    ) -> None:
+        """Révoque les tokens lors d'un logout (§4.2)."""
         try:
             access_payload = decode_token(access_token)
             access_jti = access_payload.get("jti")
             if access_jti:
-                # TTL = temps restant avant expiration naturelle
                 exp = access_payload.get("exp", 0)
                 now = int(datetime.now(timezone.utc).timestamp())
-                remaining_ttl = max(exp - now, 1)
-                redis_client.blacklist_access_jti(access_jti, remaining_ttl)
-        except Exception:
-            # Token peut être déjà expiré — on ignore
-            pass
+                remaining_ttl = max(int(exp) - now, 1)
+                await redis_sec.blacklist_access_jti(access_jti, remaining_ttl)
+        except Exception as exc:
+            logger.warning("Failed to blacklist access JTI on logout: %s", exc)
 
-        # Révoquer refresh token + désactiver sa famille
-        if refresh_token:
-            try:
-                refresh_payload = decode_token(refresh_token)
-                refresh_jti = refresh_payload.get("jti")
-                family_id = refresh_payload.get("family_id")
-                if refresh_jti:
-                    redis_client.revoke_refresh_jti(refresh_jti)
-                if family_id:
-                    redis_client.revoke_token_family(family_id)
-            except Exception:
-                pass
+        await redis_sec.revoke_refresh_jti(user_id, device_id, session_id)
+        await redis_sec.delete_session(user_id, device_id, session_id)
 
-    def revoke_all_user_tokens(self, user_id: int) -> int:
-        """Révoque tous les refresh tokens d'un utilisateur.
+    async def revoke_all_user_tokens(self, user_id: int) -> int:
+        """Révoque toutes les sessions d'un utilisateur."""
+        return await redis_sec.revoke_all_user_sessions(user_id)
 
-        Utilisé pour force-logout de toutes les sessions.
+    # ========== Validation ==========
 
-        Returns:
-            Nombre de tokens révoqués
-        """
-        return redis_client.revoke_all_refresh_tokens(user_id)
+    async def is_access_blacklisted(self, jti: str) -> bool:
+        """Vérifie si un access token JTI est blacklisté."""
+        return await redis_sec.is_access_blacklisted(jti)
 
-    # ========== Validation: vérifier blacklist access ==========
-
-    def is_access_blacklisted(self, jti: str) -> bool:
-        """Vérifie si un access token JTI est blacklisté.
-
-        Appelé dans get_current_user pour chaque requête authentifiée.
-
-        Args:
-            jti: JWT ID de l'access token
-
-        Returns:
-            True si blacklisté (token révoqué)
-        """
-        return redis_client.is_access_blacklisted(jti)
-
-    # ========== Validation: vérifier whitelist refresh ==========
-
-    def is_refresh_whitelisted(self, jti: str) -> bool:
-        """Vérifie si un refresh token JTI est dans la whitelist.
-
-        Args:
-            jti: JWT ID du refresh token
-
-        Returns:
-            True si présent (token valide)
-        """
-        return redis_client.get_refresh_jti(jti) is not None
-
-    # ========== Private ==========
-
-    def _revoke_family(self, family_id: str, user_id: int) -> None:
-        """Révoque une famille de tokens entière (replay detection).
-
-        Marque la famille comme inactive et supprime tous les refresh JTI
-        associés à ce user (nuclear option).
-        """
-        redis_client.revoke_token_family(family_id)
-        redis_client.revoke_all_refresh_tokens(user_id)
-        logger.warning(
-            "Token family revoked: family=%s user=%s — all refresh tokens invalidated",
-            family_id, user_id,
-        )
+    async def is_refresh_whitelisted(self, user_id: int, device_id: str, session_id: str) -> bool:
+        """Vérifie si une session a un refresh token actif dans la whitelist."""
+        return await redis_sec.get_refresh_jti(user_id, device_id, session_id) is not None
 
 
 # Singleton

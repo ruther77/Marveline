@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from jose import jwt
+import jwt
 
 from app.core.config import settings
 from app.core.security import create_access_token, create_refresh_token, decode_token
@@ -66,7 +66,7 @@ class TestJWTForgery:
             "iat": datetime.now(timezone.utc),
         }
         # Signer avec HS384 au lieu de HS256
-        forged_token = jwt.encode(forged_payload, settings.JWT_SECRET, algorithm="HS384")
+        forged_token = jwt.encode(forged_payload, "fake-secret", algorithm="HS384")
         csrf = csrf_token_for_user(test_user.id)
 
         response = client.get(
@@ -126,7 +126,7 @@ class TestTokenTypeSafety:
 
         response = client.post(
             "/api/v1/auth/refresh",
-            json={"refresh_token": access_token},
+            cookies={"refresh_token": access_token},
         )
         assert response.status_code == 401
 
@@ -147,7 +147,7 @@ class TestTokenClaimsValidation:
             "exp": datetime.now(timezone.utc) + timedelta(hours=1),
             "iat": datetime.now(timezone.utc),
         }
-        token = jwt.encode(malformed_payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+        token = jwt.encode(malformed_payload, "fake-secret", algorithm="HS256")
 
         response = client.get(
             "/api/v1/products",
@@ -167,7 +167,7 @@ class TestTokenClaimsValidation:
             "exp": datetime.now(timezone.utc) + timedelta(hours=1),
             "iat": datetime.now(timezone.utc),
         }
-        token = jwt.encode(malformed_payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+        token = jwt.encode(malformed_payload, "fake-secret", algorithm="HS256")
 
         response = client.get(
             "/api/v1/products",
@@ -203,7 +203,7 @@ class TestTokenClaimsValidation:
                 "email": test_user.email,
                 "role": test_user.role,
             },
-            expires_delta=timedelta(seconds=-1),
+            expires_delta=timedelta(minutes=-5),  # 5 min > JWT_CLOCK_SKEW_SECONDS=30s leeway
         )
         csrf = csrf_token_for_user(test_user.id)
 
@@ -228,27 +228,27 @@ class TestReplayDetectionIntegration:
             data={"username": "test@carocorp.com", "password": "testpass123"},
         )
         assert login_resp.status_code == 200
-        original_refresh = login_resp.json()["refresh_token"]
+        original_refresh = login_resp.cookies["refresh_token"]
 
         # Premier refresh → OK
         resp1 = client.post(
             "/api/v1/auth/refresh",
-            json={"refresh_token": original_refresh},
+            cookies={"refresh_token": original_refresh},
         )
         assert resp1.status_code == 200
-        new_refresh = resp1.json()["refresh_token"]
+        new_refresh = resp1.cookies["refresh_token"]
 
         # Replay attack : réutiliser l'ancien refresh token
         resp2 = client.post(
             "/api/v1/auth/refresh",
-            json={"refresh_token": original_refresh},
+            cookies={"refresh_token": original_refresh},
         )
         assert resp2.status_code == 401  # Replay détecté
 
         # Le nouveau refresh token doit aussi être révoqué (toute la famille)
         resp3 = client.post(
             "/api/v1/auth/refresh",
-            json={"refresh_token": new_refresh},
+            cookies={"refresh_token": new_refresh},
         )
         assert resp3.status_code == 401  # Famille entière révoquée
 
@@ -260,23 +260,26 @@ class TestReplayDetectionIntegration:
             data={"username": "test@carocorp.com", "password": "testpass123"},
         )
         tokens1 = login_resp.json()
+        rt1 = login_resp.cookies["refresh_token"]
 
         # Premier refresh
         resp1 = client.post(
             "/api/v1/auth/refresh",
-            json={"refresh_token": tokens1["refresh_token"]},
+            cookies={"refresh_token": rt1},
         )
         tokens2 = resp1.json()
+        rt2 = resp1.cookies["refresh_token"]
 
         # Deuxième refresh (avec le nouveau token)
         resp2 = client.post(
             "/api/v1/auth/refresh",
-            json={"refresh_token": tokens2["refresh_token"]},
+            cookies={"refresh_token": rt2},
         )
         tokens3 = resp2.json()
+        rt3 = resp2.cookies["refresh_token"]
 
         # Tous les tokens doivent être différents
         assert tokens1["access_token"] != tokens2["access_token"]
         assert tokens2["access_token"] != tokens3["access_token"]
-        assert tokens1["refresh_token"] != tokens2["refresh_token"]
-        assert tokens2["refresh_token"] != tokens3["refresh_token"]
+        assert rt1 != rt2
+        assert rt2 != rt3

@@ -1,0 +1,10 @@
+/* Epicerie — accent emerald override */
+:root,
+html[data-theme="light"] {
+  --pink:  #059669;
+  --pink2: #047857;
+}
+html[data-theme="dark"] {
+  --pink:  #10b981;
+  --pink2: #059669;
+}

@@ -1,0 +1,88 @@
+{
+  "id": "page:products-qr",
+  "type": "page",
+  "name": "QR Codes",
+  "description": "Page principale \"QR Codes\". Contient : Champ : Rechercher un produit.... Paramètres : rechercher-un-produit.",
+  "route": "/products/qr",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "staff",
+      "manager",
+      "admin"
+    ],
+    "group": "Catalogue",
+    "dom_h1": "QR codes catalogue"
+  },
+  "params": {
+    "rechercher-un-produit": "text"
+  },
+  "features": [
+    "Champ : Rechercher un produit..."
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Imprimer tout",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Tout sélectionner",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "SVG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

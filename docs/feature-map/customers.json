@@ -1,0 +1,144 @@
+{
+  "id": "page:customers",
+  "type": "page",
+  "name": "Clients",
+  "description": "Page principale \"Clients\". Contient : Champ : Rechercher par nom, email.... Paramètres : rechercher-par-nom-email.",
+  "route": "/customers",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "staff",
+      "manager",
+      "admin"
+    ],
+    "group": "Clients",
+    "dom_h1": "Clients"
+  },
+  "params": {
+    "rechercher-par-nom-email": "text"
+  },
+  "features": [
+    "Champ : Rechercher par nom, email..."
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Réservations",
+      "trigger": "click",
+      "target_id": "page:events",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nouveau client",
+      "trigger": "click",
+      "target_id": "modal:nouveau-client",
+      "node": {
+        "id": "modal:nouveau-client",
+        "type": "form",
+        "name": "Nouveau client",
+        "description": "Formulaire \"Nouveau client\". Contient : Champ : customer_type, Champ : Jean, Champ : Dupont, Champ : contact@exemple.com, Champ : 06 12 34 56 78, Champ : 123 rue de la Paix. Paramètres : customer-type, first-name, last-name, email, phone, address, postal-code, city, country.",
+        "attributes": {
+          "depth": 1,
+          "opened_from_depth": 0
+        },
+        "params": {
+          "customer-type": "select",
+          "first-name": "text",
+          "last-name": "text",
+          "email": "email",
+          "phone": "tel",
+          "address": "text",
+          "postal-code": "text",
+          "city": "text",
+          "country": "text"
+        },
+        "features": [
+          "Champ : customer_type",
+          "Champ : Jean",
+          "Champ : Dupont",
+          "Champ : contact@exemple.com",
+          "Champ : 06 12 34 56 78",
+          "Champ : 123 rue de la Paix",
+          "Champ : 75001",
+          "Champ : Paris",
+          "Fermer",
+          "Annuler",
+          "Creer"
+        ],
+        "children": [
+          {
+            "link_type": "action",
+            "label": "Fermer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "action",
+            "label": "Annuler",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "form_submit",
+            "label": "Creer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          }
+        ]
+      }
+    },
+    {
+      "link_type": "action",
+      "label": "À relancer",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

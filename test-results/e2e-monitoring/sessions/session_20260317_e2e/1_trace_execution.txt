@@ -1,0 +1,177 @@
+═══════════════════════════════════════════════════════════
+  SESSION: session_20260317_e2e — 2026-03-17 20:26:32
+═══════════════════════════════════════════════════════════
+
+[AXE 1] TRACE D'EXECUTION
+
+[20:26:32] === Démarrage monitoring ===
+[20:26:32] Docker services:
+NAME                            STATUS
+futurproj_api                   Up About an hour (healthy)
+futurproj_celery_beat           Up 2 days (healthy)
+futurproj_celery_worker         Up 36 hours (healthy)
+futurproj_db                    Up 2 days (healthy)
+futurproj_frontend_epicerie     Up 4 hours
+futurproj_frontend_marveline    Up 43 minutes (healthy)
+futurproj_frontend_restaurant   Up 4 hours
+futurproj_redis_cache           Up 2 days (healthy)
+futurproj_redis_sec             Up 2 days (healthy)
+futurproj_reverse_proxy         Up 2 hours
+futurproj_wireguard             Up 2 days (healthy)
+
+
+[20:28:01] === TEST: Navigation Dashboard ===
+  Action: Clic "Dashboard" dans navbar
+  URL résultante: /dashboard
+  Requêtes API déclenchées: 6
+    1. GET /api/v1/auth/me          → 200
+    2. GET /api/v1/users/me         → 200
+    3. GET /api/v1/dashboard/urgent-alert → 200
+    4. GET /api/v1/dashboard/today   → 200
+    5. GET /api/v1/dashboard/activity → 200
+    6. GET /api/v1/dashboard/stats   → 200
+  Erreurs console: 0
+  Résultat: OK
+
+[20:29:27] === TEST: Navigation Opérations ===
+  Action: Clic "Opérations" dans navbar
+  URL résultante: /operations
+  Requêtes API déclenchées: 4
+    1. GET /api/v1/notifications        → 200
+    2. GET /api/v1/operations/summary   → 500 *** ERREUR ***
+    3. GET /api/v1/operations/summary   → 500 *** RETRY ÉCHOUÉ ***
+    4. GET /api/v1/notifications        → 200
+  Erreurs console: 0 (erreur silencieuse côté frontend)
+  Résultat: PARTIEL — page affichée mais summary manquant
+
+[20:46:55] === TEST: Navigation Catalogue/Produits ===
+  Action: Plus → Catalogue
+  URL: /catalogue/products?q=&category=&stock_filter=&view=grid&page=1
+  Requêtes API: 3
+    1. GET /api/v1/notifications         → 200
+    2. GET /api/v1/categories?active_only=true&limit=1000 → 200
+    3. GET /api/v1/products?skip=0&limit=20&is_active=true → 200
+  Erreurs console: 0
+  Résultat: OK
+
+[20:46:55] === TEST: Navigation Clients ===
+  Action: Plus → Clients
+  URL: /customers?q=&type=&relances=false&page=1
+  Requêtes API: 2
+    1. GET /api/v1/notifications         → 200
+    2. GET /api/v1/customers?skip=0&limit=20 → 200
+  Erreurs console: 0
+  Résultat: OK
+
+[20:46:55] === TEST: Navigation Finances/Factures ===
+  Action: Plus → Finances
+  URL: /finance/invoices?page=1
+  Requêtes API: 6
+    1. GET /api/v1/notifications         → 200
+    2. GET /api/v1/auth/me               → 200
+    3. GET /api/v1/users/me              → 200
+    4. GET /api/v1/admin/settings        → 200
+    5. GET /api/v1/invoices?skip=0&limit=20 → 200
+    6. GET /api/v1/invoices/sequence/gaps?year=2026 → 200
+  Erreurs console: 0
+  Résultat: OK
+
+[20:46:55] === TEST: Navigation Stock/Inventaire ===
+  Action: Plus → Parc matériel
+  URL: /stock/items
+  Requêtes API: 26
+    1. GET /api/v1/notifications            → 200
+    2. GET /api/v1/products/inventory-summary → 200
+    3. GET /api/v1/products?skip=0&limit=20  → 200
+    4. GET /api/v1/products/low-stock?limit=5 → 200
+    5. GET /api/v1/planning/today            → 200
+    6-25. GET /api/v1/products/{id}/stock (×20) → 200
+    26. GET /api/v1/notifications            → 200
+  Erreurs console: 0
+  Résultat: OK mais PARASITAGE N+1
+
+[21:07:45] === TEST: Création réservation — Formulaire ===
+  Action: Dashboard → + Réservation → /reservations/new
+  Client sélectionné: Alice Test
+  Dates: Événement 25/03, Livraison 24/03, Retour 27/03
+  Durée calculée automatiquement: 4 jours ✓
+
+[21:07:45] === OBSERVATION: Token refresh automatique ===
+  Séquence capturée:
+    GET /api/v1/notifications → 401 (token expiré)
+    POST /api/v1/auth/refresh → 200 (refresh OK)
+    GET /api/v1/notifications → 200 (reprise)
+  Résultat: Refresh silencieux fonctionne ✓
+
+[21:42:55] === TEST: Cycle réservation — Création ===
+  Action: Dashboard → + Réservation → Formulaire complet → Submit
+  Client: Alice Test
+  Type: Mariage | Nom: Mariage E2E Test | Lieu: Domaine du Château | Invités: 80
+  Dates: Événement 25/03, Livraison 24/03, Retour 27/03 (4j)
+  Produit: Verre à eau classique ×80 @ 0.30€/j = 96.00€
+  Requête: POST /api/v1/reservations → 201
+  Résultat: RES-2026-0013 créée en statut Brouillon ✓
+  
+  AXE 4 Cohérence:
+    Total frontend = 96.00€ (80 × 0.30 × 4j) ✓
+    Référence générée: RES-2026-0013 ✓
+    Nombre réservations: 12 → 13 ✓
+
+[21:42:55] === TEST: Cycle réservation — Confirmation ===
+  Action: Clic "Confirmer" sur fiche RES-2026-0013
+  Requête: POST /api/v1/reservations/14/confirm → 200
+  Statut: Brouillon → Pre-check
+  Caution calculée: 288.00€ (en attente)
+  Note: La machine à états passe par Pre-check (pas directement Confirmé)
+  Résultat: OK ✓
+
+[21:42:55] === TEST: Cycle réservation — Pré-départ ===
+  Action: Clic "Procéder au départ" → /operations/departure/14
+  Requête: GET /api/v1/operations/departure/14 → 200
+  Affichage: Verre à eau classique — Attendu: 80, Chargé: 80, État: Bon état
+  Scanner QR disponible ✓
+  Zone signature responsable ✓
+  Bouton "Valider le départ" visible ✓
+  Signature tracée (canvas) ✓
+  Résultat: Page fonctionnelle — en attente validation départ
+  Note: Extension Chrome déconnectée avant clic validation
+
+[22:17:56] === CYCLE COMPLET RÉSERVATION (API) — RES-2026-0013 ===
+  Machine à états complète validée:
+    1. POST /api/v1/reservations           → 201 (Brouillon)
+    2. POST /reservations/14/confirm       → 200 (Pre-check)
+    3. POST /reservations/14/deliver       → 200 (Delivered)
+       Payload: signature_url + items[{product_id, quantity_loaded, condition}]
+    4. POST /operations/return/14          → 200 (Returned)
+       Payload: signature_url + items[{line_id, product_id, quantity_returned, condition}]
+    5. POST /reservations/14/complete      → 200 (Completed)
+  
+  Observations:
+    - Login redirect post-auth fonctionne (?redirect=...)
+    - Token refresh silencieux validé (401 → refresh → 200)
+    - CSRF obligatoire pour toutes les mutations (403 sans)
+    - Return endpoint dans /operations/ (pas /reservations/)
+    - Return nécessite line_id (422 sans)
+    - Caution auto-calculée à la confirmation (288€ = 3x total)
+    - Pre-check article par article avec états physiques + photo optionnelle
+
+[22:19:18] === TEST: Restaurant — Login PIN ===
+  Action: Navigation → /restaurant/
+  Redirect: → /restaurant/login
+  Page: Login PIN 6 digits avec clavier numérique
+  UI: Logo Restaurant MassaCorp, bouton "Déverrouiller", lien "Première connexion"
+  Résultat: Page fonctionnelle ✓
+
+[22:19:18] === TEST: Restaurant — Réseau ===
+  32 requêtes capturées (accumulées depuis Marveline)
+  30× polling notifications (session Marveline expirée)
+  1× auth/refresh → 401 (session expirée)
+  PROBLÈME: le polling continue même après expiration session
+
+[22:20:36] === TEST: Épicerie — Login Formulaire ===
+  Action: Navigation → /epicerie/
+  Redirect: → /epicerie/login
+  Page: Login formulaire email/password
+  UI: Logo Épicerie MassaCorp (vert), email pré-rempli, bouton "Se connecter"
+  Requêtes: 1 (auth/refresh → 401, session expirée = attendu)
+  Résultat: Page fonctionnelle ✓

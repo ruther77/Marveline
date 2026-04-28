@@ -1,0 +1,260 @@
+{
+  "meta": {
+    "baselineFileVersion": 1,
+    "ignoreMessages": false
+  },
+  "errors": {
+    "58331760865e144cd00d6c9559a099d5816cb60c": {
+      "file": "src/pages/admin/AuditLogsPage.tsx",
+      "code": "TS2538",
+      "count": 2,
+      "message": "Type 'null' cannot be used as an index type."
+    },
+    "a66f40203a93282595f31ddebf60f2f64c5a18ef": {
+      "file": "src/pages/agenda/AgendaPage.tsx",
+      "code": "TS2322",
+      "count": 1,
+      "message": "Type '(prev: Record<string, unknown>) => { tab: \"today\" | undefined; }' is not assignable to type 'true | ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"SEARCH\", string, string | undefined> | undefined'."
+    },
+    "a82b08f7ad2c6df4d3ad94ea67afdb9802ef4a9a": {
+      "file": "src/pages/agenda/AgendaPage.tsx",
+      "code": "TS2322",
+      "count": 1,
+      "message": "Type '(prev: Record<string, unknown>) => { year: number; }' is not assignable to type 'true | ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"SEARCH\", string, string | undefined> | undefined'."
+    },
+    "7ceeb44016b439289aebf3b2ed42fc477e088200": {
+      "file": "src/pages/agenda/AgendaPage.tsx",
+      "code": "TS2322",
+      "count": 1,
+      "message": "Type '(prev: Record<string, unknown>) => { month: number; }' is not assignable to type 'true | ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"SEARCH\", string, string | undefined> | undefined'."
+    },
+    "4817a988826fb3ce08386e87d99a49551f94ec09": {
+      "file": "src/pages/agenda/AgendaPage.tsx",
+      "code": "TS2322",
+      "count": 1,
+      "message": "Type '(prev: Record<string, unknown>) => { date: string | undefined; }' is not assignable to type 'true | ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"SEARCH\", string, string | undefined> | undefined'."
+    },
+    "11a9d3ec60baefbbfd67010c9d42b5c12159a592": {
+      "file": "src/pages/customers/CustomerDetailPage.tsx",
+      "code": "TS2353",
+      "count": 1,
+      "message": "Object literal may only specify known properties, and 'customer_id' does not exist in type '{ step?: number | undefined; } | ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, ... 4 more ..., undefined>, \"never\", false, RouterHistory, Record<...>>, \"SEARCH\", string, \"/devis/new\">'."
+    },
+    "19a80ef0de2de40fe8feb1fad8dda2204e18548f": {
+      "file": "src/pages/customers/CustomerHistoryPage.tsx",
+      "code": "TS2820",
+      "count": 1,
+      "message": "Type '\"/reservations/$id/phases\"' is not assignable to type '\"/dashboard\" | \"/mfa/verify\" | \".\" | \"/\" | \"/$\" | \"/fidelite/rejoindre\" | \"..\" | \"/commandes\" | \"/more\" | \"/notifications\" | \"/plus\" | \"/search\" | \"/ventes\" | \"/forgot-password\" | ... 119 more ... | \"/stock/items/$id\"'. Did you mean '\"/reservations/$id/$phase\"'?"
+    },
+    "3821344ddee6d91d312c7bf1aa1c7f0f117ff4cb": {
+      "file": "src/pages/customers/CustomerHistoryPage.tsx",
+      "code": "TS2353",
+      "count": 1,
+      "message": "Object literal may only specify known properties, and 'id' does not exist in type 'ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"PATH\", string, \"/reservations/$id/phases\">'."
+    },
+    "1cc8c2f4bb093f9a3579a5ad3ca3feb6272b843e": {
+      "file": "src/pages/dashboard/FinancesPage.tsx",
+      "code": "TS2322",
+      "count": 1,
+      "message": "Type '(prev: Record<string, unknown>) => { year: number; }' is not assignable to type 'true | ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"SEARCH\", string, string | undefined> | undefined'."
+    },
+    "9f9e060d16083a468ed2efe7daa60f8b862d521d": {
+      "file": "src/pages/devis/DevisCreatePage.tsx",
+      "code": "TS2322",
+      "count": 1,
+      "message": "Type '(prev: Record<string, unknown>) => { step: Step; }' is not assignable to type 'true | ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"SEARCH\", string, string | undefined> | undefined'."
+    },
+    "ecff5137590a349217ad0cc95dadb7b0b49459e8": {
+      "file": "src/pages/devis/DevisPrestationsPage.tsx",
+      "code": "TS2339",
+      "count": 1,
+      "message": "Property 'module_id' does not exist on type 'DevisCoverageItem'."
+    },
+    "1c95c1e347bb4cb54dd117509a23798bf60f8473": {
+      "file": "src/pages/devis/DevisPrestationsPage.tsx",
+      "code": "TS2353",
+      "count": 1,
+      "message": "Object literal may only specify known properties, and 'module_id' does not exist in type 'DevisCoverageItemCreate'."
+    },
+    "2f347457ffcf518e6b294f87a54697be88f5a3c7": {
+      "file": "src/pages/devis/components/DevisLineHistory.tsx",
+      "code": "TS2322",
+      "count": 1,
+      "message": "Type '{}' is not assignable to type 'ReactNode'."
+    },
+    "bb77a4cd477051937ef98b65e24a00472d901d22": {
+      "file": "src/pages/events/EventIdLayout.tsx",
+      "code": "TS2550",
+      "count": 1,
+      "message": "Property 'at' does not exist on type '(RouteMatch<\"__root__\", \"/\", {}, AnySchema, undefined, AnyContext, {}> | RouteMatch<\"/_app/dashboard\", \"/dashboard\", ResolveParams<\"/dashboard\">, AnySchema, undefined, AnyContext, {}> | ... 151 more ... | RouteMatch<...>)[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2022' or later."
+    },
+    "1fccc3c7ac2fc5879dfd85762dde71012230a073": {
+      "file": "src/pages/inventory/InventoryPage.tsx",
+      "code": "TS2322",
+      "count": 1,
+      "message": "Type '(prev: Record<string, unknown>) => { q: string | undefined; page: number; }' is not assignable to type 'true | ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"SEARCH\", string, string | undefined> | undefined'."
+    },
+    "766b25a402a663bb4b31511e4506dfd1afdbe660": {
+      "file": "src/pages/inventory/InventoryPage.tsx",
+      "code": "TS2322",
+      "count": 1,
+      "message": "Type '(prev: Record<string, unknown>) => { stock: \"in_stock\" | \"low_stock\" | \"out_of_stock\" | undefined; page: number; }' is not assignable to type 'true | ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"SEARCH\", string, string | undefined> | undefined'."
+    },
+    "11b738894b40e992cb7d26e47da9b096f580de72": {
+      "file": "src/pages/inventory/InventoryPage.tsx",
+      "code": "TS2322",
+      "count": 1,
+      "message": "Type '(prev: Record<string, unknown>) => { category: string | undefined; page: number; }' is not assignable to type 'true | ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"SEARCH\", string, string | undefined> | undefined'."
+    },
+    "ffb8f10d26338396be8af25ce9cd483b04e6aa8c": {
+      "file": "src/pages/inventory/InventoryPage.tsx",
+      "code": "TS2322",
+      "count": 1,
+      "message": "Type '(prev: Record<string, unknown>) => { page: number; }' is not assignable to type 'true | ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"SEARCH\", string, string | undefined> | undefined'."
+    },
+    "27cb7389742c18443ec31fef0f5a800ab4c08d9e": {
+      "file": "src/pages/inventory/components/AddContentSheet.tsx",
+      "code": "TS2322",
+      "count": 1,
+      "message": "Type '{ onCancel: () => void; onConfirm: () => void; confirmText: string; loading: boolean; disabled: boolean; }' is not assignable to type 'IntrinsicAttributes & ModalFooterProps'."
+    },
+    "0f72d053e23b34968adc71b57de5835c02b1e2ba": {
+      "file": "src/pages/inventory/components/MovementDetailModal.tsx",
+      "code": "TS2339",
+      "count": 2,
+      "message": "Property 'product_image_url' does not exist on type 'MovementItem'."
+    },
+    "3603e8f4df9b9a236c21a7a225e7bb539b484deb": {
+      "file": "src/pages/invoices/RapportMensuelPage.tsx",
+      "code": "TS2339",
+      "count": 2,
+      "message": "Property 'month' does not exist on type 'BarRectangleItem'."
+    },
+    "8ca58d71ac2095e57fff42b81665339f918bde40": {
+      "file": "src/pages/loyalty/LoyaltyMembersPage.tsx",
+      "code": "TS18048",
+      "count": 5,
+      "message": "'page' is possibly 'undefined'."
+    },
+    "b358a0031b1dd321a4f1f60e2732da58c0747770": {
+      "file": "src/pages/loyalty/LoyaltyMembersPage.tsx",
+      "code": "TS2322",
+      "count": 4,
+      "message": "Type '(prev: { filter?: string | undefined; status?: string | undefined; month?: number | undefined; year?: number | undefined; page?: number | undefined; type?: \"\" | CustomerType | undefined; ... 18 more ...; level?: string | undefined; }) => { ...; }' is not assignable to type 'true | ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"SEARCH\", string, string | undefined> | undefined'."
+    },
+    "e00ad37cf79a9832b4ee506348766da1c0e1d70c": {
+      "file": "src/pages/loyalty/components/RewardBottomSheet.tsx",
+      "code": "TS2305",
+      "count": 1,
+      "message": "Module '\"@shared/components/ui\"' has no exported member 'BottomSheet'."
+    },
+    "bf58b5169d2b98ba7f3f8a6138612ff26ddea6f5": {
+      "file": "src/pages/operations/DepartureInventoryPage.tsx",
+      "code": "TS2367",
+      "count": 2,
+      "message": "This comparison appears to be unintentional because the types 'number | null' and 'string' have no overlap."
+    },
+    "23713be0c23134a5b949c830cd3d2269776f7c45": {
+      "file": "src/pages/operations/DepartureInventoryPage.tsx",
+      "code": "TS2345",
+      "count": 1,
+      "message": "Argument of type 'string | null' is not assignable to parameter of type 'SetStateAction<number | null>'."
+    },
+    "3b233b3e23a7ccfde9c1680e4b17aa99e97e895a": {
+      "file": "src/pages/operations/DepartureInventoryPage.tsx",
+      "code": "TS2820",
+      "count": 1,
+      "message": "Type '\"/reservations/$id/legal\"' is not assignable to type '\"/dashboard\" | \"/mfa/verify\" | \".\" | \"/\" | \"/$\" | \"/fidelite/rejoindre\" | \"..\" | \"/commandes\" | \"/more\" | \"/notifications\" | \"/plus\" | \"/search\" | \"/ventes\" | \"/forgot-password\" | ... 119 more ... | \"/stock/items/$id\"'. Did you mean '\"/reservations/$id/lines\"'?"
+    },
+    "a740608cd5cbef870801573b6a11a28cde420895": {
+      "file": "src/pages/operations/DepartureInventoryPage.tsx",
+      "code": "TS2353",
+      "count": 1,
+      "message": "Object literal may only specify known properties, and 'id' does not exist in type 'ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"PATH\", string, \"/reservations/$id/legal\">'."
+    },
+    "be61b4a07383010c12c66c60c290cf6f6cca84be": {
+      "file": "src/pages/planning/LoadingPage.tsx",
+      "code": "TS2741",
+      "count": 1,
+      "message": "Property 'search' is missing in type '{ children: Element; to: \"/planning/today\"; className: string; }' but required in type 'MakeRequiredSearchParams<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, string, \"/planning/today\">'."
+    },
+    "57adddf004e13cb1f29e87f118b7a06d43a09c9b": {
+      "file": "src/pages/planning/PlanningEventPanelPage.tsx",
+      "code": "TS2820",
+      "count": 1,
+      "message": "Type '\"/reservations/$id/phases\"' is not assignable to type '\"/dashboard\" | \"/mfa/verify\" | \".\" | \"/\" | \"/$\" | \"/fidelite/rejoindre\" | \"..\" | \"/commandes\" | \"/more\" | \"/notifications\" | \"/plus\" | \"/search\" | \"/ventes\" | \"/forgot-password\" | ... 119 more ... | \"/stock/items/$id\"'. Did you mean '\"/reservations/$id/$phase\"'?"
+    },
+    "e84a09c3a0c3b6475ea8d34fe16c1e55ff0548eb": {
+      "file": "src/pages/planning/PlanningEventPanelPage.tsx",
+      "code": "TS2353",
+      "count": 1,
+      "message": "Object literal may only specify known properties, and 'id' does not exist in type 'ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"PATH\", string, \"/reservations/$id/phases\">'."
+    },
+    "67e1a235c5a5ed4d9c18b7d224bebedd14527001": {
+      "file": "src/pages/products/BundlesPage.tsx",
+      "code": "TS2322",
+      "count": 1,
+      "message": "Type '(prev: Record<string, unknown>) => { filter: string | undefined; }' is not assignable to type 'true | ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"SEARCH\", string, string | undefined> | undefined'."
+    },
+    "75ef645b20d3f5342c55302640d6a68579988f4e": {
+      "file": "src/pages/products/BundlesPage.tsx",
+      "code": "TS2322",
+      "count": 1,
+      "message": "Type '(prev: Record<string, unknown>) => { inactive: boolean | undefined; }' is not assignable to type 'true | ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"SEARCH\", string, string | undefined> | undefined'."
+    },
+    "3b34165b7a45d86a2ed9d4949d0fcf9d1d47ee82": {
+      "file": "src/pages/products/CollectionDetailPage.tsx",
+      "code": "TS2322",
+      "count": 2,
+      "message": "Type '\"/catalogue/collections\"' is not assignable to type '\"/dashboard\" | \"/mfa/verify\" | \".\" | \"/\" | \"/$\" | \"/fidelite/rejoindre\" | \"..\" | \"/commandes\" | \"/more\" | \"/notifications\" | \"/plus\" | \"/search\" | \"/ventes\" | \"/forgot-password\" | ... 119 more ... | \"/stock/items/$id\"'."
+    },
+    "fb71f2a9a3f38d478c1d8d422c72fe8fb4808630": {
+      "file": "src/pages/products/CollectionsPage.tsx",
+      "code": "TS2322",
+      "count": 1,
+      "message": "Type '\"/catalogue/collections/$id\"' is not assignable to type '\"/dashboard\" | \"/mfa/verify\" | \".\" | \"/\" | \"/$\" | \"/fidelite/rejoindre\" | \"..\" | \"/commandes\" | \"/more\" | \"/notifications\" | \"/plus\" | \"/search\" | \"/ventes\" | \"/forgot-password\" | ... 119 more ... | \"/stock/items/$id\"'."
+    },
+    "7505581b69d0c53462a07dcd18921c91e294b33e": {
+      "file": "src/pages/products/CollectionsPage.tsx",
+      "code": "TS2353",
+      "count": 1,
+      "message": "Object literal may only specify known properties, and 'id' does not exist in type 'ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"PATH\", string, \"/catalogue/collections/$id\">'."
+    },
+    "ad6a49cf60155bc5526644d28665a2d957226728": {
+      "file": "src/pages/products/MediaPage.tsx",
+      "code": "TS2820",
+      "count": 1,
+      "message": "Type '\"/catalogue/products/$id/photos\"' is not assignable to type '\"/dashboard\" | \"/mfa/verify\" | \".\" | \"/\" | \"/$\" | \"/fidelite/rejoindre\" | \"..\" | \"/commandes\" | \"/more\" | \"/notifications\" | \"/plus\" | \"/search\" | \"/ventes\" | \"/forgot-password\" | ... 119 more ... | \"/stock/items/$id\"'. Did you mean '\"/catalogue/products/$id\"'?"
+    },
+    "c29cbfb18a4d0dd3ca8dbc6c1d3195b51b4fccbd": {
+      "file": "src/pages/products/MediaPage.tsx",
+      "code": "TS2353",
+      "count": 1,
+      "message": "Object literal may only specify known properties, and 'id' does not exist in type 'ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"PATH\", string, \"/catalogue/products/$id/photos\">'."
+    },
+    "e0961ddf30f227c2d522a12b63c95ddf41878193": {
+      "file": "src/pages/products/ProductAvailabilityCalendarPage.tsx",
+      "code": "TS2820",
+      "count": 1,
+      "message": "Type '\"/_app/catalogue/products/$id/availability\"' is not assignable to type 'ConstrainLiteral<\"/_app/catalogue/products/$id/availability\", \"__root__\" | \"/\" | \"/_auth\" | \"/_app\" | \"/$\" | \"/fidelite/rejoindre\" | \"/_auth/reset-password\" | \"/_auth/login\" | \"/_auth/forgot-password\" | ... 144 more ... | \"/_app/catalogue/products/$id/editor\", \"__root__\" | ... 152 more ... | \"/_app/catalogue/product...'. Did you mean '\"/_app/catalogue/products/$id/variants\"'?"
+    },
+    "c8d1784a31b193a6d45b7af2085a700d88834fbc": {
+      "file": "src/pages/products/ProductStatesPage.tsx",
+      "code": "TS2820",
+      "count": 1,
+      "message": "Type '\"/catalogue/products/$id/photos\"' is not assignable to type '\"/dashboard\" | \"/mfa/verify\" | \".\" | \"/\" | \"/$\" | \"/fidelite/rejoindre\" | \"..\" | \"/commandes\" | \"/more\" | \"/notifications\" | \"/plus\" | \"/search\" | \"/ventes\" | \"/forgot-password\" | ... 119 more ... | \"/stock/items/$id\"'. Did you mean '\"/catalogue/products/$id\"'?"
+    },
+    "3f37f3ea85c42f61f50491b7351e27357461e7f2": {
+      "file": "src/pages/products/ProductStatesPage.tsx",
+      "code": "TS2353",
+      "count": 1,
+      "message": "Object literal may only specify known properties, and 'id' does not exist in type 'ParamsReducerFn<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, \"PATH\", string, \"/catalogue/products/$id/photos\">'."
+    },
+    "256233d15a50442bd178569756cefc34cda96df2": {
+      "file": "src/routes/_app/planning/index.tsx",
+      "code": "TS2345",
+      "count": 1,
+      "message": "Argument of type '{ to: \"/planning/calendar\"; }' is not assignable to parameter of type 'RedirectOptions<RouterCore<Route<Register, any, \"/\", \"/\", string, \"__root__\", undefined, {}, {}, AnyContext, AnyContext, {}, undefined, RootRouteChildren, FileRouteTypes, unknown, unknown, undefined>, \"never\", false, RouterHistory, Record<...>>, string, \"/planning/calendar\", string, \"\">'."
+    }
+  }
+}

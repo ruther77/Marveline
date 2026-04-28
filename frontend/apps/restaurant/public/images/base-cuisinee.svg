@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 320" fill="none">
+  <!-- Background gradient -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="400" y2="320" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#faf5ff"/>
+      <stop offset="100%" stop-color="#f3e8ff"/>
+    </linearGradient>
+    <linearGradient id="pot" x1="120" y1="120" x2="280" y2="260" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="lid" x1="110" y1="100" x2="290" y2="140" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#c4b5fd"/>
+      <stop offset="100%" stop-color="#a78bfa"/>
+    </linearGradient>
+    <linearGradient id="steam1" x1="0" y1="1" x2="0" y2="0" gradientUnits="objectBoundingBox">
+      <stop offset="0%" stop-color="#c4b5fd" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#c4b5fd" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="320" rx="16" fill="url(#bg)"/>
+
+  <!-- Steam wisps -->
+  <path d="M160 105 Q155 80 165 55 Q170 40 160 25" stroke="url(#steam1)" stroke-width="3" stroke-linecap="round" fill="none">
+    <animate attributeName="d" dur="3s" repeatCount="indefinite" values="M160 105 Q155 80 165 55 Q170 40 160 25;M160 105 Q170 75 155 50 Q148 35 158 20;M160 105 Q155 80 165 55 Q170 40 160 25"/>
+  </path>
+  <path d="M200 100 Q195 70 205 45 Q210 28 200 12" stroke="url(#steam1)" stroke-width="3.5" stroke-linecap="round" fill="none">
+    <animate attributeName="d" dur="3.5s" repeatCount="indefinite" values="M200 100 Q195 70 205 45 Q210 28 200 12;M200 100 Q210 65 195 40 Q188 25 198 8;M200 100 Q195 70 205 45 Q210 28 200 12"/>
+  </path>
+  <path d="M240 105 Q235 78 245 52 Q250 38 240 22" stroke="url(#steam1)" stroke-width="2.5" stroke-linecap="round" fill="none">
+    <animate attributeName="d" dur="4s" repeatCount="indefinite" values="M240 105 Q235 78 245 52 Q250 38 240 22;M240 105 Q250 72 235 48 Q228 32 238 18;M240 105 Q235 78 245 52 Q250 38 240 22"/>
+  </path>
+
+  <!-- Pot body -->
+  <path d="M120 145 L120 230 Q120 265 155 270 L245 270 Q280 265 280 230 L280 145 Z" fill="url(#pot)"/>
+
+  <!-- Pot highlight -->
+  <path d="M130 155 L130 225 Q130 250 155 255" stroke="white" stroke-opacity="0.25" stroke-width="4" stroke-linecap="round" fill="none"/>
+
+  <!-- Handles -->
+  <path d="M115 170 Q90 170 90 190 Q90 210 115 210" stroke="#7c3aed" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <path d="M285 170 Q310 170 310 190 Q310 210 285 210" stroke="#7c3aed" stroke-width="8" stroke-linecap="round" fill="none"/>
+
+  <!-- Lid -->
+  <ellipse cx="200" cy="140" rx="88" ry="18" fill="url(#lid)"/>
+  <ellipse cx="200" cy="137" rx="78" ry="12" fill="#c4b5fd" fill-opacity="0.4"/>
+
+  <!-- Lid knob -->
+  <ellipse cx="200" cy="118" rx="14" ry="8" fill="#8b5cf6"/>
+  <path d="M200 126 L200 132" stroke="#8b5cf6" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- Decorative herbs (small leaves) -->
+  <g opacity="0.5">
+    <path d="M320 200 Q330 185 340 195 Q330 205 320 200Z" fill="#4ade80"/>
+    <path d="M325 210 Q335 195 345 205 Q335 215 325 210Z" fill="#22c55e"/>
+    <path d="M60 160 Q70 145 80 155 Q70 165 60 160Z" fill="#4ade80"/>
+    <path d="M55 175 Q65 160 75 170 Q65 180 55 175Z" fill="#22c55e"/>
+  </g>
+
+  <!-- Bottom dots -->
+  <circle cx="170" cy="295" r="3" fill="#c4b5fd" opacity="0.4"/>
+  <circle cx="200" cy="298" r="2.5" fill="#a78bfa" opacity="0.3"/>
+  <circle cx="230" cy="295" r="3" fill="#c4b5fd" opacity="0.4"/>
+</svg>

@@ -42,6 +42,16 @@ class UserCreate(BaseSchema):
         default=UserRole.STAFF,
         description="Rôle RBAC (staff, manager, admin)",
     )
+    address: Optional[str] = Field(
+        default=None,
+        max_length=500,
+        description="Adresse postale",
+    )
+    postal_code: Optional[str] = Field(
+        default=None,
+        max_length=20,
+        description="Code postal",
+    )
 
     @field_validator("first_name", "last_name")
     @classmethod
@@ -82,6 +92,16 @@ class UserUpdate(BaseSchema):
     is_active: Optional[bool] = Field(
         default=None,
         description="Activer/désactiver le compte",
+    )
+    address: Optional[str] = Field(
+        default=None,
+        max_length=500,
+        description="Adresse postale",
+    )
+    postal_code: Optional[str] = Field(
+        default=None,
+        max_length=20,
+        description="Code postal",
     )
 
     @field_validator("first_name", "last_name")
@@ -149,6 +169,16 @@ class UserProfileUpdate(BaseSchema):
         max_length=100,
         description="Nouveau mot de passe (optionnel, doit respecter password policy)"
     )
+    address: Optional[str] = Field(
+        default=None,
+        max_length=500,
+        description="Adresse postale"
+    )
+    postal_code: Optional[str] = Field(
+        default=None,
+        max_length=20,
+        description="Code postal"
+    )
 
     @field_validator("first_name", "last_name")
     @classmethod
@@ -157,6 +187,37 @@ class UserProfileUpdate(BaseSchema):
         if value is None:
             return value
         return validate_text_safe(value)
+
+
+class UserInviteRequest(BaseSchema):
+    """Schema pour invitation d'un utilisateur par email."""
+
+    email: EmailStr = Field(..., description="Email de l'utilisateur invité")
+    role: UserRole = Field(
+        default=UserRole.STAFF,
+        description="Rôle RBAC attribué à l'invitation",
+    )
+    first_name: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+        description="Prénom (optionnel)",
+    )
+    last_name: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+        description="Nom de famille (optionnel)",
+    )
+
+
+class UserInviteResponse(BaseSchema):
+    """Schema pour réponse d'invitation utilisateur."""
+
+    id: int = Field(..., gt=0, description="ID de l'utilisateur créé")
+    email: EmailStr = Field(..., description="Email de l'utilisateur")
+    role: UserRole = Field(..., description="Rôle attribué")
+    invite_sent: bool = Field(..., description="Email d'invitation envoyé")
 
 
 class UserProfileResponse(BaseSchema):
@@ -185,5 +246,7 @@ class UserProfileResponse(BaseSchema):
     role: UserRole = Field(..., description="Rôle RBAC")
     tenant_id: int = Field(..., gt=0, description="ID tenant")
     is_active: bool = Field(default=True, description="Compte actif")
+    address: Optional[str] = Field(default=None, description="Adresse postale")
+    postal_code: Optional[str] = Field(default=None, description="Code postal")
     created_at: str = Field(..., description="Date création")
     updated_at: str = Field(..., description="Date dernière mise à jour")

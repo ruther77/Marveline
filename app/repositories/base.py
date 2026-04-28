@@ -1,11 +1,23 @@
 """Repository de base générique avec isolation multi-tenant stricte."""
+import logging
 from typing import Generic, TypeVar, Type, Optional, Any
 from sqlalchemy import select, func, and_
+
+logger = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.util import identity_key
 from app.models.base import Base, TenantMixin, SoftDeleteMixin
-from app.core.cache import cache_service, cache_invalidate
-from app.core.metrics import cache_hits_total, cache_misses_total, cache_hit_rate
+
+# Imports cache/metrics lazys pour éviter le circular import :
+# repositories.base → core.cache → core.__init__ → core.deps → services → repositories.base
+def _get_cache_service():
+    from app.core.cache import cache_service
+    return cache_service
+
+def _get_cache_metrics():
+    from app.core.metrics import cache_hits_total, cache_misses_total, cache_hit_rate
+    return cache_hits_total, cache_misses_total, cache_hit_rate
 
 
 # Type générique pour le modèle
@@ -65,7 +77,7 @@ class BaseRepository(Generic[T]):
             "product:1:123"
         """
         entity_name = self.model_class.__name__.lower()
-        return f"{entity_name}:{tenant_id}:{entity_id}"
+        return f"v2:{entity_name}:{tenant_id}:{entity_id}"  # P3-01 : cache versioning
 
     def _get_cache_ttl(self) -> int:
         """Retourne TTL cache approprié pour type d'entité.
@@ -111,6 +123,44 @@ class BaseRepository(Generic[T]):
             return query.filter(self.model_class.is_active == True)
         return query
 
+    def _apply_filters(self, query, filters: Optional[dict[str, Any]]):
+        """Applique les filtres additionnels sur une query.
+
+        Supporte les opérateurs via double underscore (ex: "available_quantity__gt").
+        Opérateurs supportés : gt, gte, lt, lte, ne. Égalité par défaut.
+
+        Args:
+            query: Query SQLAlchemy
+            filters: Dictionnaire de filtres (None accepté)
+
+        Returns:
+            Query avec filtres appliqués
+        """
+        if not filters:
+            return query
+
+        for key, value in filters.items():
+            if "__" in key:
+                field_name, operator = key.rsplit("__", 1)
+                if not hasattr(self.model_class, field_name):
+                    continue
+                field = getattr(self.model_class, field_name)
+                if operator == "gt":
+                    query = query.filter(field > value)
+                elif operator == "gte":
+                    query = query.filter(field >= value)
+                elif operator == "lt":
+                    query = query.filter(field < value)
+                elif operator == "lte":
+                    query = query.filter(field <= value)
+                elif operator == "ne":
+                    query = query.filter(field != value)
+                # Opérateur inconnu : ignorer silencieusement
+            elif hasattr(self.model_class, key):
+                query = query.filter(getattr(self.model_class, key) == value)
+
+        return query
+
     def _update_cache_hit_rate(self, entity_name: str) -> None:
         """Calcule et met à jour la métrique cache_hit_rate.
 
@@ -124,6 +174,7 @@ class BaseRepository(Generic[T]):
         """
         try:
             # Récupérer les valeurs actuelles des counters
+            cache_hits_total, cache_misses_total, cache_hit_rate = _get_cache_metrics()
             hits = cache_hits_total.labels(entity=entity_name)._value.get()
             misses = cache_misses_total.labels(entity=entity_name)._value.get()
 
@@ -131,9 +182,8 @@ class BaseRepository(Generic[T]):
             if total > 0:
                 hit_rate_value = hits / total
                 cache_hit_rate.labels(entity=entity_name).set(hit_rate_value)
-        except Exception:
-            # Fail silently - métriques non critiques
-            pass
+        except Exception as e:
+            logger.warning("cache_hit_rate metric update failed: %s", e)
 
     def get_by_id(
         self,
@@ -162,11 +212,13 @@ class BaseRepository(Generic[T]):
         """
         # 1. Check cache Redis (fail-open strategy)
         cache_key = self._get_cache_key(id, tenant_id)
+        cache_service = _get_cache_service()
         cached_data = cache_service.get(cache_key)
 
         if cached_data is not None:
             # Cache HIT
             entity_name = self.model_class.__name__.lower()
+            cache_hits_total, cache_misses_total, _cache_hit_rate = _get_cache_metrics()
             cache_hits_total.labels(entity=entity_name).inc()
             self._update_cache_hit_rate(entity_name)
 
@@ -192,6 +244,7 @@ class BaseRepository(Generic[T]):
 
         # 2. Cache MISS → Query DB
         entity_name = self.model_class.__name__.lower()
+        _cache_hits_total, cache_misses_total, _cache_hit_rate2 = _get_cache_metrics()
         cache_misses_total.labels(entity=entity_name).inc()
         self._update_cache_hit_rate(entity_name)
 
@@ -221,6 +274,13 @@ class BaseRepository(Generic[T]):
     ) -> list[T]:
         """Liste les entités avec pagination et filtres.
 
+        Stratégie cache : les listes NE SONT PAS cachées — choix délibéré.
+        Raison : garantir la fraîcheur des données (pas de stale data sur liste).
+        Seuls les accès par ID (get_by_id) utilisent le cache Redis.
+        Si les listes deviennent un goulot d'étranglement, envisager un TTL court
+        (30s) avec invalidation par tag tenant — voir DECISION:CACHE-LISTE dans
+        memory/architecture.md.
+
         Args:
             tenant_id: ID du tenant (OBLIGATOIRE)
             skip: Nombre d'éléments à sauter (offset)
@@ -239,42 +299,13 @@ class BaseRepository(Generic[T]):
         # Limite max sécurité
         limit = min(limit, 1000)
 
-        # Compter le total d'abord
-        total = self.count(tenant_id=tenant_id, filters=filters, include_inactive=include_inactive)
-
-        query = select(self.model_class)
+        # Window function COUNT(*) OVER() — 1 seul round-trip DB (vs 2 avec count() séparé)
+        # PostgreSQL évalue COUNT(*) OVER() sur l'ensemble résultat AVANT LIMIT/OFFSET.
+        query = select(self.model_class, func.count().over().label("_total"))
         query = self._apply_tenant_filter(query, tenant_id)
-
         if not include_inactive:
             query = self._apply_active_filter(query)
-
-        # Filtres additionnels
-        if filters:
-            for key, value in filters.items():
-                # Parser les opérateurs de comparaison (ex: "available_quantity__gt")
-                if "__" in key:
-                    field_name, operator = key.rsplit("__", 1)
-                    if not hasattr(self.model_class, field_name):
-                        continue
-
-                    field = getattr(self.model_class, field_name)
-
-                    # Appliquer l'opérateur approprié
-                    if operator == "gt":
-                        query = query.filter(field > value)
-                    elif operator == "gte":
-                        query = query.filter(field >= value)
-                    elif operator == "lt":
-                        query = query.filter(field < value)
-                    elif operator == "lte":
-                        query = query.filter(field <= value)
-                    elif operator == "ne":
-                        query = query.filter(field != value)
-                    else:
-                        # Opérateur inconnu, ignorer
-                        continue
-                elif hasattr(self.model_class, key):
-                    query = query.filter(getattr(self.model_class, key) == value)
+        query = self._apply_filters(query, filters)
 
         # Tri
         if order_by and hasattr(self.model_class, order_by):
@@ -282,11 +313,13 @@ class BaseRepository(Generic[T]):
         else:
             query = query.order_by(self.model_class.id)
 
-        # Pagination
         query = query.offset(skip).limit(limit)
 
-        result = self.db.execute(query).scalars().all()
-        return (list(result), total)
+        rows = self.db.execute(query).all()
+        items = [row[0] for row in rows]
+        total = rows[0][1] if rows else 0
+
+        return (items, total)
 
     def count(
         self,
@@ -309,37 +342,9 @@ class BaseRepository(Generic[T]):
         """
         query = select(func.count()).select_from(self.model_class)
         query = self._apply_tenant_filter(query, tenant_id)
-
         if not include_inactive:
             query = self._apply_active_filter(query)
-
-        # Filtres additionnels
-        if filters:
-            for key, value in filters.items():
-                # Parser les opérateurs de comparaison (ex: "available_quantity__gt")
-                if "__" in key:
-                    field_name, operator = key.rsplit("__", 1)
-                    if not hasattr(self.model_class, field_name):
-                        continue
-
-                    field = getattr(self.model_class, field_name)
-
-                    # Appliquer l'opérateur approprié
-                    if operator == "gt":
-                        query = query.filter(field > value)
-                    elif operator == "gte":
-                        query = query.filter(field >= value)
-                    elif operator == "lt":
-                        query = query.filter(field < value)
-                    elif operator == "lte":
-                        query = query.filter(field <= value)
-                    elif operator == "ne":
-                        query = query.filter(field != value)
-                    else:
-                        # Opérateur inconnu, ignorer
-                        continue
-                elif hasattr(self.model_class, key):
-                    query = query.filter(getattr(self.model_class, key) == value)
+        query = self._apply_filters(query, filters)
 
         result = self.db.execute(query).scalar()
         return result or 0
@@ -392,7 +397,7 @@ class BaseRepository(Generic[T]):
         # Invalider cache pour cette entité (write-through)
         if hasattr(obj, 'id') and self._has_tenant_mixin() and hasattr(obj, 'tenant_id'):
             cache_key = self._get_cache_key(obj.id, obj.tenant_id)
-            cache_service.delete(cache_key)
+            _get_cache_service().delete(cache_key)
 
         return obj
 
@@ -429,7 +434,7 @@ class BaseRepository(Generic[T]):
 
         # Invalider cache
         cache_key = self._get_cache_key(id, tenant_id)
-        cache_service.delete(cache_key)
+        _get_cache_service().delete(cache_key)
 
         return True
 
@@ -462,7 +467,7 @@ class BaseRepository(Generic[T]):
 
         # Invalider cache
         cache_key = self._get_cache_key(id, tenant_id)
-        cache_service.delete(cache_key)
+        _get_cache_service().delete(cache_key)
 
         return True
 
@@ -510,4 +515,215 @@ class BaseRepository(Generic[T]):
 
         obj.restore()
         self.db.flush()
+        return True
+
+
+# ── AsyncBaseRepository (migration FastAPI vers async) ────────────────────────
+
+class AsyncBaseRepository(BaseRepository[T]):
+    """Repository async générique — hérite de BaseRepository.
+
+    Remplace toutes les opérations DB-bound par des versions async.
+    Les méthodes helper (cache, filtres) restent sync.
+    Les scripts Celery continuent à utiliser BaseRepository (sync).
+    """
+
+    def __init__(self, db: AsyncSession, model_class: Type[T]):
+        self.db = db  # type: ignore[assignment]
+        self.model_class = model_class
+        self._cache_ttl_map = {
+            "Product": 300,
+            "Customer": 600,
+            "Reservation": 60,
+            "Invoice": 180,
+        }
+
+    async def get_by_id(
+        self,
+        id: int,
+        tenant_id: int,
+        include_inactive: bool = False,
+    ) -> Optional[T]:
+        """Async : récupère une entité par ID avec filtre tenant + cache Redis."""
+        cache_key = self._get_cache_key(id, tenant_id)
+        _cache_svc = _get_cache_service()
+        # P2-02/03 : skip cache si lock actif (invalidation en cours)
+        lock_key = f"cache_lock:{cache_key}"
+        if await _cache_svc.get(lock_key):
+            cached_data = None
+        else:
+            cached_data = await _cache_svc.get(cache_key)
+
+        if cached_data is not None:
+            entity_name = self.model_class.__name__.lower()
+            _hits, _misses, _rate = _get_cache_metrics()
+            _hits.labels(entity=entity_name).inc()
+            self._update_cache_hit_rate(entity_name)
+
+            key = identity_key(class_=self.model_class, ident=(id,))
+            existing = self.db.sync_session.identity_map.get(key)
+            if existing is not None:
+                if self._has_tenant_mixin() and existing.tenant_id != tenant_id:
+                    return None
+                if not include_inactive and self._has_soft_delete_mixin() and not existing.is_active:
+                    return None
+                return existing
+
+            instance = self.model_class.from_dict(cached_data)
+            instance = await self.db.merge(instance)
+            # P1-02 : post-merge tenant verification (defense en profondeur)
+            if self._has_tenant_mixin() and hasattr(instance, 'tenant_id'):
+                if instance.tenant_id != tenant_id:
+                    logger.critical(
+                        "CROSS-TENANT post-merge: %s#%d tenant=%d attendu=%d",
+                        self.model_class.__name__, id, instance.tenant_id, tenant_id,
+                    )
+                    return None
+            return instance
+
+        entity_name = self.model_class.__name__.lower()
+        _hits2, _misses2, _rate2 = _get_cache_metrics()
+        _misses2.labels(entity=entity_name).inc()
+        self._update_cache_hit_rate(entity_name)
+
+        query = select(self.model_class).filter(self.model_class.id == id)
+        query = self._apply_tenant_filter(query, tenant_id)
+        if not include_inactive:
+            query = self._apply_active_filter(query)
+
+        result = await self.db.execute(query)
+        obj = result.scalar_one_or_none()
+
+        if obj is not None:
+            ttl = self._get_cache_ttl()
+            await _cache_svc.set(cache_key, obj.to_dict(), ttl=ttl)
+
+        return obj
+
+    async def list(
+        self,
+        tenant_id: int,
+        skip: int = 0,
+        limit: int = 100,
+        filters: Optional[dict[str, Any]] = None,
+        include_inactive: bool = False,
+        order_by: Optional[str] = None,
+    ) -> tuple[list[T], int]:
+        """Async : liste les entités avec pagination et filtres."""
+        limit = min(limit, 1000)
+
+        query = select(self.model_class, func.count().over().label("_total"))
+        query = self._apply_tenant_filter(query, tenant_id)
+        if not include_inactive:
+            query = self._apply_active_filter(query)
+        query = self._apply_filters(query, filters)
+
+        if order_by and hasattr(self.model_class, order_by):
+            query = query.order_by(getattr(self.model_class, order_by))
+        else:
+            query = query.order_by(self.model_class.id)
+
+        query = query.offset(skip).limit(limit)
+
+        result = await self.db.execute(query)
+        rows = result.all()
+        items = [row[0] for row in rows]
+        total = rows[0][1] if rows else 0
+
+        return (items, total)
+
+    async def count(
+        self,
+        tenant_id: int,
+        filters: Optional[dict[str, Any]] = None,
+        include_inactive: bool = False,
+    ) -> int:
+        """Async : compte le nombre total d'entités."""
+        query = select(func.count()).select_from(self.model_class)
+        query = self._apply_tenant_filter(query, tenant_id)
+        if not include_inactive:
+            query = self._apply_active_filter(query)
+        query = self._apply_filters(query, filters)
+
+        result = await self.db.execute(query)
+        return result.scalar() or 0
+
+    async def create(self, obj: T) -> T:
+        """Async : crée une nouvelle entité."""
+        if self._has_tenant_mixin():
+            if not hasattr(obj, "tenant_id") or obj.tenant_id is None:
+                raise ValueError(
+                    f"{self.model_class.__name__} requires tenant_id to be set before creation"
+                )
+
+        self.db.add(obj)
+        await self.db.flush()
+        await self.db.refresh(obj)
+        return obj
+
+    async def update(self, obj: T) -> T:
+        """Async : met a jour une entite existante + invalidation cache avec lock anti-race."""
+        await self.db.flush()
+        await self.db.refresh(obj)
+
+        if hasattr(obj, "id") and self._has_tenant_mixin() and hasattr(obj, "tenant_id"):
+            cache_key = self._get_cache_key(obj.id, obj.tenant_id)
+            cache_svc = _get_cache_service()
+            # P2-02/03 : lock 2s pour empecher re-population stale avant propagation
+            lock_key = f"cache_lock:{cache_key}"
+            await cache_svc.set(lock_key, "1", ttl=2)
+            await cache_svc.delete(cache_key)
+
+        return obj
+
+    async def soft_delete(self, id: int, tenant_id: int) -> bool:
+        """Async : supprime logiquement une entité."""
+        if not self._has_soft_delete_mixin():
+            raise NotImplementedError(
+                f"{self.model_class.__name__} does not support soft delete"
+            )
+
+        obj = await self.get_by_id(id, tenant_id, include_inactive=False)
+        if not obj:
+            return False
+
+        obj.soft_delete()
+        await self.db.flush()
+
+        cache_key = self._get_cache_key(id, tenant_id)
+        await _get_cache_service().delete(cache_key)
+
+        return True
+
+    async def hard_delete(self, id: int, tenant_id: int) -> bool:
+        """Async : supprime physiquement une entité."""
+        obj = await self.get_by_id(id, tenant_id, include_inactive=True)
+        if not obj:
+            return False
+
+        self.db.delete(obj)
+        await self.db.flush()
+
+        cache_key = self._get_cache_key(id, tenant_id)
+        await _get_cache_service().delete(cache_key)
+
+        return True
+
+    async def exists(self, id: int, tenant_id: int, include_inactive: bool = False) -> bool:
+        """Async : vérifie si une entité existe."""
+        return await self.get_by_id(id, tenant_id, include_inactive) is not None
+
+    async def restore(self, id: int, tenant_id: int) -> bool:
+        """Async : restaure une entité soft-deleted."""
+        if not self._has_soft_delete_mixin():
+            raise NotImplementedError(
+                f"{self.model_class.__name__} does not support restore"
+            )
+
+        obj = await self.get_by_id(id, tenant_id, include_inactive=True)
+        if not obj or obj.is_active:
+            return False
+
+        obj.restore()
+        await self.db.flush()
         return True

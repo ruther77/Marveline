@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ subject | default("Marveline") }}</title>
+  <title>{{ subject | default(brand.name if brand else "Marveline") }}</title>
 </head>
 <body style="margin:0; padding:0; background-color:#f4f4f7; font-family:Arial, Helvetica, sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f4f4f7;">
@@ -13,8 +13,8 @@
           <!-- Header -->
           <tr>
             <td style="background-color:#2d3748; padding:24px 30px; text-align:center;">
-              <h1 style="color:#ffffff; margin:0; font-size:24px; font-weight:bold;">Marveline</h1>
-              <p style="color:#a0aec0; margin:4px 0 0; font-size:13px;">Location de vaisselle pour vos événements</p>
+              <h1 style="color:#ffffff; margin:0; font-size:24px; font-weight:bold;">{{ brand.name if brand else "Marveline" }}</h1>
+              <p style="color:#a0aec0; margin:4px 0 0; font-size:13px;">Location événementielle</p>
             </td>
           </tr>
           <!-- Content -->
@@ -27,7 +27,7 @@
           <tr>
             <td style="background-color:#f7fafc; padding:20px 30px; border-top:1px solid #e2e8f0;">
               <p style="color:#718096; font-size:12px; margin:0; text-align:center;">
-                Marveline SAS — Location de vaisselle événementielle<br>
+                {{ brand.legal_name if brand else "Marveline SAS" }} — Location événementielle<br>
                 Cet email a été envoyé automatiquement, merci de ne pas y répondre.<br>
                 <a href="{{ frontend_url }}" style="color:#4a90d9; text-decoration:none;">Accéder à votre espace</a>
               </p>

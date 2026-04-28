@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DEVUP — Application de gestion locative</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@700;800;900&display=swap" rel="stylesheet" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0a;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 40px 20px;
+  }
+
+  body.light-bg {
+    background: #f5f5f5;
+    color: #111;
+  }
+
+  /* ── Header DEVUP ── */
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 8px;
+  }
+
+  .logo {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #d940a8, #6366f1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 16px;
+    color: #fff;
+    letter-spacing: -0.5px;
+  }
+
+  .brand {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .brand-name {
+    font-family: 'Outfit', system-ui, sans-serif;
+    font-size: 32px;
+    font-weight: 900;
+    letter-spacing: 1px;
+  }
+
+  #brandDev { color: #fff; }
+  #brandUp  { color: #a78bfa; }
+
+  body.light-bg #brandDev { color: #0f172a; }
+  body.light-bg #brandUp  { color: #7c3aed; }
+
+  .brand-tagline {
+    font-size: 13px;
+    color: #888;
+    margin-top: -2px;
+  }
+
+  body.light-bg .brand-tagline { color: #666; }
+
+  .subtitle {
+    color: #888;
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+
+  body.light-bg .subtitle { color: #666; }
+
+  /* ── Theme toggle ── */
+  .theme-toggle {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 32px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 4px;
+  }
+
+  body.light-bg .theme-toggle {
+    background: rgba(0,0,0,0.06);
+  }
+
+  .theme-btn {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: transparent;
+    color: #888;
+  }
+
+  .theme-btn.active {
+    background: rgba(99, 102, 241, 0.2);
+    color: #a78bfa;
+  }
+
+  body.light-bg .theme-btn.active {
+    background: rgba(99, 102, 241, 0.15);
+    color: #6366f1;
+  }
+
+  /* ── Carousel ── */
+  .carousel-container {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    overflow: hidden;
+  }
+
+  .carousel-track {
+    display: flex;
+    transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    will-change: transform;
+  }
+
+  .slide {
+    min-width: 100%;
+    padding: 0 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .slide img {
+    width: 100%;
+    max-width: 393px;
+    border-radius: 24px;
+    box-shadow: 0 20px 60px rgba(99, 102, 241, 0.15), 0 0 0 1px rgba(255,255,255,0.06);
+  }
+
+  body.light-bg .slide img {
+    box-shadow: 0 20px 60px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.06);
+  }
+
+  .slide-caption {
+    margin-top: 16px;
+    text-align: center;
+    font-size: 15px;
+    color: #ccc;
+    line-height: 1.5;
+    max-width: 360px;
+  }
+
+  body.light-bg .slide-caption { color: #555; }
+
+  .slide-caption strong {
+    color: #a78bfa;
+    display: block;
+    font-size: 17px;
+    margin-bottom: 4px;
+  }
+
+  body.light-bg .slide-caption strong { color: #6366f1; }
+
+  /* ── Nav buttons ── */
+  .nav-btn {
+    position: absolute;
+    top: 45%;
+    transform: translateY(-50%);
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(20, 20, 30, 0.9);
+    color: #fff;
+    font-size: 22px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    z-index: 10;
+    backdrop-filter: blur(10px);
+  }
+
+  body.light-bg .nav-btn {
+    background: rgba(255,255,255,0.9);
+    border-color: rgba(0,0,0,0.1);
+    color: #333;
+  }
+
+  .nav-btn:hover {
+    background: rgba(99, 102, 241, 0.3);
+    border-color: rgba(99, 102, 241, 0.5);
+    color: #fff;
+  }
+
+  .nav-btn.prev { left: -60px; }
+  .nav-btn.next { right: -60px; }
+
+  @media (max-width: 600px) {
+    .nav-btn.prev { left: -10px; }
+    .nav-btn.next { right: -10px; }
+    .nav-btn { width: 40px; height: 40px; font-size: 18px; }
+  }
+
+  /* ── Dots ── */
+  .dots {
+    display: flex;
+    gap: 6px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 450px;
+  }
+
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  body.light-bg .dot { background: rgba(0,0,0,0.12); }
+
+  .dot.active {
+    background: #6366f1;
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.5);
+    transform: scale(1.3);
+  }
+
+  .dot:hover { background: rgba(99, 102, 241, 0.5); }
+
+  .counter {
+    margin-top: 14px;
+    font-size: 13px;
+    color: #666;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hint {
+    margin-top: 20px;
+    font-size: 12px;
+    color: #444;
+    display: flex;
+    gap: 16px;
+  }
+
+  .hint kbd {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    font-family: inherit;
+    font-size: 11px;
+  }
+
+  body.light-bg .hint kbd {
+    background: rgba(0,0,0,0.04);
+    border-color: rgba(0,0,0,0.1);
+  }
+
+  /* ── Post preview ── */
+  .post-preview {
+    margin-top: 50px;
+    max-width: 600px;
+    width: 100%;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 16px;
+    padding: 28px;
+  }
+
+  body.light-bg .post-preview {
+    background: #fff;
+    border-color: rgba(0,0,0,0.08);
+  }
+
+  .post-preview h2 {
+    font-size: 18px;
+    margin-bottom: 16px;
+    color: #a78bfa;
+  }
+
+  body.light-bg .post-preview h2 { color: #6366f1; }
+
+  .post-preview p {
+    font-size: 14px;
+    color: #aaa;
+    line-height: 1.7;
+    white-space: pre-line;
+  }
+
+  body.light-bg .post-preview p { color: #555; }
+
+  .post-preview .hashtags {
+    margin-top: 16px;
+    font-size: 12px;
+    color: #6366f1;
+    line-height: 1.8;
+  }
+</style>
+</head>
+<body class="light-bg">
+
+<!-- Header DEVUP -->
+<div class="header" id="headerDevup">
+  <svg width="52" height="52" viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="g-logo" x1="10" y1="6" x2="68" y2="74" gradientUnits="userSpaceOnUse">
+        <stop stop-color="#7c3aed"/><stop offset="1" stop-color="#6d28d9"/>
+      </linearGradient>
+    </defs>
+    <path d="M44 66 L33 80 L44 75 L55 80 Z" fill="#4c1d95"/>
+    <path d="M44 8 C44 8 68 26 68 50 C68 64 58 72 44 74 C30 72 20 64 20 50 C20 26 44 8 44 8Z" fill="url(#g-logo)"/>
+    <circle cx="44" cy="48" r="11" fill="rgba(15,23,42,0.25)"/>
+    <circle cx="44" cy="48" r="11" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+    <line x1="44" y1="56" x2="44" y2="43" stroke="white" stroke-width="2.4" stroke-linecap="round"/>
+    <polyline points="39,47.5 44,41.5 49,47.5" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M37 74 C37 79 44 88 44 88 C44 88 51 79 51 74Z" fill="#fbbf24" opacity="0.9"/>
+  </svg>
+  <div class="brand">
+    <div class="brand-name"><span id="brandDev">DEV</span><span id="brandUp">UP</span></div>
+    <div class="brand-tagline">Solutions digitales sur mesure</div>
+  </div>
+</div>
+
+<p class="subtitle">Application de gestion locative</p>
+
+<!-- Theme toggle -->
+<div class="theme-toggle">
+  <button class="theme-btn" id="btnDark">Dark</button>
+  <button class="theme-btn active" id="btnLight">Light</button>
+</div>
+
+<div class="carousel-container">
+  <button class="nav-btn prev" id="btnPrev">&larr;</button>
+  <button class="nav-btn next" id="btnNext">&rarr;</button>
+  <div class="carousel-track" id="track"></div>
+</div>
+
+<div class="dots" id="dots"></div>
+<div class="counter" id="counter"></div>
+
+<div class="hint">
+  <span><kbd>&larr;</kbd> <kbd>&rarr;</kbd> naviguer</span>
+  <span><kbd>Espace</kbd> lecture auto</span>
+</div>
+
+<div class="post-preview">
+  <p id="postText"></p>
+  <p class="hashtags" id="postHashtags"></p>
+  <p style="margin-top:24px;text-align:center;font-size:18px;font-weight:700;color:#6366f1;letter-spacing:1px;">07 55 73 79 09</p>
+</div>
+
+<script>
+var slidesData = [
+  { img: '01_dashboard.png',           title: 'Tableau de bord',         caption: 'Accueil, KPIs, activite recente' },
+  { img: '03_reservations_liste.png', title: 'Reservations',            caption: 'Compteurs par statut et cards avec montants' },
+  { img: '04_resa_livree_haut.png',   title: 'Livree — Haut',          caption: 'Countdown retour, caution, solde 4200\u20ac' },
+  { img: '05_resa_livree_bas.png',    title: 'Livree — Bas',           caption: 'Prolonger, produits, total 634\u20ac, facture' },
+  { img: '06_resa_brouillon_haut.png',title: 'Brouillon — Haut',       caption: 'TechCorp, prochaine etape guidee' },
+  { img: '07_resa_brouillon_bas.png', title: 'Brouillon — Actions',    caption: 'Confirmer, gerer lignes, modifier, signer' },
+  { img: '08_resa_lignes.png',        title: 'Articles loues',         caption: 'Liste produits avec + Ajouter un article' },
+  { img: '24_ajout_produit.png',      title: 'Ajout produit',          caption: 'Recherche produit avec stock en temps reel' },
+  { img: '10_resa_confirmee_haut.png',title: 'Confirmee — Haut',       caption: 'Signature manquante, caution, stock reserve' },
+  { img: '11_resa_confirmee_bas.png', title: 'Confirmee — Documents',  caption: 'CGV, caution, responsabilite casse, pre-check' },
+  { img: '09_resa_signature.png',     title: 'Signature contrat',      caption: 'Pad de signature client integre' },
+  { img: '12_resa_retournee_haut.png',title: 'Retournee — Haut',       caption: 'Timeline complete et controle retour' },
+  { img: '13_resa_retournee_bas.png', title: 'Retournee — Bas',        caption: 'Cloture, produits, total 1200\u20ac, facture' },
+  { img: '21_factures_liste.png',     title: 'Factures',               caption: 'Liste avec progression et echeances' },
+  { img: '22_facture_detail.png',     title: 'Facture — 40%',          caption: 'Acompte recu, echeances CGV, historique' },
+  { img: '23_facture_4200.png',       title: 'Facture — 4200\u20ac',   caption: 'Envoyee, reste 2520\u20ac, acompte 40%' },
+  { img: '14_devis_step1.png',        title: 'Devis — Etape 1',        caption: 'Client, evenement, lieu, conditions' },
+  { img: '15_devis_step2.png',        title: 'Devis — Etape 2',        caption: 'Ajouter les articles a louer' },
+  { img: '16_devis_step3.png',        title: 'Devis — Etape 3',        caption: 'Livraison propre, transporteur ou retrait' },
+  { img: '02_planning.png',           title: 'Planning',               caption: 'Calendrier mensuel des reservations' },
+  { img: '17_catalogue.png',          title: 'Catalogue',              caption: 'Tous vos articles : vaisselle, mobilier, machines' },
+  { img: '18_produit_detail.png',     title: 'Fiche produit',          caption: 'Prix, stock, disponibilite en temps reel' },
+  { img: '19_stock.png',              title: 'Stock',                  caption: 'Grille produits avec photos et badges' },
+  { img: '20_clients.png',            title: 'Clients',                caption: 'Repertoire particuliers et entreprises' },
+  { img: '22_operations.png',         title: 'Operations',             caption: 'Departs et retours du jour' },
+  { img: '23_scan.png',               title: 'Scanner',                caption: 'Recherche rapide par reference ou client' },
+  { img: '24_menu.png',               title: 'Menu complet',           caption: 'Acces a toutes les fonctionnalites' },
+];
+
+var currentTheme = 'light';
+var current = 0;
+var autoplay = null;
+
+var track = document.getElementById('track');
+var dotsEl = document.getElementById('dots');
+var counterEl = document.getElementById('counter');
+
+function buildSlides() {
+  // Clear
+  track.textContent = '';
+  dotsEl.textContent = '';
+
+  slidesData.forEach(function(s, i) {
+    var slideDiv = document.createElement('div');
+    slideDiv.className = 'slide';
+
+    var img = document.createElement('img');
+    img.src = currentTheme + '/' + s.img;
+    img.alt = s.title;
+    img.loading = 'lazy';
+    slideDiv.appendChild(img);
+
+    var captionDiv = document.createElement('div');
+    captionDiv.className = 'slide-caption';
+    var titleEl = document.createElement('strong');
+    titleEl.textContent = s.title;
+    captionDiv.appendChild(titleEl);
+    captionDiv.appendChild(document.createTextNode(s.caption));
+    slideDiv.appendChild(captionDiv);
+
+    track.appendChild(slideDiv);
+
+    var dot = document.createElement('div');
+    dot.className = 'dot' + (i === current ? ' active' : '');
+    dot.addEventListener('click', function() { goTo(i); });
+    dotsEl.appendChild(dot);
+  });
+
+  updatePosition();
+}
+
+function goTo(n) {
+  current = ((n % slidesData.length) + slidesData.length) % slidesData.length;
+  updatePosition();
+}
+
+function updatePosition() {
+  track.style.transform = 'translateX(-' + (current * 100) + '%)';
+  var dots = document.querySelectorAll('.dot');
+  dots.forEach(function(d, i) { d.classList.toggle('active', i === current); });
+  counterEl.textContent = (current + 1) + ' / ' + slidesData.length;
+}
+
+function move(dir) { goTo(current + dir); }
+
+function switchTheme(theme) {
+  currentTheme = theme;
+  document.body.classList.toggle('light-bg', theme === 'light');
+  document.getElementById('btnDark').classList.toggle('active', theme === 'dark');
+  document.getElementById('btnLight').classList.toggle('active', theme === 'light');
+
+  // Adapter le gradient du logo rocket
+  var grad = document.getElementById('g-logo');
+  if (grad) {
+    var stops = grad.querySelectorAll('stop');
+    if (theme === 'light') {
+      stops[0].setAttribute('stop-color', '#7c3aed');
+      stops[1].setAttribute('stop-color', '#6d28d9');
+    } else {
+      stops[0].setAttribute('stop-color', '#a78bfa');
+      stops[1].setAttribute('stop-color', '#7c3aed');
+    }
+  }
+
+  buildSlides();
+}
+
+// Event listeners
+document.getElementById('btnPrev').addEventListener('click', function() { move(-1); });
+document.getElementById('btnNext').addEventListener('click', function() { move(1); });
+document.getElementById('btnDark').addEventListener('click', function() { switchTheme('dark'); });
+document.getElementById('btnLight').addEventListener('click', function() { switchTheme('light'); });
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowRight') move(1);
+  else if (e.key === 'ArrowLeft') move(-1);
+  else if (e.key === ' ') {
+    e.preventDefault();
+    if (autoplay) { clearInterval(autoplay); autoplay = null; }
+    else { autoplay = setInterval(function() { move(1); }, 3000); }
+  }
+});
+
+var touchX = 0;
+track.addEventListener('touchstart', function(e) { touchX = e.touches[0].clientX; });
+track.addEventListener('touchend', function(e) {
+  var dx = e.changedTouches[0].clientX - touchX;
+  if (Math.abs(dx) > 50) move(dx < 0 ? 1 : -1);
+});
+
+// Post text
+document.getElementById('postText').textContent =
+  "Vous louez de la vaisselle, du mobilier ou des machines ?\n\n" +
+  "DEVUP, c'est l'application pensee pour votre metier.\n\n" +
+  "Ce qu'elle fait :\n" +
+  "\u2022 Reservations de A a Z \u2014 du devis a la facturation\n" +
+  "\u2022 Suivi de chaque article \u2014 qui a quoi, ou, jusqu'a quand\n" +
+  "\u2022 Planning visuel \u2014 livraisons, retours, evenements\n" +
+  "\u2022 Inventaire en temps reel \u2014 alertes stock bas\n" +
+  "\u2022 Facturation integree \u2014 acomptes, cautions, frais dommages\n" +
+  "\u2022 Scanner mobile \u2014 verification rapide au depart et au retour\n" +
+  "\u2022 Fiche client complete \u2014 historique, stats, relances\n\n" +
+  "Concue pour le terrain : telephone, tablette et ordinateur.\n\n" +
+  "Qui l'utilise ?\n" +
+  "Loueurs de vaisselle, mobilier evenementiel, materiel de reception,\n" +
+  "sono, machines industrielles, equipement de chantier...\n\n" +
+  "Envie de voir ? Contactez DEVUP pour une demo personnalisee.";
+
+document.getElementById('postHashtags').textContent =
+  "#location #locationevenementiel #locationvaisselle #locationmobilier " +
+  "#locationmateriel #gestionlocation #logiciellocation #evenementiel " +
+  "#mariage #traiteur #reception #gestion #inventaire #facturation " +
+  "#PME #marveline #DEVUP #madeinfrance #SaaS #applicationmetier";
+
+// Init
+buildSlides();
+</script>
+
+</body>
+</html>

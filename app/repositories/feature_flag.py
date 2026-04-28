@@ -119,3 +119,52 @@ class FeatureFlagRepository:
             stmt = stmt.where(FeatureFlag.id != exclude_id)
         count = self.db.execute(stmt).scalar() or 0
         return count > 0
+
+
+class AsyncFeatureFlagRepository:
+    """Version async de FeatureFlagRepository pour FastAPI."""
+
+    def __init__(self, db):
+        from sqlalchemy.ext.asyncio import AsyncSession
+        self.db: AsyncSession = db
+
+    async def get_by_id(self, flag_id: int) -> Optional[FeatureFlag]:
+        result = await self.db.get(FeatureFlag, flag_id)
+        return result
+
+    async def get_by_name(self, name: str) -> Optional[FeatureFlag]:
+        from sqlalchemy import select
+        result = await self.db.execute(select(FeatureFlag).where(FeatureFlag.name == name))
+        return result.scalar_one_or_none()
+
+    async def list_all(self, skip: int = 0, limit: int = 100) -> tuple[list[FeatureFlag], int]:
+        from sqlalchemy import select, func
+        total_result = await self.db.execute(select(func.count()).select_from(FeatureFlag))
+        total = total_result.scalar() or 0
+        items_result = await self.db.execute(
+            select(FeatureFlag).order_by(FeatureFlag.name).offset(skip).limit(min(limit, 1000))
+        )
+        return list(items_result.scalars().all()), total
+
+    async def create(self, flag: FeatureFlag) -> FeatureFlag:
+        self.db.add(flag)
+        await self.db.flush()
+        await self.db.refresh(flag)
+        return flag
+
+    async def update(self, flag: FeatureFlag) -> FeatureFlag:
+        await self.db.flush()
+        await self.db.refresh(flag)
+        return flag
+
+    async def delete(self, flag: FeatureFlag) -> None:
+        await self.db.delete(flag)
+        await self.db.flush()
+
+    async def name_exists(self, name: str, exclude_id: Optional[int] = None) -> bool:
+        from sqlalchemy import select, func
+        stmt = select(func.count()).select_from(FeatureFlag).where(FeatureFlag.name == name)
+        if exclude_id is not None:
+            stmt = stmt.where(FeatureFlag.id != exclude_id)
+        result = await self.db.execute(stmt)
+        return (result.scalar() or 0) > 0

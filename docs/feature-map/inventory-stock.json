@@ -1,0 +1,96 @@
+{
+  "id": "page:inventory-stock",
+  "type": "page",
+  "name": "Stock",
+  "description": "Page principale \"Stock\". Contient : Verre à eau classique, Verre à vin rouge classique, Verre à vin blanc classique, Flûte à champagne classique, Verre à eau élégance, Verre à vin rouge élégance. Paramètres : rechercher-un-produit.",
+  "route": "/inventory/stock",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "staff",
+      "manager",
+      "admin"
+    ],
+    "group": "Inventaire",
+    "dom_h1": "Inventaire & Stock"
+  },
+  "params": {
+    "rechercher-un-produit": "text"
+  },
+  "features": [
+    "Verre à eau classique",
+    "Verre à vin rouge classique",
+    "Verre à vin blanc classique",
+    "Flûte à champagne classique",
+    "Verre à eau élégance",
+    "Verre à vin rouge élégance",
+    "Verre à vin blanc élégance",
+    "Flûte à champagne élégance",
+    "Champ : Rechercher un produit..."
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Tous",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "En stock(128)",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Stock faible(15)",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rupture(0)",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

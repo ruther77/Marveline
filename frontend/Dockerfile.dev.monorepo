@@ -1,0 +1,34 @@
+# Dockerfile dev monorepo — sert une app via Vite dev server
+# Usage : docker build --build-arg APP_NAME=epicerie -f Dockerfile.dev.monorepo .
+
+FROM node:20-alpine
+
+ARG APP_NAME=marveline
+
+RUN apk add --no-cache curl
+
+# pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# Copier les fichiers workspace
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY tsconfig.base.json ./
+
+# Copier packages shared
+COPY packages/ packages/
+
+# Copier l'app ciblée
+COPY apps/${APP_NAME}/ apps/${APP_NAME}/
+
+# Installer les dépendances (approve-builds pour esbuild binaire natif)
+RUN pnpm install --no-frozen-lockfile && pnpm approve-builds --all && pnpm rebuild esbuild
+
+WORKDIR /app/apps/${APP_NAME}
+
+EXPOSE 80
+
+# PORT est passé en env var ; le vite.config.ts lit process.env.PORT
+# Si strictPort dans le config, on override via --port qui a priorité sur le fichier
+CMD ["sh", "-c", "pnpm dev -- --host 0.0.0.0 --port ${PORT:-80} --strictPort"]

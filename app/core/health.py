@@ -85,70 +85,38 @@ def check_postgres(db: Session) -> Tuple[bool, Dict[str, Any]]:
 
 
 def check_redis(redis_client: Redis) -> Tuple[bool, Dict[str, Any]]:
-    """Vérifie la santé de la connexion Redis.
-
-    Exécute un PING Redis pour vérifier la connectivité et mesurer la latence.
-    Collecte aussi des métriques sur l'utilisation mémoire et les clients connectés.
-
-    Args:
-        redis_client: Instance Redis client
-
-    Returns:
-        Tuple (is_healthy, metadata) où:
-        - is_healthy (bool): True si Redis accessible, False sinon
-        - metadata (dict): Dictionnaire avec:
-            - status (str): "healthy" | "unhealthy"
-            - latency_ms (float): Temps de réponse PING en millisecondes
-            - memory_used_mb (float): Mémoire Redis utilisée en MB
-            - connected_clients (int): Nombre de clients connectés
-            - error (str): Message d'erreur si unhealthy
-
-    Example:
-        >>> from app.core.redis import redis_client
-        >>> is_healthy, metadata = check_redis(redis_client)
-        >>> if is_healthy:
-        ...     print(f"Redis latency: {metadata['latency_ms']}ms")
-        ...     print(f"Memory: {metadata['memory_used_mb']} MB")
-        ... else:
-        ...     print(f"Redis error: {metadata['error']}")
-
-    Notes:
-        - Timeout Redis configuré via REDIS_URL (default 5s)
-        - INFO command peut être coûteux sur Redis très chargé
-        - Pas d'exception levée, retourne (False, {error: ...}) si échec
-    """
+    """Vérifie la santé Redis (sync client)."""
     try:
-        # Mesurer latence PING
         start = time.time()
         pong = redis_client.ping()
         latency_ms = (time.time() - start) * 1000
-
         if not pong:
-            # PING n'a pas retourné True
-            return False, {
-                "status": "unhealthy",
-                "error": "PING returned False",
-            }
-
-        # Récupérer métriques Redis via INFO
+            return False, {"status": "unhealthy", "error": "PING returned False"}
         info = redis_client.info()
-
-        # Mémoire utilisée (bytes → MB)
-        memory_used_bytes = info.get('used_memory', 0)
-        memory_used_mb = round(memory_used_bytes / 1024 / 1024, 2)
-
-        # Nombre de clients connectés
-        connected_clients = info.get('connected_clients', 0)
-
         return True, {
             "status": "healthy",
             "latency_ms": round(latency_ms, 2),
-            "memory_used_mb": memory_used_mb,
-            "connected_clients": connected_clients,
+            "memory_used_mb": round(info.get('used_memory', 0) / 1024 / 1024, 2),
+            "connected_clients": info.get('connected_clients', 0),
         }
-
     except Exception as e:
-        return False, {
-            "status": "unhealthy",
-            "error": str(e),
+        return False, {"status": "unhealthy", "error": str(e)}
+
+
+async def check_redis_async(redis_client) -> Tuple[bool, Dict[str, Any]]:
+    """Vérifie la santé Redis (async client)."""
+    try:
+        start = time.time()
+        pong = await redis_client.ping()
+        latency_ms = (time.time() - start) * 1000
+        if not pong:
+            return False, {"status": "unhealthy", "error": "PING returned False"}
+        info = await redis_client.info()
+        return True, {
+            "status": "healthy",
+            "latency_ms": round(latency_ms, 2),
+            "memory_used_mb": round(info.get('used_memory', 0) / 1024 / 1024, 2),
+            "connected_clients": info.get('connected_clients', 0),
         }
+    except Exception as e:
+        return False, {"status": "unhealthy", "error": str(e)}

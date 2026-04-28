@@ -1,6 +1,0 @@
-export { ProductFormModal } from './ProductFormModal'
-export { ProductDeleteModal } from './ProductDeleteModal'
-export { CategoryFormModal } from './CategoryFormModal'
-export { CategoryDeleteModal } from './CategoryDeleteModal'
-export { BundleFormModal } from './BundleFormModal'
-export { BundleDeleteModal } from './BundleDeleteModal'

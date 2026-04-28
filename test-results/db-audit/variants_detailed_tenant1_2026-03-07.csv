@@ -1,0 +1,167 @@
+tenant_id,variant_id,variant_quality,parent_sku,parent_name,parent_category,parent_is_active,variant_sku,label,color,size,gamme,price_per_day,stock_quantity,available_quantity,created_at
+1,349,technical_default_std,ASS-COUSC-26,Assiette à couscous / paella 26cm,assiettes,t,ASS-COUSC-26-STD,Standard,,,,54,100,100,2026-03-04 18:22:56.741111+00
+1,345,technical_default_std,ASS-CRS-CLA-22,"Assiette ronde creuse classique 22,5cm",assiettes,t,ASS-CRS-CLA-22-STD,Standard,,,,30,400,400,2026-03-04 18:22:56.741111+00
+1,343,technical_default_std,ASS-RND-CLA-16,Assiette ronde classique 16cm,assiettes,t,ASS-RND-CLA-16-STD,Standard,,,,30,400,400,2026-03-04 18:22:56.741111+00
+1,344,technical_default_std,ASS-RND-CLA-21,Assiette ronde classique 21cm,assiettes,t,ASS-RND-CLA-21-STD,Standard,,,,30,400,400,2026-03-04 18:22:56.741111+00
+1,346,technical_default_std,ASS-RND-CLA-26,Assiette ronde classique 26cm,assiettes,t,ASS-RND-CLA-26-STD,Standard,,,,30,400,400,2026-03-04 18:22:56.741111+00
+1,347,technical_default_std,ASS-RND-CLA-30,"Assiette ronde classique 30,5cm",assiettes,t,ASS-RND-CLA-30-STD,Standard,,,,42,200,200,2026-03-04 18:22:56.741111+00
+1,348,technical_default_std,ASS-XCRS-BLC-27,Assiette ronde extra creuse blanche 27cm,assiettes,t,ASS-XCRS-BLC-27-STD,Standard,,,,54,200,200,2026-03-04 18:22:56.741111+00
+1,408,technical_default_std,BAN-BOIS,Banc bois,bancs,t,BAN-BOIS-STD,Standard,,,,780,20,20,2026-03-04 18:22:56.741111+00
+1,455,technical_default_std,CDB-BOIS-BON,Candy bar Bois/Métal avec bonbonnières,candy_bar,t,CDB-BOIS-BON-STD,Standard,,,,9000,2,2,2026-03-04 18:22:56.741111+00
+1,454,technical_default_std,CDB-BOIS-MET,Candy bar Bois/Métal,candy_bar,t,CDB-BOIS-MET-STD,Standard,,,,7500,2,2,2026-03-04 18:22:56.741111+00
+1,452,technical_default_std,CDB-PREM,Candy bar,candy_bar,t,CDB-PREM-STD,Standard,,,,6000,2,2,2026-03-04 18:22:56.741111+00
+1,453,technical_default_std,CDB-PREM-BON,Candy bar avec bonbonnières,candy_bar,t,CDB-PREM-BON-STD,Standard,,,,7500,2,2,2026-03-04 18:22:56.741111+00
+1,450,technical_default_std,CDB-STD,Candy bar bois (sans toit),candy_bar,t,CDB-STD-STD,Standard,,,,4200,3,3,2026-03-04 18:22:56.741111+00
+1,451,technical_default_std,CDB-STD-BON,Candy bar bois (sans toit) avec bonbonnières,candy_bar,t,CDB-STD-BON-STD,Standard,,,,5400,3,3,2026-03-04 18:22:56.741111+00
+1,406,technical_default_std,CHA-BOIS-DC,Chaise Bois Dos Croisé,chaises,t,CHA-BOIS-DC-STD,Standard,,,,780,80,80,2026-03-04 18:22:56.741111+00
+1,405,technical_default_std,CHA-NAP3,Chaise Napoléon III,chaises,t,CHA-NAP3-STD,Standard,,,,690,100,100,2026-03-04 18:22:56.741111+00
+1,404,technical_default_std,CHA-PLAST,Chaise plastique,chaises,t,CHA-PLAST-STD,Standard,,,,200,200,200,2026-03-04 18:22:56.741111+00
+1,407,technical_default_std,CHA-TAB-BAR,Tabouret de bar,chaises,t,CHA-TAB-BAR-STD,Standard,,,,300,30,30,2026-03-04 18:22:56.741111+00
+1,360,technical_default_std,COV-CAF-ELG,Cuillère à café élégance,couverts,t,COV-CAF-ELG-STD,Standard,,,,30,400,400,2026-03-04 18:22:56.741111+00
+1,357,technical_default_std,COV-CDS-ELG,Couteau à dessert élégance,couverts,t,COV-CDS-ELG-STD,Standard,,,,30,400,400,2026-03-04 18:22:56.741111+00
+1,351,technical_default_std,COV-COU-ELG,Couteau de table élégance,couverts,t,COV-COU-ELG-STD,Standard,,,,30,500,500,2026-03-04 18:22:56.741111+00
+1,350,technical_default_std,COV-COU-OR,Couteau de table Or,couverts,t,COV-COU-OR-STD,Standard,,,,54,100,70,2026-03-04 18:22:56.741111+00
+1,362,technical_default_std,COV-COU-PRE,Couteau de table prestige,couverts,t,COV-COU-PRE-STD,Standard,,,,32,200,200,2026-03-04 18:22:56.741111+00
+1,359,technical_default_std,COV-CUDS-ELG,Cuillère à dessert élégance,couverts,t,COV-CUDS-ELG-STD,Standard,,,,30,400,400,2026-03-04 18:22:56.741111+00
+1,353,technical_default_std,COV-CUI-ELG,Cuillère de table élégance,couverts,t,COV-CUI-ELG-STD,Standard,,,,30,500,500,2026-03-04 18:22:56.741111+00
+1,358,technical_default_std,COV-FDS-ELG,Fourchette à dessert élégance,couverts,t,COV-FDS-ELG-STD,Standard,,,,30,400,400,2026-03-04 18:22:56.741111+00
+1,352,technical_default_std,COV-FOU-ELG,Fourchette de table élégance,couverts,t,COV-FOU-ELG-STD,Standard,,,,30,500,500,2026-03-04 18:22:56.741111+00
+1,356,technical_default_std,COV-FPS-ELG,Fourchette à poisson élégance,couverts,t,COV-FPS-ELG-STD,Standard,,,,30,200,200,2026-03-04 18:22:56.741111+00
+1,361,technical_default_std,COV-MOK-ELG,Cuillère à moka élégance,couverts,t,COV-MOK-ELG-STD,Standard,,,,30,200,200,2026-03-04 18:22:56.741111+00
+1,355,technical_default_std,COV-PSN-ELG,Couteau à poisson élégance,couverts,t,COV-PSN-ELG-STD,Standard,,,,30,200,200,2026-03-04 18:22:56.741111+00
+1,354,technical_default_std,COV-STK-ELG,Couteau à steak élégance,couverts,t,COV-STK-ELG-STD,Standard,,,,36,200,200,2026-03-04 18:22:56.741111+00
+1,461,technical_default_std,DEC-BONB-100,Bonbonnière 1L,decorations,t,DEC-BONB-100-STD,Standard,,,,180,10,10,2026-03-04 18:22:56.741111+00
+1,459,technical_default_std,DEC-BONB-28,Bonbonnière 28cl,decorations,t,DEC-BONB-28-STD,Standard,,,,60,20,20,2026-03-04 18:22:56.741111+00
+1,460,technical_default_std,DEC-BONB-75,Bonbonnière 75cl,decorations,t,DEC-BONB-75-STD,Standard,,,,120,15,15,2026-03-04 18:22:56.741111+00
+1,456,technical_default_std,DEC-ETG-BOIS,Petite étagère en bois,decorations,t,DEC-ETG-BOIS-STD,Standard,,,,360,10,10,2026-03-04 18:22:56.741111+00
+1,458,technical_default_std,DEC-PELL-BON,Pelle à bonbons,decorations,t,DEC-PELL-BON-STD,Standard,,,,36,30,30,2026-03-04 18:22:56.741111+00
+1,457,technical_default_std,DEC-PINC-BON,Pince à bonbons,decorations,t,DEC-PINC-BON-STD,Standard,,,,36,30,30,2026-03-04 18:22:56.741111+00
+1,389,technical_default_std,ENF-ASS,Assiette enfant,vaisselle_enfants,t,ENF-ASS-STD,Standard,,,,30,100,100,2026-03-04 18:22:56.741111+00
+1,390,technical_default_std,ENF-COU,Couteau enfant,vaisselle_enfants,t,ENF-COU-STD,Standard,,,,30,100,100,2026-03-04 18:22:56.741111+00
+1,392,technical_default_std,ENF-CUI,Cuillère enfant,vaisselle_enfants,t,ENF-CUI-STD,Standard,,,,30,100,100,2026-03-04 18:22:56.741111+00
+1,391,technical_default_std,ENF-FOU,Fourchette enfant,vaisselle_enfants,t,ENF-FOU-STD,Standard,,,,30,100,100,2026-03-04 18:22:56.741111+00
+1,388,technical_default_std,ENF-GOB,Gobelet enfant,vaisselle_enfants,t,ENF-GOB-STD,Standard,,,,30,100,100,2026-03-04 18:22:56.741111+00
+1,410,technical_default_std,HOU-CHA-BLC,Housse de chaise blanche,housses,t,HOU-CHA-BLC-STD,Standard,,,,240,200,200,2026-03-04 18:22:56.741111+00
+1,411,technical_default_std,HOU-CHA-IVO,Housse de chaise ivoire,housses,t,HOU-CHA-IVO-STD,Standard,,,,240,200,200,2026-03-04 18:22:56.741111+00
+1,413,technical_default_std,HOU-MDB-JUP,Housse de mange-debout juponnée,housses,t,HOU-MDB-JUP-STD,Standard,,,,900,15,15,2026-03-04 18:22:56.741111+00
+1,412,technical_default_std,HOU-MDB-STD,Housse de mange-debout,housses,t,HOU-MDB-STD-STD,Standard,,,,600,20,20,2026-03-04 18:22:56.741111+00
+1,438,technical_default_std,MAC-ACC-BORN,Caisse d'accessoires borne à selfie,machines,t,MAC-ACC-BORN-STD,Standard,,,,3000,3,3,2026-03-04 18:22:56.741111+00
+1,437,technical_default_std,MAC-BORN-SEL,Borne à selfie,machines,t,MAC-BORN-SEL-STD,Standard,,,,20000,2,2,2026-03-04 18:22:56.741111+00
+1,448,technical_default_std,MAC-CHAF-ELE,Chafing dish électrique,machines,t,MAC-CHAF-ELE-STD,Standard,,,,3000,10,10,2026-03-04 18:22:56.741111+00
+1,447,technical_default_std,MAC-CORN-GAU,Cornet gaufré pour glace,machines,t,MAC-CORN-GAU-STD,Standard,,,,1800,10,10,2026-03-04 18:22:56.741111+00
+1,445,technical_default_std,MAC-COUL-CHO,Coulis chocolat 500ml,machines,t,MAC-COUL-CHO-STD,Standard,,,,1200,10,10,2026-03-04 18:22:56.741111+00
+1,443,technical_default_std,MAC-GLACE,Machine à glaces,machines,t,MAC-GLACE-STD,Standard,,,,15000,2,2,2026-03-04 18:22:56.741111+00
+1,439,technical_default_std,MAC-INST-MIN,Instax mini,machines,t,MAC-INST-MIN-STD,Standard,,,,3000,5,5,2026-03-04 18:22:56.741111+00
+1,440,technical_default_std,MAC-INST-WID,Instax wide,machines,t,MAC-INST-WID-STD,Standard,,,,5000,3,3,2026-03-04 18:22:56.741111+00
+1,449,technical_default_std,MAC-PERC-100,Percolateur 100 tasses,machines,t,MAC-PERC-100-STD,Standard,,,,3000,3,3,2026-03-04 18:22:56.741111+00
+1,444,technical_default_std,MAC-RCH-GLAC,Recharge 40 glaces,machines,t,MAC-RCH-GLAC-STD,Standard,,,,2500,10,10,2026-03-04 18:22:56.741111+00
+1,441,technical_default_std,MAC-RCH-MIN,Recharge papier photo Instax mini,machines,t,MAC-RCH-MIN-STD,Standard,,,,1000,20,20,2026-03-04 18:22:56.741111+00
+1,442,technical_default_std,MAC-RCH-WID,Recharge papier photo Instax wide,machines,t,MAC-RCH-WID-STD,Standard,,,,1000,15,15,2026-03-04 18:22:56.741111+00
+1,446,technical_default_std,MAC-TOPP-BRI,Toppings brisures,machines,t,MAC-TOPP-BRI-STD,Standard,,,,800,10,10,2026-03-04 18:22:56.741111+00
+1,409,technical_default_std,MDB-STD,Mange-debout,mange_debout,t,MDB-STD-STD,Standard,,,,1200,20,20,2026-03-04 18:22:56.741111+00
+1,419,technical_default_std,NAP-CAR-250,Nappe coton carrée 250x250cm,nappes,t,NAP-CAR-250-STD,Standard,,,,1500,20,20,2026-03-04 18:22:56.741111+00
+1,420,technical_default_std,NAP-OVA-240x360,Nappe coton ovale 240x360cm,nappes,t,NAP-OVA-240x360-STD,Standard,,,,2000,10,10,2026-03-04 18:22:56.741111+00
+1,421,technical_default_std,NAP-OVA-240x420,Nappe coton ovale 240x420cm,nappes,t,NAP-OVA-240x420-STD,Standard,,,,2400,8,8,2026-03-04 18:22:56.741111+00
+1,422,technical_default_std,NAP-OVA-240x480,Nappe coton ovale 240x480cm,nappes,t,NAP-OVA-240x480-STD,Standard,,,,2760,6,6,2026-03-04 18:22:56.741111+00
+1,423,technical_default_std,NAP-OVA-240x540,Nappe coton ovale 240x540cm,nappes,t,NAP-OVA-240x540-STD,Standard,,,,3000,4,4,2026-03-04 18:22:56.741111+00
+1,424,technical_default_std,NAP-OVA-240x660,Nappe coton ovale 240x660cm,nappes,t,NAP-OVA-240x660-STD,Standard,,,,3600,3,3,2026-03-04 18:22:56.741111+00
+1,414,technical_default_std,NAP-REC-140x240,Nappe coton rectangulaire 140x240cm,nappes,t,NAP-REC-140x240-STD,Standard,,,,1100,50,50,2026-03-04 18:22:56.741111+00
+1,415,technical_default_std,NAP-REC-200x240,Nappe coton rectangulaire 200x240cm,nappes,t,NAP-REC-200x240-STD,Standard,,,,1200,40,40,2026-03-04 18:22:56.741111+00
+1,416,technical_default_std,NAP-REC-300x160,Nappe coton rectangulaire 300x160cm,nappes,t,NAP-REC-300x160-STD,Standard,,,,1350,30,30,2026-03-04 18:22:56.741111+00
+1,428,technical_default_std,NAP-REC-300x175-IVO,Nappe rect. coton 300x175cm ivoire,nappes,t,NAP-REC-300x175-IVO-STD,Standard,,,,1500,15,15,2026-03-04 18:22:56.741111+00
+1,417,technical_default_std,NAP-REC-300x190,Nappe coton rectangulaire 300x190cm,nappes,t,NAP-REC-300x190-STD,Standard,,,,1700,30,30,2026-03-04 18:22:56.741111+00
+1,418,technical_default_std,NAP-REC-500x190,Nappe coton rectangulaire 500x190cm,nappes,t,NAP-REC-500x190-STD,Standard,,,,2400,10,10,2026-03-04 18:22:56.741111+00
+1,429,technical_default_std,NAP-RND-240-IVO,Nappe ronde coton 240cm ivoire,nappes,t,NAP-RND-240-IVO-STD,Standard,,,,1600,15,15,2026-03-04 18:22:56.741111+00
+1,425,technical_default_std,NAP-RND-280,Nappe ronde coton 280cm,nappes,t,NAP-RND-280-STD,Standard,,,,1700,10,10,2026-03-04 18:22:56.741111+00
+1,426,technical_default_std,NAP-RND-280-COL,Nappe ronde coton 280cm couleur,nappes,t,NAP-RND-280-COL-STD,Standard,,,,2400,8,8,2026-03-04 18:22:56.741111+00
+1,427,technical_default_std,NAP-RND-300,Nappe ronde coton 300cm,nappes,t,NAP-RND-300-STD,Standard,,,,1800,8,8,2026-03-04 18:22:56.741111+00
+1,383,technical_default_std,POR-BOL,Bol,porcelaine,t,POR-BOL-STD,Standard,,,,36,200,200,2026-03-04 18:22:56.741111+00
+1,376,technical_default_std,POR-MEN-SP-ELG,Ménagère sel/poivre élégance,porcelaine,t,POR-MEN-SP-ELG-STD,Standard,,,,72,100,100,2026-03-04 18:22:56.741111+00
+1,378,technical_default_std,POR-MEN-SPM-PRE,Ménagère sel/poivre/moutarde prestige,porcelaine,t,POR-MEN-SPM-PRE-STD,Standard,,,,100,30,30,2026-03-04 18:22:56.741111+00
+1,377,technical_default_std,POR-MEN-SP-PRE,Ménagère sel/poivre prestige,porcelaine,t,POR-MEN-SP-PRE-STD,Standard,,,,85,50,50,2026-03-04 18:22:56.741111+00
+1,386,technical_default_std,POR-MUG,Mug,porcelaine,t,POR-MUG-STD,Standard,,,,36,100,100,2026-03-04 18:22:56.741111+00
+1,384,technical_default_std,POR-RAM,Ramequin,porcelaine,t,POR-RAM-STD,Standard,,,,36,150,150,2026-03-04 18:22:56.741111+00
+1,385,technical_default_std,POR-SAUC,Saucier,porcelaine,t,POR-SAUC-STD,Standard,,,,240,20,20,2026-03-04 18:22:56.741111+00
+1,380,technical_default_std,POR-STA-CAF,Sous-tasse à café,porcelaine,t,POR-STA-CAF-STD,Standard,,,,18,300,300,2026-03-04 18:22:56.741111+00
+1,382,technical_default_std,POR-STA-THE,Sous-tasse à thé,porcelaine,t,POR-STA-THE-STD,Standard,,,,30,100,100,2026-03-04 18:22:56.741111+00
+1,387,technical_default_std,POR-SUC-PRE,Sucrier prestige,porcelaine,t,POR-SUC-PRE-STD,Standard,,,,150,20,20,2026-03-04 18:22:56.741111+00
+1,379,technical_default_std,POR-TAS-CAF,Tasse à café,porcelaine,t,POR-TAS-CAF-STD,Standard,,,,24,300,300,2026-03-04 18:22:56.741111+00
+1,381,technical_default_std,POR-TAS-THE,Tasse à thé,porcelaine,t,POR-TAS-THE-STD,Standard,,,,30,100,100,2026-03-04 18:22:56.741111+00
+1,430,technical_default_std,SER-COT-BLC,Serviette de table coton blanche,serviettes,t,SER-COT-BLC-STD,Standard,,,,90,500,500,2026-03-04 18:22:56.741111+00
+1,432,technical_default_std,SER-COT-BOR,Serviette de table coton bordeaux,serviettes,t,SER-COT-BOR-STD,Standard,,,,180,200,200,2026-03-04 18:22:56.741111+00
+1,431,technical_default_std,SER-COT-IVO,Serviette de table coton ivoire,serviettes,t,SER-COT-IVO-STD,Standard,,,,90,500,500,2026-03-04 18:22:56.741111+00
+1,433,technical_default_std,SER-COT-NOI,Serviette de table coton noire,serviettes,t,SER-COT-NOI-STD,Standard,,,,180,200,200,2026-03-04 18:22:56.741111+00
+1,434,technical_default_std,SER-COT-ROU,Serviette de table coton rouge,serviettes,t,SER-COT-ROU-STD,Standard,,,,180,200,200,2026-03-04 18:22:56.741111+00
+1,435,technical_default_std,SER-COT-VAM,Serviette de table coton vert amande,serviettes,t,SER-COT-VAM-STD,Standard,,,,180,150,150,2026-03-04 18:22:56.741111+00
+1,436,technical_default_std,SER-COT-VSA,Serviette de table coton vert sapin,serviettes,t,SER-COT-VSA-STD,Standard,,,,180,150,150,2026-03-04 18:22:56.741111+00
+1,363,technical_default_std,SRV-COP-DES,Coupe à dessert,vaisselle_service,t,SRV-COP-DES-STD,Standard,,,,42,200,200,2026-03-04 18:22:56.741111+00
+1,370,technical_default_std,SRV-COU-CHF,Couteau de chef,vaisselle_service,t,SRV-COU-CHF-STD,Standard,,,,450,5,5,2026-03-04 18:22:56.741111+00
+1,368,technical_default_std,SRV-COU-FRO,Couteau à fromage,vaisselle_service,t,SRV-COU-FRO-STD,Standard,,,,90,20,20,2026-03-04 18:22:56.741111+00
+1,369,technical_default_std,SRV-COU-GAT,Couteau à gâteau,vaisselle_service,t,SRV-COU-GAT-STD,Standard,,,,300,10,10,2026-03-04 18:22:56.741111+00
+1,367,technical_default_std,SRV-CUI-SRV,Cuillère de service,vaisselle_service,t,SRV-CUI-SRV-STD,Standard,,,,120,30,30,2026-03-04 18:22:56.741111+00
+1,374,technical_default_std,SRV-DIST-JUS,Distributeur à jus,vaisselle_service,t,SRV-DIST-JUS-STD,Standard,,,,600,10,10,2026-03-04 18:22:56.741111+00
+1,365,technical_default_std,SRV-FOU-SRV,Fourchette de service,vaisselle_service,t,SRV-FOU-SRV-STD,Standard,,,,120,30,30,2026-03-04 18:22:56.741111+00
+1,366,technical_default_std,SRV-FOU-VIA,Fourchette de service viande,vaisselle_service,t,SRV-FOU-VIA-STD,Standard,,,,120,20,20,2026-03-04 18:22:56.741111+00
+1,371,technical_default_std,SRV-LOUCHE,Louche,vaisselle_service,t,SRV-LOUCHE-STD,Standard,,,,90,20,20,2026-03-04 18:22:56.741111+00
+1,364,technical_default_std,SRV-PEL-TAR,Pelle à tarte,vaisselle_service,t,SRV-PEL-TAR-STD,Standard,,,,120,30,30,2026-03-04 18:22:56.741111+00
+1,375,technical_default_std,SRV-PLAT-INX,Plateau de service inox,vaisselle_service,t,SRV-PLAT-INX-STD,Standard,,,,400,20,20,2026-03-04 18:22:56.741111+00
+1,372,technical_default_std,SRV-SEAU-CHP,Seau à champagne,vaisselle_service,t,SRV-SEAU-CHP-STD,Standard,,,,300,30,30,2026-03-04 18:22:56.741111+00
+1,373,technical_default_std,SRV-VASQ-CHP,Vasque à champagne,vaisselle_service,t,SRV-VASQ-CHP-STD,Standard,,,,1000,10,10,2026-03-04 18:22:56.741111+00
+1,399,technical_default_std,TAB-OVA-12,Table ovale 12 personnes,tables,t,TAB-OVA-12-STD,Standard,,,,1800,5,5,2026-03-04 18:22:56.741111+00
+1,400,technical_default_std,TAB-OVA-14,Table ovale 14 personnes,tables,t,TAB-OVA-14-STD,Standard,,,,2400,4,4,2026-03-04 18:22:56.741111+00
+1,401,technical_default_std,TAB-OVA-16,Table ovale 16 personnes,tables,t,TAB-OVA-16-STD,Standard,,,,3000,3,3,2026-03-04 18:22:56.741111+00
+1,402,technical_default_std,TAB-OVA-18,Table ovale 18 personnes,tables,t,TAB-OVA-18-STD,Standard,,,,3600,3,3,2026-03-04 18:22:56.741111+00
+1,403,technical_default_std,TAB-OVA-22,Table ovale 22 personnes,tables,t,TAB-OVA-22-STD,Standard,,,,4200,2,2,2026-03-04 18:22:56.741111+00
+1,393,technical_default_std,TAB-REC-183,Table rectangulaire 183x76cm,tables,t,TAB-REC-183-STD,Standard,,,,1000,30,30,2026-03-04 18:22:56.741111+00
+1,394,technical_default_std,TAB-REC-200,Table rectangulaire 200x90cm,tables,t,TAB-REC-200-STD,Standard,,,,1100,20,20,2026-03-04 18:22:56.741111+00
+1,398,technical_default_std,TAB-REC-BOIS-210,Table rectangulaire bois 210x100cm,tables,t,TAB-REC-BOIS-210-STD,Standard,,,,4800,5,5,2026-03-04 18:22:56.741111+00
+1,395,technical_default_std,TAB-RND-150,Table ronde diamètre 150cm,tables,t,TAB-RND-150-STD,Standard,,,,1000,20,20,2026-03-04 18:22:56.741111+00
+1,396,technical_default_std,TAB-RND-180,Table ronde diamètre 180cm,tables,t,TAB-RND-180-STD,Standard,,,,1650,15,15,2026-03-04 18:22:56.741111+00
+1,397,technical_default_std,TAB-RND-BOIS-153,Table ronde bois diamètre 153cm,tables,t,TAB-RND-BOIS-153-STD,Standard,,,,5400,5,5,2026-03-04 18:22:56.741111+00
+1,462,technical_default_std,TRP-SOC-BAC,Socle rouleur bacs,accessoires_transport,t,TRP-SOC-BAC-STD,Standard,,,,500,10,10,2026-03-04 18:22:56.741111+00
+1,463,technical_default_std,TRP-SOC-VER,Socle rouleur verres,accessoires_transport,t,TRP-SOC-VER-STD,Standard,,,,500,10,10,2026-03-04 18:22:56.741111+00
+1,341,technical_default_std,VER-BALL,Verre ballon,verres,t,VER-BALL-STD,Standard,,,,90,100,100,2026-03-04 18:22:56.741111+00
+1,335,technical_default_std,VER-EAU-CLA,Verre à eau classique,verres,t,VER-EAU-CLA-STD,Standard,,,,30,500,500,2026-03-04 18:22:56.741111+00
+1,337,technical_default_std,VER-EAU-ELG,Verre à eau élégance,verres,t,VER-EAU-ELG-STD,Standard,,,,35,300,300,2026-03-04 18:22:56.741111+00
+1,338,technical_default_std,VER-EAU-OPN,Verre à eau Open'Up,verres,t,VER-EAU-OPN-STD,Standard,,,,90,200,200,2026-03-04 18:22:56.741111+00
+1,340,technical_default_std,VER-VINT,Verre Vintage,verres,t,VER-VINT-STD,Standard,,,,78,150,150,2026-03-04 18:22:56.741111+00
+1,336,technical_default_std,VER-VR-CLA,Verre à vin rouge classique,verres,t,VER-VR-CLA-STD,Standard,,,,30,500,500,2026-03-04 18:22:56.741111+00
+1,342,technical_default_std,VER-VR-ELG,Verre à vin rouge élégance,verres,t,VER-VR-ELG-STD,Standard,,,,35,300,270,2026-03-04 18:22:56.741111+00
+1,339,technical_default_std,VER-VR-OPN,Verre à vin rouge Open'Up,verres,t,VER-VR-OPN-STD,Standard,,,,90,200,200,2026-03-04 18:22:56.741111+00
+1,70,valid_dimensional,ASS-CAR-ELG,Assiette carrée élégance,assiettes,t,ASS-CAR-CRS-ELG-23-V,23cm creuse,,23cm-creuse,,,300,300,2026-03-02 11:19:07.536148+00
+1,69,valid_dimensional,ASS-CAR-ELG,Assiette carrée élégance,assiettes,t,ASS-CAR-ELG-23-V,23cm plate,,23cm,,,300,300,2026-03-02 11:19:07.529+00
+1,71,valid_dimensional,ASS-CAR-ELG,Assiette carrée élégance,assiettes,t,ASS-CAR-ELG-27-V,27cm,,27cm,,,300,300,2026-03-02 11:19:07.543281+00
+1,20,valid_dimensional,ASS-RND-CLA,Assiette ronde classique,assiettes,t,ASS-V-CRS-CLA-22,"22,5cm",,22.5cm,,30,400,400,2026-03-02 11:16:49.27232+00
+1,18,valid_dimensional,ASS-RND-CLA,Assiette ronde classique,assiettes,t,ASS-V-RND-CLA-16,16cm,,16cm,,30,400,400,2026-03-02 11:16:49.27232+00
+1,19,valid_dimensional,ASS-RND-CLA,Assiette ronde classique,assiettes,t,ASS-V-RND-CLA-21,21cm,,21cm,,30,400,400,2026-03-02 11:16:49.27232+00
+1,21,valid_dimensional,ASS-RND-CLA,Assiette ronde classique,assiettes,t,ASS-V-RND-CLA-26,26cm,,26cm,,30,400,400,2026-03-02 11:16:49.27232+00
+1,22,valid_dimensional,ASS-RND-CLA,Assiette ronde classique,assiettes,t,ASS-V-RND-CLA-30,"30,5cm",,30.5cm,,42,200,200,2026-03-02 11:16:49.27232+00
+1,73,valid_dimensional,ASS-RND-VIN,Assiette ronde vintage,assiettes,t,ASS-CRS-VIN-22-V,22cm creuse,,22cm,,60,150,150,2026-03-02 11:19:07.562886+00
+1,72,valid_dimensional,ASS-RND-VIN,Assiette ronde vintage,assiettes,t,ASS-RND-VIN-16-V,16cm,,16cm,,60,150,150,2026-03-02 11:19:07.555846+00
+1,74,valid_dimensional,ASS-RND-VIN,Assiette ronde vintage,assiettes,t,ASS-RND-VIN-27-V,27cm,,27cm,,78,150,150,2026-03-02 11:19:07.569365+00
+1,1,valid_dimensional,HOU-CHA,Housse de chaise,housses,t,HOU-CHA-BLC,Blanche,blanc,,,,200,200,2026-03-02 11:16:49.27232+00
+1,2,valid_dimensional,HOU-CHA,Housse de chaise,housses,t,HOU-CHA-IVO,Ivoire,ivoire,,,,200,200,2026-03-02 11:16:49.27232+00
+1,3,valid_dimensional,NAP-RND-240,Nappe coton ronde 240cm,nappes,t,NAP-RND-240-BLC,Blanc,blanc,,,,20,20,2026-03-02 11:16:49.27232+00
+1,4,valid_dimensional,NAP-RND-240,Nappe coton ronde 240cm,nappes,t,NAP-RND-240-IVO-V,Ivoire,ivoire,,,,15,15,2026-03-02 11:16:49.27232+00
+1,5,valid_dimensional,SER-COT,Serviette coton,serviettes,t,SER-V-BLC,Blanche,blanc,,,,500,500,2026-03-02 11:16:49.27232+00
+1,6,valid_dimensional,SER-COT,Serviette coton,serviettes,t,SER-V-IVO,Ivoire,ivoire,,,,500,500,2026-03-02 11:16:49.27232+00
+1,7,valid_dimensional,SER-COT-COL,Serviette coton couleur,serviettes,t,SER-V-BOR,Bordeaux,bordeaux,,,,200,200,2026-03-02 11:16:49.27232+00
+1,8,valid_dimensional,SER-COT-COL,Serviette coton couleur,serviettes,t,SER-V-NOI,Noire,noir,,,,200,200,2026-03-02 11:16:49.27232+00
+1,9,valid_dimensional,SER-COT-COL,Serviette coton couleur,serviettes,t,SER-V-ROU,Rouge,rouge,,,,200,200,2026-03-02 11:16:49.27232+00
+1,10,valid_dimensional,SER-COT-COL,Serviette coton couleur,serviettes,t,SER-V-VAM,Vert amande,vert_amande,,,,150,150,2026-03-02 11:16:49.27232+00
+1,11,valid_dimensional,SER-COT-COL,Serviette coton couleur,serviettes,t,SER-V-VSA,Vert sapin,vert_sapin,,,,150,150,2026-03-02 11:16:49.27232+00
+1,464,valid_dimensional,SKU-FIX-GREENLET-001,Verre Cristal Test Fix,vaisselle,t,SKU-FIX-174-STD,Standard,blanc,S,,,0,0,2026-03-06 22:11:25.060507+00
+1,12,valid_dimensional,VER-EAU,Verre à eau,verres,t,VER-V-EAU-CLA,Classique,,,classique,30,500,500,2026-03-02 11:16:49.27232+00
+1,13,valid_dimensional,VER-EAU,Verre à eau,verres,t,VER-V-EAU-ELG,Élégance,,,elegance,35,300,300,2026-03-02 11:16:49.27232+00
+1,14,valid_dimensional,VER-EAU,Verre à eau,verres,t,VER-V-EAU-OPN,Open'Up,,,open_up,90,200,200,2026-03-02 11:16:49.27232+00
+1,75,valid_dimensional,VER-EAU,Verre à eau,verres,t,VER-V-EAU-PRE,Prestige,,,prestige,120,100,100,2026-03-02 11:32:28.799843+00
+1,65,valid_dimensional,VER-FLU,Flûte à champagne,verres,t,VER-FLU-CLA-V,Classique,,,classique,30,600,600,2026-03-02 11:19:07.472437+00
+1,66,valid_dimensional,VER-FLU,Flûte à champagne,verres,t,VER-FLU-ELG-V,Élégance,,,elegance,35,300,300,2026-03-02 11:19:07.482148+00
+1,67,valid_dimensional,VER-FLU,Flûte à champagne,verres,t,VER-FLU-OPN-V,Open'Up,,,open_up,90,200,200,2026-03-02 11:19:07.490574+00
+1,68,valid_dimensional,VER-SOFT,Verre à soft,verres,t,VER-SOFT-ELG-V,Élégance,,,elegance,35,300,300,2026-03-02 11:19:07.501744+00
+1,62,valid_dimensional,VER-VB,Verre à vin blanc,verres,t,VER-VB-CLA-V,Classique,,,classique,30,500,500,2026-03-02 11:19:07.435793+00
+1,63,valid_dimensional,VER-VB,Verre à vin blanc,verres,t,VER-VB-ELG-V,Élégance,,,elegance,35,300,300,2026-03-02 11:19:07.448384+00
+1,64,valid_dimensional,VER-VB,Verre à vin blanc,verres,t,VER-VB-OPN-V,Open'Up,,,open_up,90,200,200,2026-03-02 11:19:07.45647+00
+1,15,valid_dimensional,VER-VR,Verre à vin rouge,verres,t,VER-V-VR-CLA,Classique,,,classique,30,500,500,2026-03-02 11:16:49.27232+00
+1,16,valid_dimensional,VER-VR,Verre à vin rouge,verres,t,VER-V-VR-ELG,Élégance,,,elegance,35,300,300,2026-03-02 11:16:49.27232+00
+1,17,valid_dimensional,VER-VR,Verre à vin rouge,verres,t,VER-V-VR-OPN,Open'Up,,,open_up,90,200,200,2026-03-02 11:16:49.27232+00

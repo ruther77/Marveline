@@ -93,6 +93,26 @@ class Customer(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
         comment="Pays"
     )
 
+    # B2B — identifiants entreprise
+    siret: Mapped[Optional[str]] = mapped_column(
+        String(14),
+        nullable=True,
+        comment="SIRET (14 chiffres, entreprises francaises)"
+    )
+
+    vat_number: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="TVA intracommunautaire (ex: FR12345678901)"
+    )
+
+    # Note interne (visible équipe uniquement)
+    notes: Mapped[Optional[str]] = mapped_column(
+        String(2000),
+        nullable=True,
+        comment="Note interne (non visible client)"
+    )
+
     # Relations
     reservations: Mapped[list["Reservation"]] = relationship(
         "Reservation",
@@ -105,13 +125,13 @@ class Customer(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
     __table_args__ = (
         # Type de client valide
         CheckConstraint(
-            "customer_type IN ('individual', 'company')",
+            "customer_type IN ('individual', 'company', 'professional', 'association')",
             name="check_customer_type_valid"
         ),
-        # Cohérence données individual vs company
+        # Cohérence données : individual → prénom+nom, autres → raison sociale
         CheckConstraint(
             "(customer_type='individual' AND first_name IS NOT NULL AND last_name IS NOT NULL) "
-            "OR (customer_type='company' AND company_name IS NOT NULL)",
+            "OR (customer_type IN ('company', 'professional', 'association') AND company_name IS NOT NULL)",
             name="check_customer_data_coherence"
         ),
         # Email unique par tenant

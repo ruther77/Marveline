@@ -1,0 +1,143 @@
+tenant_id,parent_sku,parent_name,parent_category,parent_is_active,variants_total,valid_count,technical_count,with_color,with_size,with_gamme
+1,ASS-COUSC-26,Assiette à couscous / paella 26cm,assiettes,t,1,0,1,0,0,0
+1,ASS-CRS-CLA-22,"Assiette ronde creuse classique 22,5cm",assiettes,t,1,0,1,0,0,0
+1,ASS-RND-CLA-16,Assiette ronde classique 16cm,assiettes,t,1,0,1,0,0,0
+1,ASS-RND-CLA-21,Assiette ronde classique 21cm,assiettes,t,1,0,1,0,0,0
+1,ASS-RND-CLA-26,Assiette ronde classique 26cm,assiettes,t,1,0,1,0,0,0
+1,ASS-RND-CLA-30,"Assiette ronde classique 30,5cm",assiettes,t,1,0,1,0,0,0
+1,ASS-XCRS-BLC-27,Assiette ronde extra creuse blanche 27cm,assiettes,t,1,0,1,0,0,0
+1,BAN-BOIS,Banc bois,bancs,t,1,0,1,0,0,0
+1,CDB-BOIS-BON,Candy bar Bois/Métal avec bonbonnières,candy_bar,t,1,0,1,0,0,0
+1,CDB-BOIS-MET,Candy bar Bois/Métal,candy_bar,t,1,0,1,0,0,0
+1,CDB-PREM,Candy bar,candy_bar,t,1,0,1,0,0,0
+1,CDB-PREM-BON,Candy bar avec bonbonnières,candy_bar,t,1,0,1,0,0,0
+1,CDB-STD,Candy bar bois (sans toit),candy_bar,t,1,0,1,0,0,0
+1,CDB-STD-BON,Candy bar bois (sans toit) avec bonbonnières,candy_bar,t,1,0,1,0,0,0
+1,CHA-BOIS-DC,Chaise Bois Dos Croisé,chaises,t,1,0,1,0,0,0
+1,CHA-NAP3,Chaise Napoléon III,chaises,t,1,0,1,0,0,0
+1,CHA-PLAST,Chaise plastique,chaises,t,1,0,1,0,0,0
+1,CHA-TAB-BAR,Tabouret de bar,chaises,t,1,0,1,0,0,0
+1,COV-CAF-ELG,Cuillère à café élégance,couverts,t,1,0,1,0,0,0
+1,COV-CDS-ELG,Couteau à dessert élégance,couverts,t,1,0,1,0,0,0
+1,COV-COU-ELG,Couteau de table élégance,couverts,t,1,0,1,0,0,0
+1,COV-COU-OR,Couteau de table Or,couverts,t,1,0,1,0,0,0
+1,COV-COU-PRE,Couteau de table prestige,couverts,t,1,0,1,0,0,0
+1,COV-CUDS-ELG,Cuillère à dessert élégance,couverts,t,1,0,1,0,0,0
+1,COV-CUI-ELG,Cuillère de table élégance,couverts,t,1,0,1,0,0,0
+1,COV-FDS-ELG,Fourchette à dessert élégance,couverts,t,1,0,1,0,0,0
+1,COV-FOU-ELG,Fourchette de table élégance,couverts,t,1,0,1,0,0,0
+1,COV-FPS-ELG,Fourchette à poisson élégance,couverts,t,1,0,1,0,0,0
+1,COV-MOK-ELG,Cuillère à moka élégance,couverts,t,1,0,1,0,0,0
+1,COV-PSN-ELG,Couteau à poisson élégance,couverts,t,1,0,1,0,0,0
+1,COV-STK-ELG,Couteau à steak élégance,couverts,t,1,0,1,0,0,0
+1,DEC-BONB-100,Bonbonnière 1L,decorations,t,1,0,1,0,0,0
+1,DEC-BONB-28,Bonbonnière 28cl,decorations,t,1,0,1,0,0,0
+1,DEC-BONB-75,Bonbonnière 75cl,decorations,t,1,0,1,0,0,0
+1,DEC-ETG-BOIS,Petite étagère en bois,decorations,t,1,0,1,0,0,0
+1,DEC-PELL-BON,Pelle à bonbons,decorations,t,1,0,1,0,0,0
+1,DEC-PINC-BON,Pince à bonbons,decorations,t,1,0,1,0,0,0
+1,ENF-ASS,Assiette enfant,vaisselle_enfants,t,1,0,1,0,0,0
+1,ENF-COU,Couteau enfant,vaisselle_enfants,t,1,0,1,0,0,0
+1,ENF-CUI,Cuillère enfant,vaisselle_enfants,t,1,0,1,0,0,0
+1,ENF-FOU,Fourchette enfant,vaisselle_enfants,t,1,0,1,0,0,0
+1,ENF-GOB,Gobelet enfant,vaisselle_enfants,t,1,0,1,0,0,0
+1,HOU-CHA-BLC,Housse de chaise blanche,housses,t,1,0,1,0,0,0
+1,HOU-CHA-IVO,Housse de chaise ivoire,housses,t,1,0,1,0,0,0
+1,HOU-MDB-JUP,Housse de mange-debout juponnée,housses,t,1,0,1,0,0,0
+1,HOU-MDB-STD,Housse de mange-debout,housses,t,1,0,1,0,0,0
+1,MAC-ACC-BORN,Caisse d'accessoires borne à selfie,machines,t,1,0,1,0,0,0
+1,MAC-BORN-SEL,Borne à selfie,machines,t,1,0,1,0,0,0
+1,MAC-CHAF-ELE,Chafing dish électrique,machines,t,1,0,1,0,0,0
+1,MAC-CORN-GAU,Cornet gaufré pour glace,machines,t,1,0,1,0,0,0
+1,MAC-COUL-CHO,Coulis chocolat 500ml,machines,t,1,0,1,0,0,0
+1,MAC-GLACE,Machine à glaces,machines,t,1,0,1,0,0,0
+1,MAC-INST-MIN,Instax mini,machines,t,1,0,1,0,0,0
+1,MAC-INST-WID,Instax wide,machines,t,1,0,1,0,0,0
+1,MAC-PERC-100,Percolateur 100 tasses,machines,t,1,0,1,0,0,0
+1,MAC-RCH-GLAC,Recharge 40 glaces,machines,t,1,0,1,0,0,0
+1,MAC-RCH-MIN,Recharge papier photo Instax mini,machines,t,1,0,1,0,0,0
+1,MAC-RCH-WID,Recharge papier photo Instax wide,machines,t,1,0,1,0,0,0
+1,MAC-TOPP-BRI,Toppings brisures,machines,t,1,0,1,0,0,0
+1,MDB-STD,Mange-debout,mange_debout,t,1,0,1,0,0,0
+1,NAP-CAR-250,Nappe coton carrée 250x250cm,nappes,t,1,0,1,0,0,0
+1,NAP-OVA-240x360,Nappe coton ovale 240x360cm,nappes,t,1,0,1,0,0,0
+1,NAP-OVA-240x420,Nappe coton ovale 240x420cm,nappes,t,1,0,1,0,0,0
+1,NAP-OVA-240x480,Nappe coton ovale 240x480cm,nappes,t,1,0,1,0,0,0
+1,NAP-OVA-240x540,Nappe coton ovale 240x540cm,nappes,t,1,0,1,0,0,0
+1,NAP-OVA-240x660,Nappe coton ovale 240x660cm,nappes,t,1,0,1,0,0,0
+1,NAP-REC-140x240,Nappe coton rectangulaire 140x240cm,nappes,t,1,0,1,0,0,0
+1,NAP-REC-200x240,Nappe coton rectangulaire 200x240cm,nappes,t,1,0,1,0,0,0
+1,NAP-REC-300x160,Nappe coton rectangulaire 300x160cm,nappes,t,1,0,1,0,0,0
+1,NAP-REC-300x175-IVO,Nappe rect. coton 300x175cm ivoire,nappes,t,1,0,1,0,0,0
+1,NAP-REC-300x190,Nappe coton rectangulaire 300x190cm,nappes,t,1,0,1,0,0,0
+1,NAP-REC-500x190,Nappe coton rectangulaire 500x190cm,nappes,t,1,0,1,0,0,0
+1,NAP-RND-240-IVO,Nappe ronde coton 240cm ivoire,nappes,t,1,0,1,0,0,0
+1,NAP-RND-280,Nappe ronde coton 280cm,nappes,t,1,0,1,0,0,0
+1,NAP-RND-280-COL,Nappe ronde coton 280cm couleur,nappes,t,1,0,1,0,0,0
+1,NAP-RND-300,Nappe ronde coton 300cm,nappes,t,1,0,1,0,0,0
+1,POR-BOL,Bol,porcelaine,t,1,0,1,0,0,0
+1,POR-MEN-SP-ELG,Ménagère sel/poivre élégance,porcelaine,t,1,0,1,0,0,0
+1,POR-MEN-SPM-PRE,Ménagère sel/poivre/moutarde prestige,porcelaine,t,1,0,1,0,0,0
+1,POR-MEN-SP-PRE,Ménagère sel/poivre prestige,porcelaine,t,1,0,1,0,0,0
+1,POR-MUG,Mug,porcelaine,t,1,0,1,0,0,0
+1,POR-RAM,Ramequin,porcelaine,t,1,0,1,0,0,0
+1,POR-SAUC,Saucier,porcelaine,t,1,0,1,0,0,0
+1,POR-STA-CAF,Sous-tasse à café,porcelaine,t,1,0,1,0,0,0
+1,POR-STA-THE,Sous-tasse à thé,porcelaine,t,1,0,1,0,0,0
+1,POR-SUC-PRE,Sucrier prestige,porcelaine,t,1,0,1,0,0,0
+1,POR-TAS-CAF,Tasse à café,porcelaine,t,1,0,1,0,0,0
+1,POR-TAS-THE,Tasse à thé,porcelaine,t,1,0,1,0,0,0
+1,SER-COT-BLC,Serviette de table coton blanche,serviettes,t,1,0,1,0,0,0
+1,SER-COT-BOR,Serviette de table coton bordeaux,serviettes,t,1,0,1,0,0,0
+1,SER-COT-IVO,Serviette de table coton ivoire,serviettes,t,1,0,1,0,0,0
+1,SER-COT-NOI,Serviette de table coton noire,serviettes,t,1,0,1,0,0,0
+1,SER-COT-ROU,Serviette de table coton rouge,serviettes,t,1,0,1,0,0,0
+1,SER-COT-VAM,Serviette de table coton vert amande,serviettes,t,1,0,1,0,0,0
+1,SER-COT-VSA,Serviette de table coton vert sapin,serviettes,t,1,0,1,0,0,0
+1,SRV-COP-DES,Coupe à dessert,vaisselle_service,t,1,0,1,0,0,0
+1,SRV-COU-CHF,Couteau de chef,vaisselle_service,t,1,0,1,0,0,0
+1,SRV-COU-FRO,Couteau à fromage,vaisselle_service,t,1,0,1,0,0,0
+1,SRV-COU-GAT,Couteau à gâteau,vaisselle_service,t,1,0,1,0,0,0
+1,SRV-CUI-SRV,Cuillère de service,vaisselle_service,t,1,0,1,0,0,0
+1,SRV-DIST-JUS,Distributeur à jus,vaisselle_service,t,1,0,1,0,0,0
+1,SRV-FOU-SRV,Fourchette de service,vaisselle_service,t,1,0,1,0,0,0
+1,SRV-FOU-VIA,Fourchette de service viande,vaisselle_service,t,1,0,1,0,0,0
+1,SRV-LOUCHE,Louche,vaisselle_service,t,1,0,1,0,0,0
+1,SRV-PEL-TAR,Pelle à tarte,vaisselle_service,t,1,0,1,0,0,0
+1,SRV-PLAT-INX,Plateau de service inox,vaisselle_service,t,1,0,1,0,0,0
+1,SRV-SEAU-CHP,Seau à champagne,vaisselle_service,t,1,0,1,0,0,0
+1,SRV-VASQ-CHP,Vasque à champagne,vaisselle_service,t,1,0,1,0,0,0
+1,TAB-OVA-12,Table ovale 12 personnes,tables,t,1,0,1,0,0,0
+1,TAB-OVA-14,Table ovale 14 personnes,tables,t,1,0,1,0,0,0
+1,TAB-OVA-16,Table ovale 16 personnes,tables,t,1,0,1,0,0,0
+1,TAB-OVA-18,Table ovale 18 personnes,tables,t,1,0,1,0,0,0
+1,TAB-OVA-22,Table ovale 22 personnes,tables,t,1,0,1,0,0,0
+1,TAB-REC-183,Table rectangulaire 183x76cm,tables,t,1,0,1,0,0,0
+1,TAB-REC-200,Table rectangulaire 200x90cm,tables,t,1,0,1,0,0,0
+1,TAB-REC-BOIS-210,Table rectangulaire bois 210x100cm,tables,t,1,0,1,0,0,0
+1,TAB-RND-150,Table ronde diamètre 150cm,tables,t,1,0,1,0,0,0
+1,TAB-RND-180,Table ronde diamètre 180cm,tables,t,1,0,1,0,0,0
+1,TAB-RND-BOIS-153,Table ronde bois diamètre 153cm,tables,t,1,0,1,0,0,0
+1,TRP-SOC-BAC,Socle rouleur bacs,accessoires_transport,t,1,0,1,0,0,0
+1,TRP-SOC-VER,Socle rouleur verres,accessoires_transport,t,1,0,1,0,0,0
+1,VER-BALL,Verre ballon,verres,t,1,0,1,0,0,0
+1,VER-EAU-CLA,Verre à eau classique,verres,t,1,0,1,0,0,0
+1,VER-EAU-ELG,Verre à eau élégance,verres,t,1,0,1,0,0,0
+1,VER-EAU-OPN,Verre à eau Open'Up,verres,t,1,0,1,0,0,0
+1,VER-VINT,Verre Vintage,verres,t,1,0,1,0,0,0
+1,VER-VR-CLA,Verre à vin rouge classique,verres,t,1,0,1,0,0,0
+1,VER-VR-ELG,Verre à vin rouge élégance,verres,t,1,0,1,0,0,0
+1,VER-VR-OPN,Verre à vin rouge Open'Up,verres,t,1,0,1,0,0,0
+1,ASS-RND-CLA,Assiette ronde classique,assiettes,t,5,5,0,0,5,0
+1,SER-COT-COL,Serviette coton couleur,serviettes,t,5,5,0,5,0,0
+1,VER-EAU,Verre à eau,verres,t,4,4,0,0,0,4
+1,ASS-CAR-ELG,Assiette carrée élégance,assiettes,t,3,3,0,0,3,0
+1,ASS-RND-VIN,Assiette ronde vintage,assiettes,t,3,3,0,0,3,0
+1,VER-FLU,Flûte à champagne,verres,t,3,3,0,0,0,3
+1,VER-VB,Verre à vin blanc,verres,t,3,3,0,0,0,3
+1,VER-VR,Verre à vin rouge,verres,t,3,3,0,0,0,3
+1,HOU-CHA,Housse de chaise,housses,t,2,2,0,2,0,0
+1,NAP-RND-240,Nappe coton ronde 240cm,nappes,t,2,2,0,2,0,0
+1,SER-COT,Serviette coton,serviettes,t,2,2,0,2,0,0
+1,SKU-FIX-GREENLET-001,Verre Cristal Test Fix,vaisselle,t,1,1,0,1,1,0
+1,VER-SOFT,Verre à soft,verres,t,1,1,0,0,0,1

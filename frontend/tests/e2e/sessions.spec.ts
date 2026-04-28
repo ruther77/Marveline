@@ -10,9 +10,8 @@
 
 import { test, expect } from '@playwright/test'
 import {
-  loginViaAPI,
+  login,
   logout,
-  TEST_USER,
   API_BASE_URL,
 } from './setup'
 
@@ -34,7 +33,7 @@ test.describe('Session Management Flow', () => {
     // Cleanup sessions Redis pour éviter accumulation
     try {
       execSync(
-        `docker compose exec -T redis redis-cli --no-auth-warning -a "dev_redis_password_CHANGER_EN_PROD" FLUSHDB`,
+        `docker exec futurproj_redis_sec redis-cli --no-auth-warning -a "dev_redis_sec_password_CHANGER_EN_PROD" FLUSHDB`,
         { stdio: 'ignore' }
       )
       console.log('[beforeEach] Redis FLUSHDB successful')
@@ -52,11 +51,8 @@ test.describe('Session Management Flow', () => {
   })
 
   test('doit créer session à login et afficher dans /admin/sessions', async ({ page }) => {
-    // Login via API (crée une session)
-    await loginViaAPI(page)
-
-    // Attendre que la page soit bien chargée et authentifiée
-    await page.waitForURL(/\/(dashboard|profile|agenda)/, { timeout: 5000 })
+    // Login via UI (crée une session complète avec cookie httpOnly)
+    await login(page)
 
     // Naviguer vers la page admin/sessions
     await page.goto('/admin/sessions')
@@ -77,77 +73,62 @@ test.describe('Session Management Flow', () => {
   })
 
   test('doit permettre refresh token manuel via API', async ({ page }) => {
-    // Login pour obtenir des tokens
-    await loginViaAPI(page)
+    // Login via UI pour établir la session avec cookie httpOnly
+    await login(page)
 
-    // Attendre que la page soit bien chargée et authentifiée
-    await page.waitForURL(/\/(dashboard|profile|agenda)/, { timeout: 5000 })
-
-    // Récupérer le refresh token depuis localStorage
-    const refreshToken = await page.evaluate(() => {
+    // Récupérer l'access token actuel depuis le store (pour comparer après refresh)
+    const accessTokenBefore = await page.evaluate(() => {
       const auth = localStorage.getItem('marveline-auth')
       if (!auth) return null
       const parsed = JSON.parse(auth)
-      return parsed?.state?.refreshToken || parsed?.refreshToken
+      return parsed?.state?.accessToken || null
     })
 
-    expect(refreshToken).toBeTruthy()
-
-    // Appeler l'endpoint /auth/refresh via page.request
-    const refreshResponse = await page.request.post(`${API_BASE_URL}/auth/refresh`, {
-      data: { refresh_token: refreshToken },
-    })
+    // Appeler /auth/refresh via page.request — le cookie httpOnly refresh_token
+    // est envoyé automatiquement par le browser context (pas besoin de body)
+    const refreshResponse = await page.request.post(`${API_BASE_URL}/auth/refresh`)
 
     expect(refreshResponse.ok()).toBeTruthy()
 
     const refreshData = await refreshResponse.json()
+    // Le nouveau access_token doit être présent
     expect(refreshData.access_token).toBeTruthy()
-    expect(refreshData.refresh_token).toBeTruthy()
-
-    // Les nouveaux tokens doivent être différents des anciens
-    expect(refreshData.access_token).not.toBe(refreshToken)
+    // Vérifier que c'est bien un JWT (contient des points)
+    expect(refreshData.access_token).toContain('.')
+    // Le nouveau token doit différer de l'ancien s'il y en avait un
+    if (accessTokenBefore) {
+      expect(refreshData.access_token).not.toBe(accessTokenBefore)
+    }
   })
 
   test('doit permettre logout manuel via bouton déconnexion', async ({ page }) => {
-    // Login via API
-    await loginViaAPI(page)
-    await page.waitForURL(/\/(dashboard|profile|agenda)/, { timeout: 5000 })
+    // Login via UI
+    await login(page)
 
-    // Vérifier qu'on est authentifié
-    const authBefore = await page.evaluate(() => {
+    // Vérifier qu'on est authentifié (isAuthenticated dans localStorage)
+    const isAuthBefore = await page.evaluate(() => {
       const auth = localStorage.getItem('marveline-auth')
-      if (!auth) return null
-      const parsed = JSON.parse(auth)
-      return parsed?.state?.accessToken || parsed?.accessToken
+      if (!auth) return false
+      return !!JSON.parse(auth)?.state?.isAuthenticated
     })
-    expect(authBefore).toBeTruthy()
+    expect(isAuthBefore).toBeTruthy()
 
-    // Cliquer sur bouton déconnexion
-    await page.click('button:has-text("Deconnexion")')
+    // Utiliser le helper logout : ouvre le menu [data-testid="user-menu"] + clique Déconnexion
+    await logout(page)
+    // logout() attend déjà waitForURL('/login')
 
-    // Attendre redirection vers /login
-    await page.waitForURL('/login', { timeout: 5000 })
-
-    // Vérifier que le localStorage a été nettoyé
-    const authAfter = await page.evaluate(() => {
+    // Vérifier que isAuthenticated a été remis à false
+    const isAuthAfter = await page.evaluate(() => {
       const auth = localStorage.getItem('marveline-auth')
-      if (!auth) return null
-      const parsed = JSON.parse(auth)
-      return {
-        accessToken: parsed?.state?.accessToken || parsed?.accessToken,
-        refreshToken: parsed?.state?.refreshToken || parsed?.refreshToken,
-      }
+      if (!auth) return false
+      return !!JSON.parse(auth)?.state?.isAuthenticated
     })
-
-    // Après logout, les tokens doivent être vides
-    expect(authAfter?.accessToken).toBeFalsy()
-    expect(authAfter?.refreshToken).toBeFalsy()
+    expect(isAuthAfter).toBeFalsy()
   })
 
   test('doit afficher sessions et permettre terminer session', async ({ page }) => {
-    // Login via API (crée une première session)
-    await loginViaAPI(page)
-    await page.waitForURL(/\/(dashboard|profile|agenda)/, { timeout: 5000 })
+    // Login via UI (crée une première session)
+    await login(page)
 
     // Naviguer vers admin/sessions
     await page.goto('/admin/sessions')
@@ -163,13 +144,12 @@ test.describe('Session Management Flow', () => {
     const firstSession = page.locator('.card').first()
     await expect(firstSession).toContainText(/\d+\.\d+\.\d+\.\d+/) // IP format
 
-    // Vérifier qu'on peut voir le titre "Sessions actives" (utiliser h2 pour éviter strict mode violation)
+    // Vérifier les titres de la page
     await expect(page.locator('h2').filter({ hasText: 'Sessions actives' })).toBeVisible()
-
-    // Vérifier qu'on peut voir le titre "Mes sessions"
     await expect(page.locator('h1:has-text("Mes sessions")')).toBeVisible()
 
-    // Vérifier qu'on peut voir le bouton de déconnexion dans le menu
-    await expect(page.locator('button:has-text("Deconnexion")')).toBeVisible()
+    // Ouvrir le menu utilisateur et vérifier le bouton Déconnexion
+    await page.click('[data-testid="user-menu"]')
+    await expect(page.locator('text=Déconnexion')).toBeVisible()
   })
 })

@@ -1,10 +1,12 @@
 """Service metier pour les bundles (packs de produits)."""
 from typing import Optional
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
 from app.models.bundle import ProductBundle, BundleItem
-from app.repositories.bundle import BundleRepository, BundleItemRepository
-from app.repositories.product import ProductRepository
+from app.models.product import Product
+from app.repositories.bundle import AsyncBundleRepository, AsyncBundleItemRepository
+from app.repositories.product_variant import AsyncProductVariantRepository
 from app.schemas.bundle import BundleCreate, BundleUpdate, BundleItemCreate, BundleItemUpdate
 from app.constants import ErrorMessages
 from app.utils import slugify
@@ -13,59 +15,38 @@ from app.utils import slugify
 class BundleService:
     """Service metier pour gestion des bundles."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
-        self.repo = BundleRepository(db)
-        self.item_repo = BundleItemRepository(db)
-        self.product_repo = ProductRepository(db)
+        self.repo = AsyncBundleRepository(db)
+        self.item_repo = AsyncBundleItemRepository(db)
+        self.variant_repo = AsyncProductVariantRepository(db)
 
-    def list_bundles(
+    async def list_bundles(
         self,
         tenant_id: int,
         skip: int = 0,
         limit: int = 100,
         featured: Optional[bool] = None,
-        include_inactive: bool = False,
+        include_inactive: bool = False,  # noqa: ARG002 — async repo filtre is_active par défaut
     ) -> tuple[list[ProductBundle], int]:
-        """Liste les bundles avec filtres et pagination.
-
-        Args:
-            tenant_id: ID du tenant
-            skip: Offset pagination
-            limit: Limite pagination
-            featured: Filtre par featured (None = tous)
-            include_inactive: Inclure bundles soft-deleted
-
-        Returns:
-            Tuple (items, total) où items est la liste paginée
-        """
-        filters = {}
+        """Liste les bundles avec filtres et pagination."""
+        filters: dict = {}
         if featured is not None:
             filters["featured"] = featured
-        if include_inactive:
-            filters["include_inactive"] = True
-
-        return self.repo.list(
+        return await self.repo.list(
             tenant_id=tenant_id,
             skip=skip,
             limit=limit,
             filters=filters if filters else None,
         )
 
-    def get_bundle(self, bundle_id: int, tenant_id: int) -> ProductBundle:
-        """Récupère un bundle par ID avec ses items.
-
-        Args:
-            bundle_id: ID du bundle
-            tenant_id: ID du tenant
-
-        Returns:
-            Bundle trouvé avec items chargés
+    async def get_bundle(self, bundle_id: int, tenant_id: int) -> ProductBundle:
+        """Récupère un bundle par ID avec ses items et produits.
 
         Raises:
-            HTTPException 404: Si bundle non trouvé
+            HTTPException 404: Si bundle non trouvé.
         """
-        bundle = self.repo.get_with_items(bundle_id, tenant_id)
+        bundle = await self.repo.get_with_items(bundle_id, tenant_id)
         if not bundle:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -73,44 +54,40 @@ class BundleService:
             )
         return bundle
 
-    def create_bundle(self, data: BundleCreate, tenant_id: int) -> ProductBundle:
-        """Cree un nouveau bundle.
-
-        Auto-genere le slug depuis le name si pas fourni.
-        """
+    async def create_bundle(self, data: BundleCreate, tenant_id: int) -> ProductBundle:
+        """Cree un nouveau bundle. Auto-genere le slug depuis le name si pas fourni."""
         slug = data.slug if data.slug else slugify(data.name)
 
-        if self.repo.slug_exists(slug, tenant_id):
+        if await self.repo.slug_exists(slug, tenant_id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorMessages.BUNDLE_SLUG_EXISTS,
             )
 
-        if self.repo.name_exists(data.name, tenant_id):
+        if await self.repo.name_exists(data.name, tenant_id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorMessages.BUNDLE_NAME_EXISTS,
             )
 
-        bundle = ProductBundle(
-            tenant_id=tenant_id,
-            name=data.name,
-            slug=slug,
-            description=data.description,
-            short_description=data.short_description,
-            bundle_price=data.bundle_price_cents,
-            cleaning_fee=data.cleaning_fee_cents,
-            featured=data.featured,
-            display_order=data.display_order,
-            image_url=data.image_url,
-        )
-        return self.repo.create(bundle)
+        return await self.repo.create({
+            "tenant_id": tenant_id,
+            "name": data.name,
+            "slug": slug,
+            "description": data.description,
+            "short_description": data.short_description,
+            "bundle_price_cents": data.bundle_price_cents,
+            "cleaning_fee_cents": data.cleaning_fee_cents,
+            "featured": data.featured,
+            "display_order": data.display_order,
+            "image_url": data.image_url,
+        })
 
-    def update_bundle(
+    async def update_bundle(
         self, bundle_id: int, data: BundleUpdate, tenant_id: int
     ) -> ProductBundle:
         """Met a jour un bundle (PATCH partiel)."""
-        bundle = self.repo.get_by_id(bundle_id, tenant_id)
+        bundle = await self.repo.get_by_id(bundle_id, tenant_id)
         if not bundle:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -119,95 +96,108 @@ class BundleService:
 
         update_data = data.model_dump(exclude_unset=True)
 
-        # Mapper les noms schema → DB
-        field_map = {
-            "bundle_price_cents": "bundle_price",
-            "cleaning_fee_cents": "cleaning_fee",
-        }
+        # Mapper noms schema → colonnes DB
+        field_map = {"bundle_price_cents": "bundle_price_cents", "cleaning_fee_cents": "cleaning_fee_cents"}
 
-        # Verifier unicite slug si change
         if "slug" in update_data and update_data["slug"] != bundle.slug:
-            if self.repo.slug_exists(update_data["slug"], tenant_id, exclude_id=bundle_id):
+            if await self.repo.slug_exists(update_data["slug"], tenant_id, exclude_id=bundle_id):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=ErrorMessages.BUNDLE_SLUG_EXISTS,
                 )
 
-        # Verifier unicite nom si change
         if "name" in update_data and update_data["name"] != bundle.name:
-            if self.repo.name_exists(update_data["name"], tenant_id, exclude_id=bundle_id):
+            if await self.repo.name_exists(update_data["name"], tenant_id, exclude_id=bundle_id):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=ErrorMessages.BUNDLE_NAME_EXISTS,
                 )
 
-        for field, value in update_data.items():
-            db_field = field_map.get(field, field)
-            setattr(bundle, db_field, value)
+        mapped_data = {field_map.get(k, k): v for k, v in update_data.items()}
+        return await self.repo.update(bundle, mapped_data)
 
-        return self.repo.update(bundle)
-
-    def delete_bundle(self, bundle_id: int, tenant_id: int) -> bool:
+    async def delete_bundle(self, bundle_id: int, tenant_id: int) -> bool:
         """Soft delete un bundle."""
-        bundle = self.repo.get_by_id(bundle_id, tenant_id)
+        bundle = await self.repo.get_by_id(bundle_id, tenant_id)
         if not bundle:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=ErrorMessages.BUNDLE_NOT_FOUND,
             )
-        return self.repo.soft_delete(bundle_id, tenant_id)
+        await self.repo.soft_delete(bundle)
+        return True
 
-    def add_item(
+    async def add_item(
         self, bundle_id: int, data: BundleItemCreate, tenant_id: int
     ) -> BundleItem:
         """Ajoute un produit au bundle."""
-        # Verifier bundle existe
-        bundle = self.repo.get_by_id(bundle_id, tenant_id)
+        bundle = await self.repo.get_by_id(bundle_id, tenant_id)
         if not bundle:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=ErrorMessages.BUNDLE_NOT_FOUND,
             )
 
-        # Verifier produit existe et meme tenant
-        product = self.product_repo.get_by_id(data.product_id, tenant_id)
+        product = (await self.db.execute(
+            select(Product).filter(
+                Product.id == data.product_id,
+                Product.tenant_id == tenant_id,
+                Product.is_active == True,  # noqa: E712
+            )
+        )).scalar_one_or_none()
         if not product:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorMessages.BUNDLE_ITEM_PRODUCT_NOT_FOUND,
             )
 
-        # Verifier pas de doublon
-        existing = self.item_repo.get_by_bundle_and_product(bundle_id, data.product_id, tenant_id)
+        existing = await self.item_repo.get_by_bundle_and_product(bundle_id, data.product_id, tenant_id)
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorMessages.BUNDLE_ITEM_DUPLICATE,
             )
 
-        item = BundleItem(
-            tenant_id=tenant_id,
-            bundle_id=bundle_id,
-            product_id=data.product_id,
-            quantity=data.quantity,
-            display_order=data.display_order,
-        )
-        return self.item_repo.create(item)
+        active_variants = await self.variant_repo.list_by_product(data.product_id, tenant_id)
+        if active_variants and data.variant_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=ErrorMessages.BUNDLE_ITEM_VARIANT_REQUIRED,
+            )
+        if data.variant_id is not None:
+            variant = await self.variant_repo.get_by_id(data.variant_id, tenant_id)
+            if not variant or variant.product_id != data.product_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=ErrorMessages.BUNDLE_ITEM_VARIANT_MISMATCH,
+                )
 
-    def update_item(
+        return await self.item_repo.create({
+            "tenant_id": tenant_id,
+            "bundle_id": bundle_id,
+            "product_id": data.product_id,
+            "variant_id": data.variant_id,
+            "quantity": data.quantity,
+            "display_order": data.display_order,
+        })
+
+    async def update_item(
         self, bundle_id: int, item_id: int, data: BundleItemUpdate, tenant_id: int
     ) -> BundleItem:
         """Met a jour un item du bundle."""
-        # Verifier bundle existe
-        bundle = self.repo.get_by_id(bundle_id, tenant_id)
+        bundle = await self.repo.get_by_id(bundle_id, tenant_id)
         if not bundle:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=ErrorMessages.BUNDLE_NOT_FOUND,
             )
 
-        # Verifier item existe
-        item = self.item_repo.get_by_id(item_id, tenant_id)
+        item = (await self.db.execute(
+            select(BundleItem).filter(
+                BundleItem.id == item_id,
+                BundleItem.tenant_id == tenant_id,
+            )
+        )).scalar_one_or_none()
         if not item or item.bundle_id != bundle_id:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -215,36 +205,49 @@ class BundleService:
             )
 
         update_data = data.model_dump(exclude_unset=True)
+
+        if "variant_id" in update_data and update_data["variant_id"] is not None:
+            variant = await self.variant_repo.get_by_id(update_data["variant_id"], tenant_id)
+            if not variant or variant.product_id != item.product_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=ErrorMessages.BUNDLE_ITEM_VARIANT_MISMATCH,
+                )
+
         for field, value in update_data.items():
             setattr(item, field, value)
+        await self.db.flush()
+        await self.db.refresh(item)
+        return item
 
-        return self.item_repo.update(item)
-
-    def remove_item(
-        self, bundle_id: int, item_id: int, tenant_id: int
-    ) -> bool:
+    async def remove_item(self, bundle_id: int, item_id: int, tenant_id: int) -> bool:
         """Supprime un item du bundle (suppression physique)."""
-        bundle = self.repo.get_by_id(bundle_id, tenant_id)
+        bundle = await self.repo.get_by_id(bundle_id, tenant_id)
         if not bundle:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=ErrorMessages.BUNDLE_NOT_FOUND,
             )
 
-        item = self.item_repo.get_by_id(item_id, tenant_id)
+        item = (await self.db.execute(
+            select(BundleItem).filter(
+                BundleItem.id == item_id,
+                BundleItem.tenant_id == tenant_id,
+            )
+        )).scalar_one_or_none()
         if not item or item.bundle_id != bundle_id:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=ErrorMessages.BUNDLE_ITEM_NOT_FOUND,
             )
 
-        self.db.delete(item)
-        self.db.flush()
+        await self.db.delete(item)
+        await self.db.flush()
         return True
 
-    def calculate_price(self, bundle_id: int, tenant_id: int) -> dict:
-        """Calcule le prix individuel vs bundle."""
-        bundle = self.repo.get_with_items(bundle_id, tenant_id)
+    async def calculate_price(self, bundle_id: int, tenant_id: int) -> dict:
+        """Calcule le prix individuel vs bundle (eager-loaded via get_with_items)."""
+        bundle = await self.repo.get_with_items(bundle_id, tenant_id)
         if not bundle:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -254,21 +257,21 @@ class BundleService:
         individual_price = 0
         items_detail = []
         for item in bundle.items:
-            item_total = item.product.price_per_day * item.quantity
+            item_total = item.product.price_per_day_cents * item.quantity
             individual_price += item_total
             items_detail.append({
                 "product_id": item.product_id,
                 "product_name": item.product.name,
                 "quantity": item.quantity,
-                "unit_price_cents": item.product.price_per_day,
+                "unit_price_cents": item.product.price_per_day_cents,
                 "line_total_cents": item_total,
             })
 
-        savings = individual_price - bundle.bundle_price
+        savings = individual_price - bundle.bundle_price_cents
         savings_percent = (savings / individual_price * 100) if individual_price > 0 else 0.0
 
         return {
-            "bundle_price_cents": bundle.bundle_price,
+            "bundle_price_cents": bundle.bundle_price_cents,
             "individual_price_cents": individual_price,
             "savings_cents": savings,
             "savings_percent": round(savings_percent, 2),

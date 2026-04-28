@@ -1,0 +1,121 @@
+{
+  "id": "page:admin-features",
+  "type": "page",
+  "name": "Feature Flags",
+  "description": "Page principale \"Feature Flags\". Contenu non détecté automatiquement.",
+  "route": "/admin/features",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "admin"
+    ],
+    "group": "Admin",
+    "dom_h1": "Feature Flags"
+  },
+  "params": {},
+  "features": [],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nouveau flag",
+      "trigger": "click",
+      "target_id": "modal:nouveau-flag",
+      "node": {
+        "id": "modal:nouveau-feature-flag",
+        "type": "form",
+        "name": "Nouveau feature flag",
+        "description": "Formulaire \"Nouveau feature flag\". Contient : Lettres minuscules, chiffres et underscores (ex: enable_dark_mode), Champ : enable_new_checkout, Champ : Active le nouveau parcours de paiement, Champ : 1, 2, 5, Fermer, Annuler. Paramètres : enable-new-checkout, active-le-nouveau-parcours-de-paiement, 1-2-5.",
+        "attributes": {
+          "depth": 1,
+          "opened_from_depth": 0
+        },
+        "params": {
+          "enable-new-checkout": "text",
+          "active-le-nouveau-parcours-de-paiement": "text",
+          "1-2-5": "text"
+        },
+        "features": [
+          "Lettres minuscules, chiffres et underscores (ex: enable_dark_mode)",
+          "Champ : enable_new_checkout",
+          "Champ : Active le nouveau parcours de paiement",
+          "Champ : 1, 2, 5",
+          "Fermer",
+          "Annuler",
+          "Creer"
+        ],
+        "children": [
+          {
+            "link_type": "action",
+            "label": "Fermer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "action",
+            "label": "Annuler",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "form_submit",
+            "label": "Creer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          }
+        ]
+      }
+    },
+    {
+      "link_type": "action",
+      "label": "Creer le premier",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

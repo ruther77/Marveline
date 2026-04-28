@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DEVUP — Maintenance planifiee</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:Manrope,system-ui,sans-serif;background:linear-gradient(160deg,#0b1628,#16253d);color:#dde6f0}
+.c{text-align:center;padding:2rem;max-width:440px}
+.brand{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:2.5rem}
+.brand svg{width:28px;height:28px}
+.brand-text{font-family:Sora,sans-serif;font-weight:800;font-size:1rem;letter-spacing:1px}
+.brand-text .dev{color:#fff}
+.brand-text .up{color:#a78bfa}
+.icon{margin:0 auto 1.5rem;width:72px;height:72px;border-radius:20px;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.25);display:flex;align-items:center;justify-content:center}
+.icon svg{width:36px;height:36px;stroke:#a78bfa;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+@keyframes spin{to{transform:rotate(360deg)}}
+.icon svg{animation:spin 8s linear infinite}
+h1{font-family:Sora,sans-serif;font-size:1.3rem;font-weight:700;margin-bottom:.5rem}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25);border-radius:10px;font-size:.75rem;font-weight:600;color:#fbbf24;margin-bottom:1.25rem}
+.badge .dot{width:6px;height:6px;border-radius:50%;background:#fbbf24;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+p{color:#7a90a8;font-size:.875rem;line-height:1.6;margin-bottom:1rem}
+.eta{font-family:Sora,sans-serif;font-size:2rem;font-weight:800;color:#fff;margin:1rem 0}
+.eta span{color:#a78bfa}
+.progress{width:100%;height:4px;background:rgba(255,255,255,.06);border-radius:2px;margin:1.5rem 0;overflow:hidden}
+.progress span{display:block;height:100%;width:65%;background:linear-gradient(90deg,#7c3aed,#a78bfa);border-radius:2px;animation:prog 3s ease-in-out infinite alternate}
+@keyframes prog{0%{width:40%}100%{width:80%}}
+.info{display:flex;gap:1rem;justify-content:center;margin-top:1.5rem}
+.info-item{padding:.75rem 1rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:10px;text-align:center}
+.info-item .label{font-size:.65rem;color:#3d5068;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.info-item .val{font-family:Sora,sans-serif;font-size:.9rem;font-weight:700;color:#dde6f0}
+.sub{font-size:.7rem;color:#3d5068;margin-top:2rem}
+.sub a{color:#7c3aed;text-decoration:none}
+.sub a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="c">
+  <div class="brand">
+    <svg viewBox="0 0 88 88" fill="none" width="28" height="28">
+      <defs><linearGradient id="rg" x1="10" y1="6" x2="68" y2="74" gradientUnits="userSpaceOnUse"><stop stop-color="#a78bfa"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs>
+      <path d="M44 66 L33 80 L44 75 L55 80 Z" fill="#4c1d95"/>
+      <path d="M44 8 C44 8 68 26 68 50 C68 64 58 72 44 74 C30 72 20 64 20 50 C20 26 44 8 44 8Z" fill="url(#rg)"/>
+      <circle cx="44" cy="48" r="11" fill="rgba(255,255,255,.15)"/>
+      <circle cx="44" cy="48" r="11" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="1.5"/>
+      <line x1="44" y1="56" x2="44" y2="43" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+      <polyline points="39,47.5 44,41.5 49,47.5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M37 74 C37 79 44 88 44 88 C44 88 51 79 51 74Z" fill="#f59e0b" opacity=".9"/>
+    </svg>
+    <span class="brand-text"><span class="dev">DEV</span><span class="up">UP</span></span>
+  </div>
+
+  <div class="icon">
+    <svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+  </div>
+
+  <div class="badge"><span class="dot"></span>Maintenance planifiee</div>
+  <h1>Mise a jour en cours</h1>
+  <p>Nous ameliorons votre experience. Le service sera de retour tres rapidement.</p>
+
+  <div class="progress"><span></span></div>
+
+  <div class="info">
+    <div class="info-item">
+      <div class="label">Statut</div>
+      <div class="val">En cours</div>
+    </div>
+    <div class="info-item">
+      <div class="label">Duree estimee</div>
+      <div class="val">~5 min</div>
+    </div>
+  </div>
+
+  <p class="sub">Geree par <a href="#">DEVUP</a> — Infrastructure & DevOps</p>
+</div>
+<script>setTimeout(function(){location.reload()},15000)</script>
+</body>
+</html>

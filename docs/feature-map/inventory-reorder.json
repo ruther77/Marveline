@@ -1,0 +1,72 @@
+{
+  "id": "page:inventory-reorder",
+  "type": "page",
+  "name": "Réapprovisionnement",
+  "description": "Page principale \"Réapprovisionnement\". Contient : Champ : 0, Champ : 1, Champ : 2, Champ : 3. Paramètres : 0, 1, 2, 3.",
+  "route": "/inventory/reorder",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "manager",
+      "admin"
+    ],
+    "group": "Inventaire",
+    "dom_h1": "Réassort"
+  },
+  "params": {
+    "0": "number",
+    "1": "number",
+    "2": "number",
+    "3": "number"
+  },
+  "features": [
+    "Champ : 0",
+    "Champ : 1",
+    "Champ : 2",
+    "Champ : 3"
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

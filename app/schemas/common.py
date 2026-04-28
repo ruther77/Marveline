@@ -175,3 +175,17 @@ class SuccessResponse(BaseModel):
         default=None,
         description="Données additionnelles optionnelles"
     )
+
+
+class ImportRowError(BaseModel):
+    """Erreur sur une ligne d'import CSV."""
+    row: int = Field(..., description="Numéro de ligne (1-based, hors entête)")
+    field: Optional[str] = Field(default=None, description="Champ en cause")
+    message: str = Field(..., description="Message d'erreur")
+
+
+class ImportReport(BaseModel):
+    """Rapport d'import CSV — retourné par POST /*/import."""
+    created: int = Field(default=0, description="Nombre d'enregistrements créés")
+    skipped: int = Field(default=0, description="Lignes ignorées (doublons ou vides)")
+    errors: list[ImportRowError] = Field(default_factory=list, description="Erreurs ligne par ligne")

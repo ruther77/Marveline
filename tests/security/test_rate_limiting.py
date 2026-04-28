@@ -7,39 +7,58 @@ Valide la protection DDoS via rate limiting Redis :
 - Extraction IP depuis X-Forwarded-For
 """
 import pytest
+import redis as _sync_redis
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 import time
 
+from app.core.config import settings
 from app.core.redis import redis_client
-from app.models.user import User
+from app.models.account import Account
+from app.models.tenant_membership import TenantMembership
+from app.core.deps import UserCompat
 from app.core.security import get_password_hash, create_access_token
 
 
+# Client Redis sync pour fixtures (redis_client.client est AsyncRedis — scan_iter
+# async ne peut pas etre itere en boucle `for` sync).
+_sync_sec_rl = _sync_redis.from_url(settings.REDIS_SEC_URL, decode_responses=True)
+
+
 @pytest.fixture
-def test_user_for_rate_limit(test_db):
-    """Fixture user pour tests rate limiting."""
-    user = User(
-        tenant_id=1,
+def test_user_for_rate_limit(test_db, test_tenant_record, _role_staff):
+    """Fixture user pour tests rate limiting (IAM v2)."""
+    account = Account(
         email="ratelimit@carocorp.com",
         hashed_password=get_password_hash("testpass123"),
         first_name="Rate Limit Test", last_name="User",
-        role="staff"
+        is_active=True
     )
-    test_db.add(user)
+    test_db.add(account)
+    test_db.flush()
+    membership = TenantMembership(
+        account_id=account.id,
+        tenant_id=test_tenant_record.id,
+        role_name="staff",
+        status="active"
+    )
+    test_db.add(membership)
     test_db.commit()
-    test_db.refresh(user)
-    return user
+    test_db.refresh(account)
+    test_db.refresh(membership)
+    return UserCompat(account=account, membership=membership)
 
 
 @pytest.fixture
 def auth_token_for_rate_limit(test_user_for_rate_limit):
-    """Fixture JWT token pour tests rate limiting."""
+    """Fixture JWT token pour tests rate limiting (claims IAM v2 : `tid` + `sid`)."""
+    import uuid as _uuid
     return create_access_token({
         "sub": test_user_for_rate_limit.id,
-        "tenant_id": test_user_for_rate_limit.tenant_id,
+        "tid": str(test_user_for_rate_limit.tenant_id),
         "email": test_user_for_rate_limit.email,
-        "role": test_user_for_rate_limit.role
+        "role": test_user_for_rate_limit.role,
+        "sid": str(_uuid.uuid4()),
     })
 
 
@@ -52,15 +71,15 @@ def auth_headers_for_rate_limit(auth_token_for_rate_limit):
 @pytest.fixture(autouse=True)
 def cleanup_redis_keys():
     """Nettoie les clés Redis rate_limit:* avant et après chaque test."""
-    # Nettoyer avant
-    for key in redis_client.client.scan_iter("rate_limit:*"):
-        redis_client.client.delete(key)
+    # Nettoyer avant (sync)
+    for key in _sync_sec_rl.scan_iter("rate_limit:*"):
+        _sync_sec_rl.delete(key)
 
     yield
 
     # Nettoyer après
-    for key in redis_client.client.scan_iter("rate_limit:*"):
-        redis_client.client.delete(key)
+    for key in _sync_sec_rl.scan_iter("rate_limit:*"):
+        _sync_sec_rl.delete(key)
 
 
 def test_global_ip_rate_limit_1000_per_minute(client: TestClient):
@@ -121,9 +140,10 @@ def test_login_rate_limit_5_per_minute(client: TestClient):
             data=login_data,
             headers={"Content-Type": "application/x-www-form-urlencoded"}
         )
-        # Peut être 401 (credentials invalides) mais PAS 429 (rate limit)
-        assert response.status_code in [200, 401], \
-            f"Requête {i+1}/5 devrait passer (200 ou 401, pas 429)"
+        # Peut être 401 (credentials invalides) ou 400 (CAPTCHA requis après 3 tentatives)
+        # mais PAS 429 (rate limit) — BruteForceThresholds.CAPTCHA_THRESHOLD=3
+        assert response.status_code in [200, 400, 401], \
+            f"Requête {i+1}/5 devrait passer (200, 400 CAPTCHA, ou 401, pas 429)"
 
     # Requête 6 : doit être bloquée par rate limit
     response = client.post(
@@ -348,36 +368,29 @@ def test_exempt_paths_skip_rate_limiting(client: TestClient):
             f"{path} ne devrait JAMAIS retourner 429 (endpoint exempté)"
 
 
-def test_fail_open_on_redis_error(client: TestClient):
-    """Test fail-open strategy : autoriser requête si Redis down.
+def test_fail_closed_on_redis_error(client: TestClient):
+    """Test fail-CLOSED strategy : bloquer requete si Redis down.
 
-    Vérifie que :
-    - Si Redis inaccessible → requête autorisée (200/401, pas 429)
-    - Priorité : disponibilité > sécurité
-    - Évite denial of service si Redis crash
+    Backend a bascule fail-open → fail-closed : `app/core/rate_limiter.py:142-153`
+    "FAIL-CLOSED : Redis down = bloquer (securite > disponibilite)".
 
-    Notes:
-        - Pattern fail-open : mieux vaut laisser passer que bloquer tout
-        - Logging error pour alerting (TODO: vérifier logs)
-        - Mock Redis.incr() pour déclencher exception dans check_rate_limit()
+    Verifie que :
+    - Si Redis inaccessible → 429 Too Many Requests (blocage)
+    - Priorite : securite > disponibilite
+    - Previent les attaques de saturation via Redis crash induit
     """
-    # Mock redis.incr() pour lever exception (simule Redis down)
     with patch("app.core.redis.redis_client.client.incr") as mock_incr:
         mock_incr.side_effect = Exception("Redis connection failed")
 
-        # Faire requête → devrait passer (fail-open)
-        # Endpoint non-exempté mais Redis fail → devrait autoriser
         response = client.post(
             "/api/v1/auth/login",
             data={"username": "test@carocorp.com", "password": "wrongpass"},
             headers={"Content-Type": "application/x-www-form-urlencoded"}
         )
 
-        # Doit passer (200 ou 401, pas 429) malgré erreur Redis
-        assert response.status_code in [200, 401], \
-            "Fail-open : requête devrait passer si Redis down (pas 429)"
-
-        # Note: En production, erreur serait loggée pour alerting
+        # Doit bloquer (429) car Redis down = fail-closed
+        assert response.status_code == 429, \
+            "Fail-closed : requête doit retourner 429 si Redis down"
 
 
 def test_x_forwarded_for_ip_extraction(monkeypatch):

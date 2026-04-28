@@ -42,7 +42,7 @@ test.describe('MFA Flow', () => {
     // Réinitialiser TOUTES les données Redis pour éviter rate limit exceeded et autres cache
     try {
       execSync(
-        `docker compose exec -T redis redis-cli --no-auth-warning -a "dev_redis_password_CHANGER_EN_PROD" FLUSHDB`,
+        `docker exec futurproj_redis_sec redis-cli --no-auth-warning -a "dev_redis_sec_password_CHANGER_EN_PROD" FLUSHDB`,
         { stdio: 'ignore' }
       )
       console.log('[beforeEach] Redis FLUSHDB successful')

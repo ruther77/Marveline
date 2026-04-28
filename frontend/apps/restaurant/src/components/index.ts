@@ -1,0 +1,7 @@
+export { default as TableCard, statutPlatBadge } from './TableCard'
+export { default as GrilleTables } from './GrilleTables'
+export { default as OngletCommande } from './OngletCommande'
+export { default as OngletPaiement } from './OngletPaiement'
+export { default as ModalAjouterPlat } from './ModalAjouterPlat'
+export { default as PanelCommande } from './PanelCommande'
+export { default as BuzzerAlert } from './BuzzerAlert'

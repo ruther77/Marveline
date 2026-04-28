@@ -1,0 +1,23 @@
+/* Restaurant — accent amber override */
+:root,
+html[data-theme="light"] {
+  --pink:  #d97706;
+  --pink2: #b45309;
+
+  /* Neutrals iOS — override des gris bleutés partagés
+     pour un rendu pur gris (cohérent avec l'identité restaurant) */
+  --c-text-rgb:    29,29,31;    /* #1d1d1f — dark-50  */
+  --c-text2-rgb:   29,29,31;    /* #1d1d1f — dark-100 */
+  --c-body2-rgb:   110,110,115; /* #6e6e73 — dark-200 */
+  --c-muted2-rgb:  110,110,115; /* #6e6e73 — dark-300/400 */
+  --c-muted-rgb:   161,161,166; /* #a1a1a6 — dark-500 */
+  --c-border2-rgb: 210,210,215; /* #d2d2d7 — dark-600 */
+  --c-border-rgb:  229,229,234; /* #e5e5ea — dark-700 */
+  --c-s2-rgb:      245,245,247; /* #f5f5f7 — dark-800 */
+  --c-s1-rgb:      255,255,255; /* #ffffff — dark-900 */
+  --c-bg-rgb:      245,245,247; /* #f5f5f7 — dark-950 */
+}
+html[data-theme="dark"] {
+  --pink:  #f59e0b;
+  --pink2: #d97706;
+}

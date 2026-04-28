@@ -61,23 +61,25 @@ export async function loginViaAPI(page: Page, email: string = TEST_USER.email, p
   expect(response.ok()).toBeTruthy()
   const data = await response.json()
 
-  // Stocker tokens dans localStorage (simuler comportement frontend)
-  // IMPORTANT: utiliser camelCase comme attendu par authStore persist
+  // Stocker accessToken + isAuthenticated dans localStorage
+  // NOTE: refreshToken est httpOnly (absent du JSON) — non stocké ici
+  // _app.tsx:beforeLoad lit state.isAuthenticated pour le fallback localAuth
   await page.evaluate(
-    ({ accessToken, refreshToken }) => {
+    ({ accessToken }) => {
       localStorage.setItem('marveline-auth', JSON.stringify({
         state: {
+          isAuthenticated: true,
           accessToken: accessToken,
-          refreshToken: refreshToken,
         },
         version: 0,
       }))
     },
-    { accessToken: data.access_token, refreshToken: data.refresh_token }
+    { accessToken: data.access_token }
   )
 
-  // Reload page pour appliquer auth
+  // Naviguer et attendre que l'auth soit établie (cookie refresh → _doRefresh auto)
   await page.goto('/')
+  await page.waitForURL(/\/(dashboard|profile|agenda)/, { timeout: 10000 })
 }
 
 /**
@@ -93,14 +95,15 @@ export async function logout(page: Page) {
  * Vérifier que l'utilisateur est authentifié
  */
 export async function expectAuthenticated(page: Page) {
-  const auth = await page.evaluate(() => {
+  const isAuthenticated = await page.evaluate(() => {
     const authData = localStorage.getItem('marveline-auth')
-    return authData ? JSON.parse(authData) : null
+    if (!authData) return false
+    const parsed = JSON.parse(authData)
+    // Zustand persist: { state: { isAuthenticated: true, ... }, version: 0 }
+    return !!parsed?.state?.isAuthenticated
   })
 
-  expect(auth).not.toBeNull()
-  expect(auth.access_token).toBeDefined()
-  expect(auth.refresh_token).toBeDefined()
+  expect(isAuthenticated).toBe(true)
 }
 
 /**
@@ -145,6 +148,42 @@ export async function getCSRFToken(page: Page): Promise<string | null> {
     // Zustand persist format: {state: {...}, version: 0}
     return parsed?.state?.csrfToken || parsed?.csrfToken || null
   })
+}
+
+/**
+ * Retourne les headers API complets (Authorization + CSRF + Content-Type)
+ * À utiliser dans tous les appels page.request.post/put/delete.
+ *
+ * NOTE: appelle toujours GET /auth/csrf pour obtenir un token CSRF frais car
+ * le CSRF en localStorage peut être invalidé par Redis FLUSHDB dans les beforeEach.
+ */
+export async function getApiHeaders(page: Page): Promise<Record<string, string>> {
+  const token = await page.evaluate(() => {
+    const raw = localStorage.getItem('marveline-auth')
+    if (!raw) return ''
+    const parsed = JSON.parse(raw)
+    return parsed?.state?.accessToken || parsed?.accessToken || ''
+  })
+
+  // Toujours obtenir un CSRF frais via API (le localStorage peut être obsolète après Redis FLUSHDB)
+  let csrfToken = ''
+  if (token) {
+    try {
+      const csrfResp = await page.request.get(`${API_BASE_URL}/auth/csrf`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (csrfResp.ok()) {
+        const csrfData = await csrfResp.json()
+        csrfToken = csrfData.csrf_token || ''
+      }
+    } catch { /* pas de CSRF si erreur */ }
+  }
+
+  return {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    'X-CSRF-Token': csrfToken,
+  }
 }
 
 /**

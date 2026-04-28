@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.models.customer import Customer
 from app.models.product import Product
 from app.constants import CustomerType, ProductCategory, ProductCondition
+from app.constants.business import ADVANCE_PAYMENT_PERCENT
 
 
 @pytest.fixture
@@ -38,8 +39,8 @@ def workflow_products(test_db):
         name="Table ronde 150cm",
         sku="TABLE-RONDE-150-WF",
         category=ProductCategory.NAPPES,
-        price_per_day=2000,  # 20€/jour
-        deposit_amount=5000,  # 50€ caution
+        price_per_day_cents=2000,  # 20€/jour
+        deposit_amount_cents=5000,  # 50€ caution
         stock_quantity=20,
         available_quantity=20,
         condition=ProductCondition.NEUF,
@@ -54,8 +55,8 @@ def workflow_products(test_db):
         name="Chaise Napoléon dorée",
         sku="CHAISE-NAP-WF",
         category=ProductCategory.MOBILIER,
-        price_per_day=500,  # 5€/jour
-        deposit_amount=1000,  # 10€ caution
+        price_per_day_cents=500,  # 5€/jour
+        deposit_amount_cents=1000,  # 10€ caution
         stock_quantity=100,
         available_quantity=100,
         condition=ProductCondition.NEUF,
@@ -153,21 +154,24 @@ def test_complete_rental_workflow(client: TestClient, test_db, workflow_customer
         headers=auth_headers_real
     )
     assert invoices_resp.status_code == 200
-    assert invoices_resp.json()["total"] == 1
+    assert invoices_resp.json()["total"] == 2  # Option A : advance (40%) + balance (60%)
 
-    invoice = invoices_resp.json()["items"][0]
-    invoice_id = invoice["id"]
-    assert invoice["status"] == "draft"
-    assert invoice["invoice_number"].startswith("INV-")
-    assert invoice["total_amount_cents"] == expected_total  # Copié depuis réservation
-    assert invoice["paid_amount_cents"] == 0
-    assert invoice["is_paid"] is False
+    items = invoices_resp.json()["items"]
+    advance_inv = next(inv for inv in items if inv["invoice_type"] == "advance")
+    invoice_id = advance_inv["id"]
+    advance_amount = expected_total * ADVANCE_PAYMENT_PERCENT // 100  # 40% de 180000 = 72000
+    assert advance_inv["status"] == "draft"
+    assert advance_inv["invoice_number"].startswith("INV-")
+    assert advance_inv["total_amount_cents"] == advance_amount
+    assert advance_inv["paid_amount_cents"] == 0
+    assert advance_inv["is_paid"] is False
 
     # ═══════════════════════════════════════════════════════════════════════
-    # ÉTAPE 4: Ajouter paiement partiel (50% = 900€)
+    # ÉTAPE 4: Ajouter paiement partiel sur l'advance (50% de l'advance)
     # ═══════════════════════════════════════════════════════════════════════
+    half_advance = advance_amount // 2  # 36000 centimes (360€)
     partial_payment_data = {
-        "amount_cents": 90000,  # 900€ (50%)
+        "amount_cents": half_advance,
         "payment_method": "card",
         "payment_date": str(date.today())
     }
@@ -180,16 +184,17 @@ def test_complete_rental_workflow(client: TestClient, test_db, workflow_customer
     assert payment1_response.status_code == 200
 
     invoice_partial = payment1_response.json()
-    assert invoice_partial["paid_amount_cents"] == 90000
-    assert invoice_partial["remaining_amount_cents"] == 90000  # 1800€ - 900€
+    assert invoice_partial["paid_amount_cents"] == half_advance
+    assert invoice_partial["remaining_amount_cents"] == advance_amount - half_advance
     assert invoice_partial["is_paid"] is False
     assert invoice_partial["status"] == "draft"  # Pas encore payé complet
 
     # ═══════════════════════════════════════════════════════════════════════
-    # ÉTAPE 5: Ajouter paiement final (50% restant = 900€)
+    # ÉTAPE 5: Ajouter paiement final (solde restant de l'advance)
     # ═══════════════════════════════════════════════════════════════════════
+    remaining = advance_amount - half_advance  # 36000 centimes
     final_payment_data = {
-        "amount_cents": 90000,  # 900€ (50% restant)
+        "amount_cents": remaining,
         "payment_method": "card",
         "payment_date": str(date.today())
     }
@@ -202,7 +207,7 @@ def test_complete_rental_workflow(client: TestClient, test_db, workflow_customer
     assert payment2_response.status_code == 200
 
     invoice_paid = payment2_response.json()
-    assert invoice_paid["paid_amount_cents"] == 180000  # 1800€ total
+    assert invoice_paid["paid_amount_cents"] == advance_amount
     assert invoice_paid["remaining_amount_cents"] == 0
     assert invoice_paid["is_paid"] is True
     assert invoice_paid["status"] == "paid"  # Auto-changé après paiement complet
@@ -307,12 +312,13 @@ def test_invoice_cancellation_workflow(client: TestClient, workflow_customer, wo
     # Confirmer (auto-génère une facture)
     client.post(f"/api/v1/reservations/{reservation_id}/confirm", headers=auth_headers_real)
 
-    # Récupérer la facture auto-générée
+    # Récupérer les factures auto-générées (Option A : 2 factures)
     invoices_resp = client.get(
         f"/api/v1/invoices?reservation_id={reservation_id}",
         headers=auth_headers_real
     )
-    assert invoices_resp.json()["total"] == 1
+    assert invoices_resp.json()["total"] == 2
+    # Annuler la facture advance (items[0])
     invoice_id = invoices_resp.json()["items"][0]["id"]
 
     # Annuler facture draft (sans paiement) → OK

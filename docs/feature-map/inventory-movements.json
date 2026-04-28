@@ -1,0 +1,201 @@
+{
+  "id": "page:inventory-movements",
+  "type": "page",
+  "name": "Mouvements",
+  "description": "Page principale \"Mouvements\". Contient : Champ : Rés. #.... Paramètres : res.",
+  "route": "/inventory/movements",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "staff",
+      "manager",
+      "admin"
+    ],
+    "group": "Inventaire",
+    "dom_h1": "Mouvements de stock"
+  },
+  "params": {
+    "res": "number"
+  },
+  "features": [
+    "Champ : Rés. #..."
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nouveau mouvement",
+      "trigger": "click",
+      "target_id": "modal:nouveau-mouvement",
+      "node": {
+        "id": "modal:nouveau-mouvement",
+        "type": "form",
+        "name": "Nouveau mouvement",
+        "description": "Formulaire \"Nouveau mouvement\". Contient : Champ : movement_type, Champ : scheduled_date, Champ : delivery_method, Champ : delivery_address, Champ : delivery_notes, Champ : items.0.product_id. Paramètres : movement-type, scheduled-date, delivery-method, delivery-address, delivery-notes, items-0-product-id, items-0-variant-id, items-0-quantity-expected.",
+        "attributes": {
+          "depth": 1,
+          "opened_from_depth": 0
+        },
+        "params": {
+          "movement-type": "select",
+          "scheduled-date": "date",
+          "delivery-method": "select",
+          "delivery-address": "textarea",
+          "delivery-notes": "textarea",
+          "items-0-product-id": "select",
+          "items-0-variant-id": "number",
+          "items-0-quantity-expected": "number"
+        },
+        "features": [
+          "Champ : movement_type",
+          "Champ : scheduled_date",
+          "Champ : delivery_method",
+          "Champ : delivery_address",
+          "Champ : delivery_notes",
+          "Champ : items.0.product_id",
+          "Champ : ID var.",
+          "Champ : Qte",
+          "Fermer",
+          "Ajouter",
+          "Annuler",
+          "Creer"
+        ],
+        "children": [
+          {
+            "link_type": "action",
+            "label": "Fermer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "modal_open",
+            "label": "Ajouter",
+            "trigger": "click",
+            "target_id": "modal:ajouter",
+            "node": {
+              "id": "modal:nouveau-mouvement",
+              "type": "form",
+              "name": "Nouveau mouvement",
+              "description": "Formulaire \"Nouveau mouvement\". Contient : Champ : movement_type, Champ : scheduled_date, Champ : delivery_method, Champ : delivery_address, Champ : delivery_notes, Champ : items.0.product_id. Paramètres : movement-type, scheduled-date, delivery-method, delivery-address, delivery-notes, items-0-product-id, items-0-variant-id, items-0-quantity-expected, items-1-product-id.",
+              "attributes": {
+                "depth": 2,
+                "opened_from_depth": 1
+              },
+              "params": {
+                "movement-type": "select",
+                "scheduled-date": "date",
+                "delivery-method": "select",
+                "delivery-address": "textarea",
+                "delivery-notes": "textarea",
+                "items-0-product-id": "select",
+                "items-0-variant-id": "number",
+                "items-0-quantity-expected": "number",
+                "items-1-product-id": "select"
+              },
+              "features": [
+                "Champ : movement_type",
+                "Champ : scheduled_date",
+                "Champ : delivery_method",
+                "Champ : delivery_address",
+                "Champ : delivery_notes",
+                "Champ : items.0.product_id",
+                "Champ : ID var.",
+                "Champ : Qte",
+                "Fermer",
+                "Ajouter",
+                "Annuler",
+                "Creer"
+              ],
+              "children": [
+                {
+                  "link_type": "action",
+                  "label": "Fermer",
+                  "trigger": "click",
+                  "target_id": null,
+                  "node": null
+                },
+                {
+                  "link_type": "modal_open",
+                  "label": "Ajouter",
+                  "trigger": "click",
+                  "target_id": "modal:ajouter",
+                  "node": null
+                },
+                {
+                  "link_type": "action",
+                  "label": "Annuler",
+                  "trigger": "click",
+                  "target_id": null,
+                  "node": null
+                },
+                {
+                  "link_type": "form_submit",
+                  "label": "Creer",
+                  "trigger": "click",
+                  "target_id": null,
+                  "node": null
+                }
+              ]
+            }
+          },
+          {
+            "link_type": "action",
+            "label": "Annuler",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "form_submit",
+            "label": "Creer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          }
+        ]
+      }
+    }
+  ]
+}

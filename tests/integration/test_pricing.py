@@ -7,13 +7,13 @@ from app.constants import ProductCategory, ProductCondition
 
 
 class TestPricingRulesCRUD:
-    def test_list_empty(self, client: TestClient, auth_headers_real: dict):
+    def test_list_empty(self, client: TestClient, auth_headers_admin: dict):
         """Liste vide initialement."""
-        r = client.get("/api/v1/pricing/rules", headers=auth_headers_real)
+        r = client.get("/api/v1/pricing/rules", headers=auth_headers_admin)
         assert r.status_code == 200
         assert isinstance(r.json(), list)
 
-    def test_create_ok(self, client: TestClient, auth_headers_real: dict):
+    def test_create_ok(self, client: TestClient, auth_headers_admin: dict):
         """Création d'une règle flat."""
         r = client.post(
             "/api/v1/pricing/rules",
@@ -25,7 +25,7 @@ class TestPricingRulesCRUD:
                 "valid_from": "2026-06-01",
                 "valid_to": "2026-08-31",
             },
-            headers=auth_headers_real,
+            headers=auth_headers_admin,
         )
         assert r.status_code == 201
         data = r.json()
@@ -36,7 +36,7 @@ class TestPricingRulesCRUD:
         assert data["active"] is True
         assert "id" in data
 
-    def test_create_with_tiers(self, client: TestClient, auth_headers_real: dict):
+    def test_create_with_tiers(self, client: TestClient, auth_headers_admin: dict):
         """Règle tiered avec paliers."""
         r = client.post(
             "/api/v1/pricing/rules",
@@ -50,57 +50,57 @@ class TestPricingRulesCRUD:
                     {"min_qty": 10, "max_qty": None, "unit_price_cents": 400},
                 ],
             },
-            headers=auth_headers_real,
+            headers=auth_headers_admin,
         )
         assert r.status_code == 201
         data = r.json()
         assert len(data["tiers"]) == 2
         assert data["tiers"][0]["unit_price_cents"] == 500
 
-    def test_get_by_id(self, client: TestClient, auth_headers_real: dict):
+    def test_get_by_id(self, client: TestClient, auth_headers_admin: dict):
         """Récupération par ID."""
         created = client.post(
             "/api/v1/pricing/rules",
             json={"name": "GetById Rule", "rule_type": "flat", "applies_to": "all"},
-            headers=auth_headers_real,
+            headers=auth_headers_admin,
         ).json()
-        r = client.get(f"/api/v1/pricing/rules/{created['id']}", headers=auth_headers_real)
+        r = client.get(f"/api/v1/pricing/rules/{created['id']}", headers=auth_headers_admin)
         assert r.status_code == 200
         assert r.json()["id"] == created["id"]
 
-    def test_get_not_found(self, client: TestClient, auth_headers_real: dict):
-        r = client.get("/api/v1/pricing/rules/99999", headers=auth_headers_real)
+    def test_get_not_found(self, client: TestClient, auth_headers_admin: dict):
+        r = client.get("/api/v1/pricing/rules/99999", headers=auth_headers_admin)
         assert r.status_code == 404
 
-    def test_update_ok(self, client: TestClient, auth_headers_real: dict):
+    def test_update_ok(self, client: TestClient, auth_headers_admin: dict):
         """PATCH partiel."""
         created = client.post(
             "/api/v1/pricing/rules",
             json={"name": "Update Rule Test", "rule_type": "flat", "applies_to": "all"},
-            headers=auth_headers_real,
+            headers=auth_headers_admin,
         ).json()
         r = client.patch(
             f"/api/v1/pricing/rules/{created['id']}",
             json={"discount_pct": 500, "name": "Updated Rule"},
-            headers=auth_headers_real,
+            headers=auth_headers_admin,
         )
         assert r.status_code == 200
         data = r.json()
         assert data["discount_pct"] == 500
         assert data["name"] == "Updated Rule"
 
-    def test_delete_ok(self, client: TestClient, auth_headers_real: dict):
+    def test_delete_ok(self, client: TestClient, auth_headers_admin: dict):
         """Soft-delete → 204, puis invisible dans list (active_only=True)."""
         created = client.post(
             "/api/v1/pricing/rules",
             json={"name": "ToDelete Rule", "rule_type": "flat", "applies_to": "all"},
-            headers=auth_headers_real,
+            headers=auth_headers_admin,
         ).json()
-        r = client.delete(f"/api/v1/pricing/rules/{created['id']}", headers=auth_headers_real)
+        r = client.delete(f"/api/v1/pricing/rules/{created['id']}", headers=auth_headers_admin)
         assert r.status_code == 204
         # Vérifier que la règle est inactive (active_only=False)
         r2 = client.get(
-            f"/api/v1/pricing/rules/{created['id']}", headers=auth_headers_real
+            f"/api/v1/pricing/rules/{created['id']}", headers=auth_headers_admin
         )
         assert r2.status_code == 200
         assert r2.json()["active"] is False
@@ -111,15 +111,15 @@ class TestPricingRulesCRUD:
 
 
 class TestPricingRulesForProduct:
-    def test_get_rules_for_product(self, client: TestClient, auth_headers_real: dict):
+    def test_get_rules_for_product(self, client: TestClient, auth_headers_admin: dict):
         """Règles applicables à un produit."""
         # Créer règle "all"
         client.post(
             "/api/v1/pricing/rules",
             json={"name": "Rule All For Product Test", "rule_type": "flat", "applies_to": "all", "discount_pct": 100},
-            headers=auth_headers_real,
+            headers=auth_headers_admin,
         )
-        r = client.get("/api/v1/pricing/rules/product/1", headers=auth_headers_real)
+        r = client.get("/api/v1/pricing/rules/product/1", headers=auth_headers_admin)
         assert r.status_code == 200
         assert isinstance(r.json(), list)
         # La règle "all" doit apparaître
@@ -133,13 +133,13 @@ class TestPricingRulesForProduct:
 
 class TestPricingTenantIsolation:
     def test_cross_tenant_get_blocked(
-        self, client: TestClient, auth_headers_real: dict, auth_headers_tenant2: dict
+        self, client: TestClient, auth_headers_admin: dict, auth_headers_tenant2: dict
     ):
         """Tenant2 ne peut pas voir la règle de Tenant1."""
         created = client.post(
             "/api/v1/pricing/rules",
             json={"name": "Tenant1 Only Rule", "rule_type": "flat", "applies_to": "all"},
-            headers=auth_headers_real,
+            headers=auth_headers_admin,
         ).json()
         r = client.get(
             f"/api/v1/pricing/rules/{created['id']}", headers=auth_headers_tenant2
@@ -158,8 +158,8 @@ def product_sim(test_db):
         name="Assiette test sim",
         sku="ASS-SIM-001",
         category=ProductCategory.ASSIETTES,
-        price_per_day=500,
-        deposit_amount=0,
+        price_per_day_cents=500,
+        deposit_amount_cents=0,
         stock_quantity=50,
         available_quantity=50,
         condition=ProductCondition.BON,
@@ -173,7 +173,7 @@ def product_sim(test_db):
 
 class TestPricingSimulate:
     def test_simulate_no_rule_returns_base_price(
-        self, client: TestClient, auth_headers_real: dict, product_sim
+        self, client: TestClient, auth_headers_admin: dict, product_sim
     ):
         """Sans règle active, prix = price_per_day × qty × days."""
         r = client.post(
@@ -183,7 +183,7 @@ class TestPricingSimulate:
                 "quantity": 2,
                 "rental_days": 3,
             },
-            headers=auth_headers_real,
+            headers=auth_headers_admin,
         )
         assert r.status_code == 200
         data = r.json()
@@ -194,7 +194,7 @@ class TestPricingSimulate:
         assert data["total_cents"] == 500 * 2 * 3
 
     def test_simulate_with_discount_rule(
-        self, client: TestClient, auth_headers_real: dict, product_sim
+        self, client: TestClient, auth_headers_admin: dict, product_sim
     ):
         """Règle flat 'all' à 1000 bp (10%) → final = 450 centimes/unité."""
         # Créer une règle de remise globale
@@ -206,7 +206,7 @@ class TestPricingSimulate:
                 "applies_to": "all",
                 "discount_pct": 1000,
             },
-            headers=auth_headers_real,
+            headers=auth_headers_admin,
         )
         r = client.post(
             "/api/v1/pricing/simulate",
@@ -215,7 +215,7 @@ class TestPricingSimulate:
                 "quantity": 1,
                 "rental_days": 1,
             },
-            headers=auth_headers_real,
+            headers=auth_headers_admin,
         )
         assert r.status_code == 200
         data = r.json()
@@ -223,12 +223,12 @@ class TestPricingSimulate:
         assert data["final_unit_price_cents"] < data["base_unit_price_cents"]
 
     def test_simulate_product_not_found(
-        self, client: TestClient, auth_headers_real: dict
+        self, client: TestClient, auth_headers_admin: dict
     ):
         r = client.post(
             "/api/v1/pricing/simulate",
             json={"product_id": 999999, "quantity": 1, "rental_days": 1},
-            headers=auth_headers_real,
+            headers=auth_headers_admin,
         )
         assert r.status_code == 404
 

@@ -1,0 +1,155 @@
+{
+  "total_pdfs": 551,
+  "parsed_ok": 551,
+  "elapsed_seconds": 1032.2,
+  "ecart_gt_5_count": 29,
+  "ecart_gt_5_with_lines": 27,
+  "avg_ecart_ht_abs": 0.7616,
+  "ecart_gt_5_details": [
+    {
+      "pdf": "docs/METRO/Téléchargement(13)/135_16_253617_20240619231028_invoice_cus_copy_main.pdf",
+      "ecart": 37.07,
+      "lines": 27
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(9)/135_11_357970_20250711183101_invoice_cus_copy_main.pdf",
+      "ecart": 23.67,
+      "lines": 26
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(13)/135_15_248696_20241226192935_invoice_cus_copy_main.pdf",
+      "ecart": 20.23,
+      "lines": 18
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(13)/135_15_221026_20240208183440_invoice_cus_copy_main.pdf",
+      "ecart": 19.66,
+      "lines": 42
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(8)/135_15_211918_20230927194731_invoice_cus_copy_main.pdf",
+      "ecart": 16.62,
+      "lines": 31
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(13)/135_12_364378_20241023170604_invoice_cus_copy_main.pdf",
+      "ecart": 14.28,
+      "lines": 16
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(8)/135_12_313303_20231209162057_invoice_cus_copy_main.pdf",
+      "ecart": 13.26,
+      "lines": 23
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(8)/135_11_281855_20240301181009_invoice_cus_copy_main.pdf",
+      "ecart": 13.19,
+      "lines": 33
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(13)/135_11_336245_20250228110823_invoice_cus_copy_main.pdf",
+      "ecart": 12.98,
+      "lines": 0
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(8)/135_11_262743_20231027183225_invoice_cus_copy_main.pdf",
+      "ecart": 12.34,
+      "lines": 39
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(8)/135_12_329015_20240311192522_invoice_cus_copy_main.pdf",
+      "ecart": 11.8,
+      "lines": 33
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(9)/135_22_72049_20250315190942_invoice_cus_copy_main.pdf",
+      "ecart": 11.73,
+      "lines": 20
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(9)/135_16_277835_20250129200722_invoice_cus_copy_main.pdf",
+      "ecart": 11.23,
+      "lines": 38
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(8)/135_11_291507_20240422212410_invoice_cus_copy_main.pdf",
+      "ecart": 10.14,
+      "lines": 9
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(13)/135_11_321171_20241101175902_invoice_cus_copy_main.pdf",
+      "ecart": 10.08,
+      "lines": 37
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(13)/135_52_5869_20250830135927_invoice_cus_copy_main.pdf",
+      "ecart": 9.89,
+      "lines": 28
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(12)/135_25_37373_20230526195915_invoice_cus_copy_main.pdf",
+      "ecart": 8.45,
+      "lines": 6
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(8)/135_12_329009_20240311191515_invoice_cus_copy_main.pdf",
+      "ecart": 8.34,
+      "lines": 41
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(8)/135_12_329014_20240311192418_invoice_cus_copy_main.pdf",
+      "ecart": 8.34,
+      "lines": 0
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(13)/135_15_269672_20250423225752_invoice_cus_copy_main.pdf",
+      "ecart": 8.12,
+      "lines": 34
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(8)/135_16_208866_20230414155323_invoice_cus_copy_main.pdf",
+      "ecart": 8.08,
+      "lines": 27
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(8)/135_15_220489_20240205215429_invoice_cus_copy_main.pdf",
+      "ecart": 7.28,
+      "lines": 11
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(13)/135_12_331840_20240326204651_invoice_cus_copy_main.pdf",
+      "ecart": 6.9,
+      "lines": 24
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(13)/135_12_362648_20240930122652_invoice_cus_copy_main.pdf",
+      "ecart": 6.84,
+      "lines": 18
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(13)/135_16_260036_20240814220242_invoice_cus_copy_main.pdf",
+      "ecart": 6.66,
+      "lines": 27
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(9)/135_12_349155_20240709174743_invoice_cus_copy_main.pdf",
+      "ecart": 6.66,
+      "lines": 11
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(12)/135_15_210014_20230809171644_invoice_cus_copy_main.pdf",
+      "ecart": 6.54,
+      "lines": 39
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(8)/135_15_217470_20231220201410_invoice_cus_copy_main.pdf",
+      "ecart": 6.54,
+      "lines": 68
+    },
+    {
+      "pdf": "docs/METRO/Téléchargement(13)/135_11_297700_20240531184523_invoice_cus_copy_main.pdf",
+      "ecart": 6.03,
+      "lines": 21
+    }
+  ]
+}

@@ -101,11 +101,24 @@ class AuditLog(Base):
     )
 
     # ===== Acteur =====
-    user_id: Mapped[int | None] = mapped_column(
+    # IAM v2 — expand phase (nullable pendant la migration)
+    account_id: Mapped[int | None] = mapped_column(
         BigInteger,
         nullable=True,
         index=True,
-        comment="ID utilisateur (NULL pour actions système automatiques ou API key)"
+        comment="ID compte global (IAM v2 — remplace user_id)"
+    )
+
+    membership_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        nullable=True,
+        comment="ID membership tenant au moment de l'action (IAM v2)"
+    )
+
+    actor_type: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="Type d'acteur : account | api_key | system (IAM v2)"
     )
 
     api_key_id: Mapped[int | None] = mapped_column(
@@ -184,6 +197,13 @@ class AuditLog(Base):
         comment="Timestamp création (immuable, généré par PostgreSQL)"
     )
 
+    # ===== Intégrité HMAC (spec §01 §1.8) =====
+    hmac_signature: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        comment="HMAC-SHA256 hex 64 chars — intégrité log (spec §01 §1.8). NULL sur logs antérieurs à la migration."
+    )
+
     # ===== Indexes composites pour queries fréquentes =====
     __table_args__ = (
         # Index composite pour queries par tenant + plage dates (query admin la plus fréquente)
@@ -192,15 +212,6 @@ class AuditLog(Base):
             "tenant_id",
             "created_at",
             postgresql_using="btree"
-        ),
-
-        # Index composite pour queries par user + plage dates (historique utilisateur)
-        Index(
-            "idx_audit_user_created",
-            "user_id",
-            "created_at",
-            postgresql_using="btree",
-            postgresql_where=text("user_id IS NOT NULL")  # Partial index (exclu actions système)
         ),
 
         # Index composite pour queries par entité (traçabilité complète d'une entité)
@@ -230,7 +241,7 @@ class AuditLog(Base):
         return (
             f"<AuditLog("
             f"id={self.id}, "
-            f"user={self.user_id}, "
+            f"account={self.account_id}, "
             f"tenant={self.tenant_id}, "
             f"action={self.action}, "
             f"entity={self.entity_type}:{self.entity_id}, "

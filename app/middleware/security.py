@@ -1,4 +1,5 @@
 """Middlewares de sécurité pour CaroCorp."""
+import ipaddress
 from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -9,7 +10,7 @@ from app.core.config import settings
 from app.core.redis import redis_client
 from app.core.security import decode_token
 from app.core.rate_limiter import RateLimiter
-from app.core.rate_limit_utils import determine_rate_limit_scope, get_user_id_from_jwt
+from app.core.rate_limit_utils import determine_rate_limit_scope, get_user_id_from_jwt, get_tenant_id_from_jwt
 from app.constants import AuthEndpoints, ErrorMessages, HealthEndpoints, HTTPMethods, Limits, PublicEndpoints, RateLimitScope, SecurityHeaders
 
 
@@ -43,7 +44,28 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
             AuthEndpoints.REFRESH,
             AuthEndpoints.LOGOUT,
             AuthEndpoints.MFA_VERIFY,
+            AuthEndpoints.CHANGE_PASSWORD,  # INC-04: exempté — CSRF bootstrappage initial (§04 §4.3)
+            # IAM v2 — même rationale Note B2 : Bearer token = protection CSRF implicite
+            AuthEndpoints.V2_LOGIN,
+            AuthEndpoints.V2_REFRESH,
+            AuthEndpoints.V2_LOGOUT,
+            # PIN auth — register-device et set-pin requièrent Bearer, pin-login est non-auth
+            AuthEndpoints.V2_REGISTER_DEVICE,
+            AuthEndpoints.V2_SET_PIN,
+            AuthEndpoints.V2_PIN_LOGIN,
         }:
+            return await call_next(request)
+
+        # IAM v2 OAuth callbacks — pas de Bearer token initial, state Redis = protection CSRF
+        if request.url.path.startswith("/api/v1/auth/v2/oauth/"):
+            return await call_next(request)
+
+        # P2-11 : bypass E2E via variable dediee (pas DEBUG seul — risque prod)
+        import os
+        if (
+            os.environ.get("E2E_BYPASS_ENABLED", "").lower() == "true"
+            and request.headers.get("X-E2E-Bypass") == "true"
+        ):
             return await call_next(request)
 
         # Skip CSRF pour requêtes sans authentification (JWT retournera 401)
@@ -51,10 +73,10 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         if not authorization:
             return await call_next(request)
 
-        # Extraire user_id depuis le JWT Bearer token
-        user_id = self._extract_user_id_from_jwt(authorization)
-        if not user_id:
-            # Token JWT invalide, laisser le endpoint gérer la 401
+        # Extraire session_id depuis le claim "sid" du JWT (spec §04 §4.3)
+        session_id = self._extract_session_id_from_jwt(authorization)
+        if not session_id:
+            # JWT invalide ou sans claim sid → laisser le endpoint gérer
             return await call_next(request)
 
         # Vérifier le token CSRF
@@ -67,7 +89,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
             )
 
         # Valider le token avec Redis
-        if not self._validate_csrf_token(user_id, csrf_token):
+        if not await self._validate_csrf_token(session_id, csrf_token):
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,
                 content={"detail": ErrorMessages.CSRF_TOKEN_INVALID},
@@ -76,59 +98,42 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         return response
 
-    def _extract_user_id_from_jwt(self, authorization: str) -> int | None:
-        """Extrait le user_id depuis le header Authorization (JWT Bearer token).
+    def _extract_session_id_from_jwt(self, authorization: str) -> Optional[str]:
+        """Extrait le session_id (claim 'sid') depuis le header Authorization (§04 §4.3).
 
         Args:
             authorization: Header Authorization (format: "Bearer <token>")
 
         Returns:
-            user_id si JWT valide, None sinon
-
-        Security:
-            - Pas d'exception levée (silent fail)
-            - Laisse le endpoint gérer la 401 si JWT invalide
+            session_id si JWT valide ET claim sid présent, None sinon
         """
         if not authorization or not authorization.startswith(SecurityHeaders.BEARER_PREFIX):
             return None
-
         try:
-            token = authorization.replace(SecurityHeaders.BEARER_PREFIX, "")
+            token = authorization.replace(SecurityHeaders.BEARER_PREFIX, "", 1)
             payload = decode_token(token)
-
-            # JWT spec: "sub" est une string, convertir en int
-            user_id_str = payload.get("sub")
-            return int(user_id_str) if user_id_str else None
+            return payload.get("sid") or None
         except Exception:
             return None
 
-    def _validate_csrf_token(self, user_id: int, token: str) -> bool:
-        """Valide le token CSRF avec Redis.
+    async def _validate_csrf_token(self, session_id: str, token: str) -> bool:
+        """Valide le token CSRF d'une session avec Redis (§04 §4.3).
 
         Args:
-            user_id: ID de l'utilisateur (extrait du JWT)
+            session_id: ID de session extrait du claim "sid" du JWT
             token: Token CSRF à valider
 
         Returns:
-            True si token valide (existe dans Redis), False sinon
-
-        Implementation:
-            - Vérifie longueur token (anti bruteforce basique)
-            - Vérifie existence dans Redis : csrf:{user_id}:{token}
-            - TTL automatique géré par Redis (15 min)
+            True si token valide (compare_digest sur valeur Redis), False sinon
 
         Security:
             - Pas d'exception levée (silent fail)
-            - Timing-safe: Redis EXISTS est O(1). Le check longueur ne fuit pas d'info
-              utile car les tokens CSRF ont une longueur constante (secrets.token_urlsafe(32) = 43 chars).
-              secrets.compare_digest() n'est pas applicable ici car on fait un lookup par clé,
-              pas une comparaison de valeurs.
+            - Timing-safe via hmac.compare_digest dans RedisSecClient.validate_csrf_token
         """
-        if not token or len(token) < Limits.CSRF_TOKEN_MIN_LENGTH:
-            return False
-
-        # Valider avec Redis (key lookup = timing-safe)
-        return redis_client.validate_csrf_token(user_id, token)
+        # P2-18 : pas de early return sur longueur — timing constant via compare_digest
+        if not token:
+            token = ""
+        return await redis_client.validate_csrf_token(session_id, token)
 
     @staticmethod
     def generate_csrf_token() -> str:
@@ -145,7 +150,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         # Headers de sécurité
         response.headers[SecurityHeaders.X_CONTENT_TYPE_OPTIONS] = SecurityHeaders.NOSNIFF
-        response.headers[SecurityHeaders.X_FRAME_OPTIONS] = SecurityHeaders.DENY
+        # PDFs ETL servis dans iframe same-origin (vue split)
+        if request.url.path.startswith("/uploads/etl/"):
+            response.headers[SecurityHeaders.X_FRAME_OPTIONS] = "SAMEORIGIN"
+        else:
+            response.headers[SecurityHeaders.X_FRAME_OPTIONS] = SecurityHeaders.DENY
         response.headers[SecurityHeaders.X_XSS_PROTECTION] = SecurityHeaders.XSS_BLOCK
         response.headers[SecurityHeaders.STRICT_TRANSPORT_SECURITY] = SecurityHeaders.HSTS_ONE_YEAR
         response.headers[SecurityHeaders.REFERRER_POLICY] = SecurityHeaders.STRICT_ORIGIN_CROSS_ORIGIN
@@ -189,7 +198,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     Notes:
         - Skip health checks (/health, /health/ready, /health/live)
         - Skip Swagger docs (/api/docs, /api/redoc, /openapi.json)
-        - Fail-open si Redis down (disponibilité > sécurité)
+        - FAIL-CLOSED si Redis down (securite > disponibilite — P0-01)
         - Headers ajoutés même pour 200 OK (permet clients intelligents)
     """
 
@@ -201,12 +210,24 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         PublicEndpoints.DOCS,
         PublicEndpoints.REDOC,
         PublicEndpoints.OPENAPI,
+        "/metrics",  # P1-08 : Prometheus scraping exempt
     }
 
     def __init__(self, app):
         """Initialise le middleware avec RateLimiter Redis."""
         super().__init__(app)
-        self.rate_limiter = RateLimiter(redis_client.client)
+        self.rate_limiter: Optional[RateLimiter] = None
+
+    def _get_rate_limiter(self) -> RateLimiter:
+        """Retourne un RateLimiter lié au client Redis courant.
+
+        En tests, redis_client._client peut être réinitialisé entre deux event loops.
+        On recâble le limiter à la volée pour éviter les erreurs "Event loop is closed".
+        """
+        current_client = redis_client.client
+        if self.rate_limiter is None or self.rate_limiter.redis is not current_client:
+            self.rate_limiter = RateLimiter(current_client)
+        return self.rate_limiter
 
     def _get_client_ip(self, request: Request) -> str:
         """Extrait l'IP du client depuis la requête.
@@ -224,10 +245,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             - On prend la première IP (client réel)
             - Fallback sur request.client.host si header absent
         """
-        forwarded_for = request.headers.get(SecurityHeaders.X_FORWARDED_FOR)
-        if forwarded_for:
-            # Prendre la première IP (client réel)
-            return forwarded_for.split(",")[0].strip()
+        # N'utiliser X-Forwarded-For que si un proxy de confiance est configuré.
+        # Sans ce flag, le header est contrôlable par le client → bypass rate limit.
+        if settings.TRUSTED_PROXY_HEADERS:
+            forwarded_for = request.headers.get(SecurityHeaders.X_FORWARDED_FOR)
+            if forwarded_for:
+                raw_ip = forwarded_for.split(",")[0].strip()
+                try:
+                    # P2-02 : normaliser pour éviter le bypass via représentations équivalentes
+                    # (ex: "::ffff:1.2.3.4" vs "1.2.3.4", padding IPv6 "::0001" vs "::1")
+                    return ipaddress.ip_address(raw_ip).compressed
+                except ValueError:
+                    pass  # IP malformée — fallback sur request.client.host
         return request.client.host if request.client else "unknown"
 
 
@@ -256,12 +285,23 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path in self.EXEMPT_PATHS:
             return await call_next(request)
 
+        rate_limiter = self._get_rate_limiter()
         client_ip = self._get_client_ip(request)
 
+        # M-07 : IP whitelist partenaires — exemption rate limiting
+        if settings.TRUSTED_PARTNER_IPS:
+            try:
+                addr = ipaddress.ip_address(client_ip)
+                for cidr in settings.TRUSTED_PARTNER_IPS:
+                    if addr in ipaddress.ip_network(cidr, strict=False):
+                        return await call_next(request)
+            except ValueError:
+                pass
+
         # ===== Niveau 1 : Global IP (toujours vérifié) =====
-        global_key = self.rate_limiter.build_key(RateLimitScope.GLOBAL_IP, client_ip)
-        global_limit, global_window = self.rate_limiter.get_scope_config(RateLimitScope.GLOBAL_IP)
-        global_allowed, global_meta = self.rate_limiter.check_rate_limit(
+        global_key = rate_limiter.build_key(RateLimitScope.GLOBAL_IP, client_ip)
+        global_limit, global_window = rate_limiter.get_scope_config(RateLimitScope.GLOBAL_IP)
+        global_allowed, global_meta = await rate_limiter.check_rate_limit(
             key=global_key,
             limit=global_limit,
             window_seconds=global_window
@@ -278,23 +318,39 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # Identifier pour le scope
         if scope == RateLimitScope.LOGIN:
-            # Pour login, rate limit par IP uniquement
-            identifier = client_ip
+            # P2-09 : rate limit login par email (tolerant multi-device derriere NAT)
+            # Fallback sur IP si email non extractible (body non JSON, etc.)
+            email_id = None
+            if hasattr(request.state, "parsed_body"):
+                email_id = getattr(request.state, "parsed_body", {}).get("email")
+            identifier = f"email:{email_id}" if email_id else client_ip
         elif scope == RateLimitScope.API_KEY_AUTHENTICATED:
             # Pour API key, rate limit par api_key_id
             api_key_id = getattr(request.state, "api_key_id", None)
             identifier = f"apikey_{api_key_id}" if api_key_id else client_ip
-        elif scope == RateLimitScope.USER_AUTHENTICATED:
-            # Pour user, rate limit par user_id
+        elif scope in (
+            RateLimitScope.USER_AUTHENTICATED,
+            RateLimitScope.EPICERIE_AUTHENTICATED,
+            RateLimitScope.EPICERIE_MUTATIONS,
+            RateLimitScope.RESTAURANT_AUTHENTICATED,
+            RateLimitScope.RESTAURANT_MUTATIONS,
+        ):
+            # Pour user authentifié (toutes apps), rate limit par tenant_id:user_id
             user_id = get_user_id_from_jwt(request)
-            identifier = str(user_id) if user_id else client_ip
+            tenant_id = get_tenant_id_from_jwt(request)
+            if user_id and tenant_id:
+                identifier = f"t{tenant_id}:u{user_id}"
+            elif user_id:
+                identifier = f"u{user_id}"
+            else:
+                identifier = client_ip
         else:
-            # Pour mutations/reads, rate limit par IP
+            # Pour mutations/reads non authentifiées, rate limit par IP
             identifier = client_ip
 
-        scope_key = self.rate_limiter.build_key(scope, identifier)
-        scope_limit, scope_window = self.rate_limiter.get_scope_config(scope)
-        scope_allowed, scope_meta = self.rate_limiter.check_rate_limit(
+        scope_key = rate_limiter.build_key(scope, identifier)
+        scope_limit, scope_window = rate_limiter.get_scope_config(scope)
+        scope_allowed, scope_meta = await rate_limiter.check_rate_limit(
             key=scope_key,
             limit=scope_limit,
             window_seconds=scope_window

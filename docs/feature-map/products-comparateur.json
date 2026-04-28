@@ -1,0 +1,1156 @@
+{
+  "id": "page:products-comparateur",
+  "type": "page",
+  "name": "Comparateur",
+  "description": "Page principale \"Comparateur\". Contient : Champ : Rechercher un produit…. Paramètres : rechercher-un-produit.",
+  "route": "/products/comparateur",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "staff",
+      "manager",
+      "admin"
+    ],
+    "group": "Catalogue",
+    "dom_h1": "Comparateur produits"
+  },
+  "params": {
+    "rechercher-un-produit": "text"
+  },
+  "features": [
+    "Champ : Rechercher un produit…"
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Verre à eau classique\n\nVER-EAU-CLA",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Verre à vin rouge classique\n\nVER-VR-CLA",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Verre à vin blanc classique\n\nVER-VB-CLA",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Flûte à champagne classique\n\nVER-FLU-CLA",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Verre à eau élégance\n\nVER-EAU-ELG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Verre à vin rouge élégance\n\nVER-VR-ELG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Verre à vin blanc élégance\n\nVER-VB-ELG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Flûte à champagne élégance\n\nVER-FLU-ELG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Verre à eau Open'Up\n\nVER-EAU-OPN",
+      "trigger": "click",
+      "target_id": "modal:verre-a-eau-open-up-ver-eau-opn",
+      "node": {
+        "id": "modal:verre-a-eau-open-up-ver-eau-opn",
+        "type": "modal",
+        "name": "Verre à eau Open'Up\n\nVER-EAU-OPN",
+        "description": "Modal/panneau ouvert(e) par le bouton \"Verre à eau Open'Up\n\nVER-EAU-OPN\" sur la page Comparateur. Non extrait automatiquement.",
+        "attributes": {
+          "scan_status": "placeholder"
+        },
+        "params": {},
+        "features": [],
+        "children": []
+      }
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Verre à vin rouge Open'Up\n\nVER-VR-OPN",
+      "trigger": "click",
+      "target_id": "modal:verre-a-vin-rouge-open-up-ver-vr-opn",
+      "node": {
+        "id": "modal:verre-a-vin-rouge-open-up-ver-vr-opn",
+        "type": "modal",
+        "name": "Verre à vin rouge Open'Up\n\nVER-VR-OPN",
+        "description": "Modal/panneau ouvert(e) par le bouton \"Verre à vin rouge Open'Up\n\nVER-VR-OPN\" sur la page Comparateur. Non extrait automatiquement.",
+        "attributes": {
+          "scan_status": "placeholder"
+        },
+        "params": {},
+        "features": [],
+        "children": []
+      }
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Verre à vin blanc Open'Up\n\nVER-VB-OPN",
+      "trigger": "click",
+      "target_id": "modal:verre-a-vin-blanc-open-up-ver-vb-opn",
+      "node": {
+        "id": "modal:verre-a-vin-blanc-open-up-ver-vb-opn",
+        "type": "modal",
+        "name": "Verre à vin blanc Open'Up\n\nVER-VB-OPN",
+        "description": "Modal/panneau ouvert(e) par le bouton \"Verre à vin blanc Open'Up\n\nVER-VB-OPN\" sur la page Comparateur. Non extrait automatiquement.",
+        "attributes": {
+          "scan_status": "placeholder"
+        },
+        "params": {},
+        "features": [],
+        "children": []
+      }
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Flûte à champagne Open'Up\n\nVER-FLU-OPN",
+      "trigger": "click",
+      "target_id": "modal:flute-a-champagne-open-up-ver-flu-opn",
+      "node": {
+        "id": "modal:flute-a-champagne-open-up-ver-flu-opn",
+        "type": "modal",
+        "name": "Flûte à champagne Open'Up\n\nVER-FLU-OPN",
+        "description": "Modal/panneau ouvert(e) par le bouton \"Flûte à champagne Open'Up\n\nVER-FLU-OPN\" sur la page Comparateur. Non extrait automatiquement.",
+        "attributes": {
+          "scan_status": "placeholder"
+        },
+        "params": {},
+        "features": [],
+        "children": []
+      }
+    },
+    {
+      "link_type": "action",
+      "label": "Verre Vintage\n\nVER-VINT",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Verre ballon\n\nVER-BALL",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Verre à soft élégance\n\nVER-SOFT-ELG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Assiette ronde classique 16cm\n\nASS-RND-CLA-16",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Assiette ronde classique 21cm\n\nASS-RND-CLA-21",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Assiette ronde creuse classique 22,5cm\n\nASS-CRS-CLA-22",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Assiette ronde classique 26cm\n\nASS-RND-CLA-26",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Assiette ronde classique 30,5cm\n\nASS-RND-CLA-30",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Assiette ronde extra creuse blanche 27cm\n\nASS-XCRS-BLC-27",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Assiette à couscous / paella 26cm\n\nASS-COUSC-26",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Assiette carrée creuse élégance 23cm\n\nASS-CAR-CRS-ELG-23",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Assiette carrée élégance 23cm\n\nASS-CAR-ELG-23",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Assiette carrée élégance 27cm\n\nASS-CAR-ELG-27",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Assiette ronde Vintage 16cm\n\nASS-RND-VIN-16",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Assiette ronde creuse Vintage 22cm\n\nASS-CRS-VIN-22",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Assiette ronde Vintage 27cm\n\nASS-RND-VIN-27",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Couteau de table élégance\n\nCOV-COU-ELG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Fourchette de table élégance\n\nCOV-FOU-ELG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Cuillère de table élégance\n\nCOV-CUI-ELG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Couteau à steak élégance\n\nCOV-STK-ELG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Couteau à poisson élégance\n\nCOV-PSN-ELG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Fourchette à poisson élégance\n\nCOV-FPS-ELG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Couteau à dessert élégance\n\nCOV-CDS-ELG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Fourchette à dessert élégance\n\nCOV-FDS-ELG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Cuillère à dessert élégance\n\nCOV-CUDS-ELG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Cuillère à café élégance\n\nCOV-CAF-ELG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Cuillère à moka élégance\n\nCOV-MOK-ELG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Couteau de table prestige\n\nCOV-COU-PRE",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Couteau de table Or\n\nCOV-COU-OR",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Coupe à dessert\n\nSRV-COP-DES",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Pelle à tarte\n\nSRV-PEL-TAR",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Fourchette de service\n\nSRV-FOU-SRV",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Fourchette de service viande\n\nSRV-FOU-VIA",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Cuillère de service\n\nSRV-CUI-SRV",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Couteau à fromage\n\nSRV-COU-FRO",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Couteau à gâteau\n\nSRV-COU-GAT",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Couteau de chef\n\nSRV-COU-CHF",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Louche\n\nSRV-LOUCHE",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Seau à champagne\n\nSRV-SEAU-CHP",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Vasque à champagne\n\nSRV-VASQ-CHP",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Distributeur à jus\n\nSRV-DIST-JUS",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Plateau de service inox\n\nSRV-PLAT-INX",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Ménagère sel/poivre élégance\n\nPOR-MEN-SP-ELG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Ménagère sel/poivre prestige\n\nPOR-MEN-SP-PRE",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Ménagère sel/poivre/moutarde prestige\n\nPOR-MEN-SPM-PRE",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Tasse à café\n\nPOR-TAS-CAF",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Sous-tasse à café\n\nPOR-STA-CAF",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Tasse à thé\n\nPOR-TAS-THE",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Sous-tasse à thé\n\nPOR-STA-THE",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Bol\n\nPOR-BOL",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Ramequin\n\nPOR-RAM",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Saucier\n\nPOR-SAUC",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Mug\n\nPOR-MUG",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Sucrier prestige\n\nPOR-SUC-PRE",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Gobelet enfant\n\nENF-GOB",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Assiette enfant\n\nENF-ASS",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Couteau enfant\n\nENF-COU",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Fourchette enfant\n\nENF-FOU",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Cuillère enfant\n\nENF-CUI",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Table rectangulaire 183x76cm\n\nTAB-REC-183",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Table rectangulaire 200x90cm\n\nTAB-REC-200",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Table ronde diamètre 150cm\n\nTAB-RND-150",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Table ronde diamètre 180cm\n\nTAB-RND-180",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Table ronde bois diamètre 153cm\n\nTAB-RND-BOIS-153",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Table rectangulaire bois 210x100cm\n\nTAB-REC-BOIS-210",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Table ovale 12 personnes\n\nTAB-OVA-12",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Table ovale 14 personnes\n\nTAB-OVA-14",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Table ovale 16 personnes\n\nTAB-OVA-16",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Table ovale 18 personnes\n\nTAB-OVA-18",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Table ovale 22 personnes\n\nTAB-OVA-22",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Chaise plastique\n\nCHA-PLAST",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Chaise Napoléon III\n\nCHA-NAP3",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Chaise Bois Dos Croisé\n\nCHA-BOIS-DC",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Tabouret de bar\n\nCHA-TAB-BAR",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Banc bois\n\nBAN-BOIS",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Mange-debout\n\nMDB-STD",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Housse de chaise blanche\n\nHOU-CHA-BLC",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Housse de chaise ivoire\n\nHOU-CHA-IVO",
+      "trigger": "click",
+      "target_id": "modal:housse-de-chaise-ivoire-hou-cha-ivo",
+      "node": {
+        "id": "modal:housse-de-chaise-ivoire-hou-cha-ivo",
+        "type": "modal",
+        "name": "Housse de chaise ivoire\n\nHOU-CHA-IVO",
+        "description": "Modal/panneau ouvert(e) par le bouton \"Housse de chaise ivoire\n\nHOU-CHA-IVO\" sur la page Comparateur. Non extrait automatiquement.",
+        "attributes": {
+          "scan_status": "placeholder"
+        },
+        "params": {},
+        "features": [],
+        "children": []
+      }
+    },
+    {
+      "link_type": "action",
+      "label": "Housse de mange-debout\n\nHOU-MDB-STD",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Housse de mange-debout juponnée\n\nHOU-MDB-JUP",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Nappe coton rectangulaire 140x240cm\n\nNAP-REC-140x240",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Nappe coton rectangulaire 200x240cm\n\nNAP-REC-200x240",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Nappe coton rectangulaire 300x160cm\n\nNAP-REC-300x160",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Nappe coton rectangulaire 300x190cm\n\nNAP-REC-300x190",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Nappe coton rectangulaire 500x190cm\n\nNAP-REC-500x190",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Nappe coton carrée 250x250cm\n\nNAP-CAR-250",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Nappe coton ronde 240cm\n\nNAP-RND-240",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Nappe coton ovale 240x360cm\n\nNAP-OVA-240x360",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Nappe coton ovale 240x420cm\n\nNAP-OVA-240x420",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Nappe coton ovale 240x480cm\n\nNAP-OVA-240x480",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Nappe coton ovale 240x540cm\n\nNAP-OVA-240x540",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Nappe coton ovale 240x660cm\n\nNAP-OVA-240x660",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Nappe ronde coton 280cm\n\nNAP-RND-280",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Nappe ronde coton 280cm couleur\n\nNAP-RND-280-COL",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Nappe ronde coton 300cm\n\nNAP-RND-300",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nappe rect. coton 300x175cm ivoire\n\nNAP-REC-300x175-IVO",
+      "trigger": "click",
+      "target_id": "modal:nappe-rect-coton-300x175cm-ivoire-nap-rec-300x175-ivo",
+      "node": {
+        "id": "modal:nappe-rect-coton-300x175cm-ivoire-nap-rec-300x175-ivo",
+        "type": "modal",
+        "name": "Nappe rect. coton 300x175cm ivoire\n\nNAP-REC-300x175-IVO",
+        "description": "Modal/panneau ouvert(e) par le bouton \"Nappe rect. coton 300x175cm ivoire\n\nNAP-REC-300x175-IVO\" sur la page Comparateur. Non extrait automatiquement.",
+        "attributes": {
+          "scan_status": "placeholder"
+        },
+        "params": {},
+        "features": [],
+        "children": []
+      }
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nappe ronde coton 240cm ivoire\n\nNAP-RND-240-IVO",
+      "trigger": "click",
+      "target_id": "modal:nappe-ronde-coton-240cm-ivoire-nap-rnd-240-ivo",
+      "node": {
+        "id": "modal:nappe-ronde-coton-240cm-ivoire-nap-rnd-240-ivo",
+        "type": "modal",
+        "name": "Nappe ronde coton 240cm ivoire\n\nNAP-RND-240-IVO",
+        "description": "Modal/panneau ouvert(e) par le bouton \"Nappe ronde coton 240cm ivoire\n\nNAP-RND-240-IVO\" sur la page Comparateur. Non extrait automatiquement.",
+        "attributes": {
+          "scan_status": "placeholder"
+        },
+        "params": {},
+        "features": [],
+        "children": []
+      }
+    },
+    {
+      "link_type": "action",
+      "label": "Serviette de table coton blanche\n\nSER-COT-BLC",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Serviette de table coton ivoire\n\nSER-COT-IVO",
+      "trigger": "click",
+      "target_id": "modal:serviette-de-table-coton-ivoire-ser-cot-ivo",
+      "node": {
+        "id": "modal:serviette-de-table-coton-ivoire-ser-cot-ivo",
+        "type": "modal",
+        "name": "Serviette de table coton ivoire\n\nSER-COT-IVO",
+        "description": "Modal/panneau ouvert(e) par le bouton \"Serviette de table coton ivoire\n\nSER-COT-IVO\" sur la page Comparateur. Non extrait automatiquement.",
+        "attributes": {
+          "scan_status": "placeholder"
+        },
+        "params": {},
+        "features": [],
+        "children": []
+      }
+    },
+    {
+      "link_type": "action",
+      "label": "Serviette de table coton bordeaux\n\nSER-COT-BOR",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Serviette de table coton noire\n\nSER-COT-NOI",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Serviette de table coton rouge\n\nSER-COT-ROU",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Serviette de table coton vert amande\n\nSER-COT-VAM",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Serviette de table coton vert sapin\n\nSER-COT-VSA",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Borne à selfie\n\nMAC-BORN-SEL",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Caisse d'accessoires borne à selfie\n\nMAC-ACC-BORN",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Instax mini\n\nMAC-INST-MIN",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Instax wide\n\nMAC-INST-WID",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Recharge papier photo Instax mini\n\nMAC-RCH-MIN",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Recharge papier photo Instax wide\n\nMAC-RCH-WID",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Machine à glaces\n\nMAC-GLACE",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Recharge 40 glaces\n\nMAC-RCH-GLAC",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Coulis chocolat 500ml\n\nMAC-COUL-CHO",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Toppings brisures\n\nMAC-TOPP-BRI",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Cornet gaufré pour glace\n\nMAC-CORN-GAU",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Chafing dish électrique\n\nMAC-CHAF-ELE",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Percolateur 100 tasses\n\nMAC-PERC-100",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Candy bar bois (sans toit)\n\nCDB-STD",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Candy bar bois (sans toit) avec bonbonnières\n\nCDB-STD-BON",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Candy bar\n\nCDB-PREM",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Candy bar avec bonbonnières\n\nCDB-PREM-BON",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Candy bar Bois/Métal\n\nCDB-BOIS-MET",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Candy bar Bois/Métal avec bonbonnières\n\nCDB-BOIS-BON",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Petite étagère en bois\n\nDEC-ETG-BOIS",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Pince à bonbons\n\nDEC-PINC-BON",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Pelle à bonbons\n\nDEC-PELL-BON",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Bonbonnière 28cl\n\nDEC-BONB-28",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Bonbonnière 75cl\n\nDEC-BONB-75",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Bonbonnière 1L\n\nDEC-BONB-100",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Socle rouleur bacs\n\nTRP-SOC-BAC",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Socle rouleur verres\n\nTRP-SOC-VER",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

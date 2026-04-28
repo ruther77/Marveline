@@ -1,0 +1,167 @@
+{
+  "id": "page:supplier-orders",
+  "type": "page",
+  "name": "Commandes fournisseurs",
+  "description": "Page principale \"Commandes fournisseurs\". Contenu non détecté automatiquement.",
+  "route": "/products/supplier-orders",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "manager",
+      "admin"
+    ],
+    "group": "Catalogue",
+    "dom_h1": "Commandes fournisseurs"
+  },
+  "params": {},
+  "features": [],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nouvelle commande",
+      "trigger": "click",
+      "target_id": "modal:nouvelle-commande",
+      "node": {
+        "id": "modal:nouvelle-commande-fournisseur",
+        "type": "form",
+        "name": "Nouvelle commande fournisseur",
+        "description": "Formulaire \"Nouvelle commande fournisseur\". Contient : Produit ID / Quantité / Prix unitaire HT (€), Champ : CMD-2026-001, Champ : ID produit, Champ : Qté, Champ : Prix HT €, Fermer. Paramètres : cmd-2026-001, id-produit, qte, prix-ht.",
+        "attributes": {
+          "depth": 1,
+          "opened_from_depth": 0
+        },
+        "params": {
+          "cmd-2026-001": "text",
+          "id-produit": "number",
+          "qte": "number",
+          "prix-ht": "number"
+        },
+        "features": [
+          "Produit ID / Quantité / Prix unitaire HT (€)",
+          "Champ : CMD-2026-001",
+          "Champ : ID produit",
+          "Champ : Qté",
+          "Champ : Prix HT €",
+          "Fermer",
+          "+ Ajouter ligne",
+          "Annuler",
+          "Créer la commande"
+        ],
+        "children": [
+          {
+            "link_type": "action",
+            "label": "Fermer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "action",
+            "label": "+ Ajouter ligne",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "action",
+            "label": "Annuler",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "action",
+            "label": "Créer la commande",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          }
+        ]
+      }
+    },
+    {
+      "link_type": "action",
+      "label": "Toutes",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Brouillons",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Commandées",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "En cours",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Reçues",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Annulées",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

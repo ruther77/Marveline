@@ -1,0 +1,58 @@
+# Dockerfile paramétrisé — build une app frontend par ARG FRONTEND_NAME
+# Usage : docker build --build-arg FRONTEND_NAME=marveline -f Dockerfile.monorepo .
+
+# ── Stage 1 : Build ──────────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+ARG FRONTEND_NAME=marveline
+
+# Variables Vite injectees au build
+ARG VITE_API_URL=/api/v1
+ARG VITE_TENANT_ID=
+ARG VITE_MASSACORP_AUTH_TENANT_ID=
+ARG VITE_MASSACORP_EPICERIE_TENANT_ID=
+ARG VITE_MASSACORP_RESTAURANT_TENANT_ID=
+ARG VITE_MASSACORP_URL=
+ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_TENANT_ID=${VITE_TENANT_ID}
+ENV VITE_MASSACORP_AUTH_TENANT_ID=${VITE_MASSACORP_AUTH_TENANT_ID}
+ENV VITE_MASSACORP_EPICERIE_TENANT_ID=${VITE_MASSACORP_EPICERIE_TENANT_ID}
+ENV VITE_MASSACORP_RESTAURANT_TENANT_ID=${VITE_MASSACORP_RESTAURANT_TENANT_ID}
+ENV VITE_MASSACORP_URL=${VITE_MASSACORP_URL}
+
+WORKDIR /app
+
+# Copier les fichiers workspace root
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
+COPY tsconfig.base.json ./
+
+# Copier les packages
+COPY packages/ packages/
+COPY apps/${FRONTEND_NAME}/ apps/${FRONTEND_NAME}/
+
+# Installer pnpm et les dependances
+RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN pnpm install --no-frozen-lockfile
+
+# Build
+RUN NODE_OPTIONS="--max-old-space-size=4096" pnpm --filter @carocorp/${FRONTEND_NAME} build
+
+# ── Stage 2 : Serve avec Nginx ───────────────────────────────────────────────
+FROM nginx:alpine
+
+ARG FRONTEND_NAME=marveline
+
+# Copier le build
+COPY --from=builder /app/apps/${FRONTEND_NAME}/dist /usr/share/nginx/html
+
+# Config nginx : app-specific > racine frontend/ (copie directe depuis contexte build)
+COPY apps/${FRONTEND_NAME}/nginx.conf* /tmp/app-nginx/
+COPY nginx.conf /tmp/root-nginx.conf
+RUN if [ -f /tmp/app-nginx/nginx.conf ]; then \
+      cp /tmp/app-nginx/nginx.conf /etc/nginx/conf.d/default.conf; \
+    else \
+      cp /tmp/root-nginx.conf /etc/nginx/conf.d/default.conf; \
+    fi
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

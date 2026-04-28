@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from app.models.invoice import Invoice
     from app.models.reservation import Reservation
     from app.models.product import Product
-    from app.models.user import User
 
 
 class Vente(Base, TimestampMixin, TenantMixin, SoftDeleteMixin):
@@ -146,12 +145,9 @@ class VentePayment(Base, TenantMixin):
     created_at: Mapped[date] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="NOW()"
     )
-    created_by: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
-    )
+    created_by: Mapped[int] = mapped_column(BigInteger(), nullable=False)
 
     vente: Mapped["Vente"] = relationship("Vente", back_populates="payments")
-    author: Mapped["User"] = relationship("User", foreign_keys=[created_by])
 
     __table_args__ = (
         CheckConstraint("amount_cents > 0", name="check_vente_payment_amount_positive"),

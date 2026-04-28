@@ -47,11 +47,13 @@ class PublicEndpoints:
     DOCS = "/api/docs"
     REDOC = "/api/redoc"
     OPENAPI = "/openapi.json"
+    TENANT_BRAND = "/api/v1/tenant/brand"
+    CARRIER_WEBHOOK = "/api/v1/carrier/webhook/boxtal"
 
     @classmethod
     def all(cls) -> set[str]:
         """Retourne tous les endpoints publics sous forme de set."""
-        return {cls.HEALTH, cls.DOCS, cls.REDOC, cls.OPENAPI}
+        return {cls.HEALTH, cls.DOCS, cls.REDOC, cls.OPENAPI, cls.TENANT_BRAND, cls.CARRIER_WEBHOOK}
 
 
 class AuthEndpoints:
@@ -69,6 +71,25 @@ class AuthEndpoints:
     CSRF = "/api/v1/auth/csrf"
     LOGOUT = "/api/v1/auth/logout"
     MFA_VERIFY = "/api/v1/mfa/verify"
+    CHANGE_PASSWORD = "/api/v1/auth/change-password"
+    ME = "/api/v1/auth/me"
+
+    # IAM v2 endpoints
+    V2_LOGIN = "/api/v1/auth/v2/login"
+    V2_REFRESH = "/api/v1/auth/v2/refresh"
+    V2_LOGOUT = "/api/v1/auth/v2/logout"
+    V2_REGISTER_DEVICE = "/api/v1/auth/v2/register-device"
+    V2_SET_PIN = "/api/v1/auth/v2/set-pin"
+    V2_PIN_LOGIN = "/api/v1/auth/v2/pin-login"
+
+
+# Endpoints accessibles même si password_change_required=True (INC-12)
+PASSWORD_CHANGE_ALLOWED: frozenset[str] = frozenset({
+    AuthEndpoints.CHANGE_PASSWORD,
+    AuthEndpoints.LOGOUT,
+    AuthEndpoints.CSRF,
+    AuthEndpoints.ME,
+})
 
 
 class HealthEndpoints:

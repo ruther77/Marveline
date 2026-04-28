@@ -1,4 +1,4 @@
-"""Tests unitaires pour app/core/redis.py — RedisClient.
+"""Tests unitaires pour app/core/redis.py — RedisSecClient.
 
 Couvre 8 domaines : CSRF, refresh whitelist, access blacklist,
 token families, brute force, sessions, password reset, health.
@@ -8,369 +8,389 @@ import json
 import time
 import pytest
 
-from app.core.redis import RedisClient, get_redis_client, redis_client
+from app.core.redis import RedisSecClient, redis_sec, redis_client
 from app.constants import RedisKeys, SessionConfig
 
 
 # ── Fixture ──────────────────────────────────────────────────────────────
 
 @pytest.fixture
-def rc() -> RedisClient:
-    """Instance fraîche de RedisClient (singleton global)."""
-    return redis_client
+def rc() -> RedisSecClient:
+    """Instance fraîche de RedisSecClient (singleton global)."""
+    return redis_sec
+
+
+@pytest.fixture(autouse=True)
+async def _load_lua_scripts():
+    """Charge les scripts Lua avant chaque test (idempotent, requis pour evalsha)."""
+    await redis_sec.load_lua_scripts()
 
 
 # ── Singleton ────────────────────────────────────────────────────────────
 
 class TestSingleton:
-    def test_get_redis_client_returns_same_instance(self):
-        a = get_redis_client()
-        b = get_redis_client()
+    def test_get_redis_sec_returns_same_instance(self):
+        a = redis_sec
+        b = redis_sec
         assert a is b
 
-    def test_global_redis_client_is_singleton(self):
-        assert redis_client is get_redis_client()
+    def test_global_redis_client_is_redis_sec(self):
+        assert redis_client is redis_sec
 
 
 # ── Ping / Health ────────────────────────────────────────────────────────
 
 class TestPingHealth:
-    def test_ping_returns_true(self, rc: RedisClient):
-        assert rc.ping() is True
+    async def test_ping_returns_true(self, rc: RedisSecClient):
+        assert await rc.ping() is True
 
-    def test_health_check_healthy(self, rc: RedisClient):
-        result = rc.health_check()
+    async def test_health_check_healthy(self, rc: RedisSecClient):
+        result = await rc.health_check()
         assert result["status"] == "healthy"
         assert result["connected"] is True
         assert "redis_version" in result
         assert "uptime_seconds" in result
 
-    def test_health_check_returns_dict(self, rc: RedisClient):
-        result = rc.health_check()
+    async def test_health_check_returns_dict(self, rc: RedisSecClient):
+        result = await rc.health_check()
         assert isinstance(result, dict)
 
 
 # ── CSRF Tokens ──────────────────────────────────────────────────────────
+# API v3 (refactor §04 §4.3) : CSRF indexé par session_id (pas user_id).
+# store_csrf_token(session_id, token, ttl)
+# validate_csrf_token(session_id, token) → bool
+# revoke_csrf_token(session_id) → bool  (plus de param token)
+# revoke_all_csrf_tokens(user_id) → int  (exception : itère via user_sessions_index)
 
 class TestCSRF:
-    def test_store_csrf_token(self, rc: RedisClient):
-        assert rc.store_csrf_token(user_id=1, token="tok_abc", ttl_seconds=60) is True
+    async def test_store_csrf_token(self, rc: RedisSecClient):
+        assert await rc.store_csrf_token(session_id="sid_1", token="tok_abc", ttl_seconds=60) is True
 
-    def test_validate_csrf_token_valid(self, rc: RedisClient):
-        rc.store_csrf_token(user_id=1, token="tok_val", ttl_seconds=60)
-        assert rc.validate_csrf_token(user_id=1, token="tok_val") is True
+    async def test_validate_csrf_token_valid(self, rc: RedisSecClient):
+        await rc.store_csrf_token(session_id="sid_1", token="tok_val", ttl_seconds=60)
+        assert await rc.validate_csrf_token(session_id="sid_1", token="tok_val") is True
 
-    def test_validate_csrf_token_missing(self, rc: RedisClient):
-        assert rc.validate_csrf_token(user_id=1, token="nonexistent") is False
+    async def test_validate_csrf_token_missing(self, rc: RedisSecClient):
+        assert await rc.validate_csrf_token(session_id="sid_1", token="nonexistent") is False
 
-    def test_validate_csrf_wrong_user(self, rc: RedisClient):
-        rc.store_csrf_token(user_id=1, token="tok_user1", ttl_seconds=60)
-        assert rc.validate_csrf_token(user_id=2, token="tok_user1") is False
+    async def test_validate_csrf_wrong_session(self, rc: RedisSecClient):
+        await rc.store_csrf_token(session_id="sid_1", token="tok_sid1", ttl_seconds=60)
+        assert await rc.validate_csrf_token(session_id="sid_2", token="tok_sid1") is False
 
-    def test_revoke_csrf_token(self, rc: RedisClient):
-        rc.store_csrf_token(user_id=1, token="tok_rev", ttl_seconds=60)
-        assert rc.revoke_csrf_token(user_id=1, token="tok_rev") is True
-        assert rc.validate_csrf_token(user_id=1, token="tok_rev") is False
+    async def test_revoke_csrf_token(self, rc: RedisSecClient):
+        await rc.store_csrf_token(session_id="sid_1", token="tok_rev", ttl_seconds=60)
+        assert await rc.revoke_csrf_token(session_id="sid_1") is True
+        assert await rc.validate_csrf_token(session_id="sid_1", token="tok_rev") is False
 
-    def test_revoke_csrf_token_nonexistent(self, rc: RedisClient):
-        assert rc.revoke_csrf_token(user_id=1, token="nope") is False
+    async def test_revoke_csrf_token_nonexistent(self, rc: RedisSecClient):
+        assert await rc.revoke_csrf_token(session_id="sid_nope") is False
 
-    def test_revoke_all_csrf_tokens(self, rc: RedisClient):
-        rc.store_csrf_token(user_id=10, token="t1", ttl_seconds=60)
-        rc.store_csrf_token(user_id=10, token="t2", ttl_seconds=60)
-        rc.store_csrf_token(user_id=10, token="t3", ttl_seconds=60)
-        count = rc.revoke_all_csrf_tokens(user_id=10)
+    async def test_revoke_all_csrf_tokens(self, rc: RedisSecClient):
+        await rc.store_csrf_token(session_id="sid_10_1", token="t1", ttl_seconds=60)
+        await rc.store_csrf_token(session_id="sid_10_2", token="t2", ttl_seconds=60)
+        await rc.store_csrf_token(session_id="sid_10_3", token="t3", ttl_seconds=60)
+        await rc.add_session_to_index(user_id=10, device_id="d1", session_id="sid_10_1", ttl_seconds=300)
+        await rc.add_session_to_index(user_id=10, device_id="d2", session_id="sid_10_2", ttl_seconds=300)
+        await rc.add_session_to_index(user_id=10, device_id="d3", session_id="sid_10_3", ttl_seconds=300)
+        count = await rc.revoke_all_csrf_tokens(user_id=10)
         assert count == 3
-        assert rc.validate_csrf_token(user_id=10, token="t1") is False
+        assert await rc.validate_csrf_token(session_id="sid_10_1", token="t1") is False
 
-    def test_revoke_all_csrf_tokens_no_tokens(self, rc: RedisClient):
-        assert rc.revoke_all_csrf_tokens(user_id=999) == 0
+    async def test_revoke_all_csrf_tokens_no_tokens(self, rc: RedisSecClient):
+        assert await rc.revoke_all_csrf_tokens(user_id=999) == 0
 
-    def test_csrf_ttl_respected(self, rc: RedisClient):
-        rc.store_csrf_token(user_id=1, token="tok_ttl", ttl_seconds=1)
-        assert rc.validate_csrf_token(user_id=1, token="tok_ttl") is True
+    async def test_csrf_ttl_respected(self, rc: RedisSecClient):
+        await rc.store_csrf_token(session_id="sid_1", token="tok_ttl", ttl_seconds=1)
+        assert await rc.validate_csrf_token(session_id="sid_1", token="tok_ttl") is True
         time.sleep(1.5)
-        assert rc.validate_csrf_token(user_id=1, token="tok_ttl") is False
+        assert await rc.validate_csrf_token(session_id="sid_1", token="tok_ttl") is False
 
 
 # ── Refresh Token Whitelist ──────────────────────────────────────────────
 
 class TestRefreshWhitelist:
-    def test_store_and_get_refresh_jti(self, rc: RedisClient):
-        assert rc.store_refresh_jti(
-            jti="jti_1", user_id=1, tenant_id=1, family_id="fam_1", ttl_seconds=300
+    # API v3 : whitelist:refresh:{uid}:{did}:{sid} = JTI (STRING)
+    # Les 3 coords (user_id, device_id, session_id) identifient une session.
+
+    async def test_store_and_get_refresh_jti(self, rc: RedisSecClient):
+        assert await rc.store_refresh_jti(
+            jti="jti_1", user_id=1, tenant_id=1, family_id="fam_1",
+            device_id="dev1", session_id="sid1", ttl_seconds=300,
         ) is True
-        data = rc.get_refresh_jti("jti_1")
-        assert data is not None
-        assert data["user_id"] == 1
-        assert data["tenant_id"] == 1
-        assert data["family_id"] == "fam_1"
+        stored = await rc.get_refresh_jti(user_id=1, device_id="dev1", session_id="sid1")
+        assert stored == "jti_1"
 
-    def test_get_refresh_jti_nonexistent(self, rc: RedisClient):
-        assert rc.get_refresh_jti("jti_nope") is None
+    async def test_get_refresh_jti_nonexistent(self, rc: RedisSecClient):
+        assert await rc.get_refresh_jti(user_id=99, device_id="devX", session_id="sidX") is None
 
-    def test_revoke_refresh_jti(self, rc: RedisClient):
-        rc.store_refresh_jti(jti="jti_rev", user_id=1, tenant_id=1, family_id="f1", ttl_seconds=300)
-        assert rc.revoke_refresh_jti("jti_rev") is True
-        assert rc.get_refresh_jti("jti_rev") is None
+    async def test_revoke_refresh_jti(self, rc: RedisSecClient):
+        await rc.store_refresh_jti(
+            jti="jti_rev", user_id=2, tenant_id=1, family_id="f1",
+            device_id="dev2", session_id="sid_rev", ttl_seconds=300,
+        )
+        assert await rc.revoke_refresh_jti(user_id=2, device_id="dev2", session_id="sid_rev") is True
+        assert await rc.get_refresh_jti(user_id=2, device_id="dev2", session_id="sid_rev") is None
 
-    def test_revoke_refresh_jti_nonexistent(self, rc: RedisClient):
-        assert rc.revoke_refresh_jti("jti_ghost") is False
+    async def test_revoke_refresh_jti_nonexistent(self, rc: RedisSecClient):
+        assert await rc.revoke_refresh_jti(user_id=99, device_id="ghost", session_id="ghost") is False
 
-    def test_revoke_all_refresh_tokens_for_user(self, rc: RedisClient):
-        rc.store_refresh_jti(jti="u1_a", user_id=5, tenant_id=1, family_id="f1", ttl_seconds=300)
-        rc.store_refresh_jti(jti="u1_b", user_id=5, tenant_id=1, family_id="f2", ttl_seconds=300)
-        rc.store_refresh_jti(jti="u2_a", user_id=6, tenant_id=1, family_id="f3", ttl_seconds=300)
-        count = rc.revoke_all_refresh_tokens(user_id=5)
+    async def test_revoke_all_sessions_for_user(self, rc: RedisSecClient):
+        await rc.store_refresh_jti(
+            jti="u5_a", user_id=5, tenant_id=1, family_id="f1",
+            device_id="d1", session_id="s1", ttl_seconds=300,
+        )
+        await rc.store_refresh_jti(
+            jti="u5_b", user_id=5, tenant_id=1, family_id="f2",
+            device_id="d2", session_id="s2", ttl_seconds=300,
+        )
+        await rc.store_refresh_jti(
+            jti="u6_a", user_id=6, tenant_id=1, family_id="f3",
+            device_id="d3", session_id="s3", ttl_seconds=300,
+        )
+        await rc.add_session_to_index(5, "d1", "s1", 300)
+        await rc.add_session_to_index(5, "d2", "s2", 300)
+        await rc.add_session_to_index(6, "d3", "s3", 300)
+        count = await rc.revoke_all_user_sessions(user_id=5)
         assert count == 2
-        assert rc.get_refresh_jti("u1_a") is None
-        assert rc.get_refresh_jti("u1_b") is None
-        # user 6 untouched
-        assert rc.get_refresh_jti("u2_a") is not None
+        assert await rc.get_refresh_jti(user_id=5, device_id="d1", session_id="s1") is None
+        assert await rc.get_refresh_jti(user_id=5, device_id="d2", session_id="s2") is None
+        # user 6 intouché
+        assert await rc.get_refresh_jti(user_id=6, device_id="d3", session_id="s3") == "u6_a"
 
 
 # ── Access Token Blacklist ───────────────────────────────────────────────
 
 class TestAccessBlacklist:
-    def test_blacklist_and_check(self, rc: RedisClient):
-        assert rc.blacklist_access_jti("acc_1", ttl_seconds=60) is True
-        assert rc.is_access_blacklisted("acc_1") is True
+    async def test_blacklist_and_check(self, rc: RedisSecClient):
+        assert await rc.blacklist_access_jti("acc_1", ttl_seconds=60) is True
+        assert await rc.is_access_blacklisted("acc_1") is True
 
-    def test_not_blacklisted(self, rc: RedisClient):
-        assert rc.is_access_blacklisted("acc_clean") is False
+    async def test_not_blacklisted(self, rc: RedisSecClient):
+        assert await rc.is_access_blacklisted("acc_clean") is False
 
-    def test_blacklist_ttl_expires(self, rc: RedisClient):
-        rc.blacklist_access_jti("acc_exp", ttl_seconds=1)
-        assert rc.is_access_blacklisted("acc_exp") is True
+    async def test_blacklist_ttl_expires(self, rc: RedisSecClient):
+        await rc.blacklist_access_jti("acc_exp", ttl_seconds=1)
+        assert await rc.is_access_blacklisted("acc_exp") is True
         time.sleep(1.5)
-        assert rc.is_access_blacklisted("acc_exp") is False
+        assert await rc.is_access_blacklisted("acc_exp") is False
 
 
 # ── Token Family ─────────────────────────────────────────────────────────
 
 class TestTokenFamily:
-    def test_store_and_get_family(self, rc: RedisClient):
-        rc.store_token_family(family_id="fam_a", user_id=1, ttl_seconds=300)
-        data = rc.get_token_family("fam_a")
-        assert data is not None
-        assert data["user_id"] == 1
-        assert data["active"] is True
+    # API v3 : family:{fid} = SET de JTIs
+    # store_token_family(family_id, jti, ttl) → add JTI au SET
+    # family_exists(fid) → bool
+    # is_jti_in_family(fid, jti) → bool
+    # revoke_token_family(fid) → supprime la clé entière
 
-    def test_get_nonexistent_family(self, rc: RedisClient):
-        assert rc.get_token_family("fam_nope") is None
+    async def test_store_and_family_exists(self, rc: RedisSecClient):
+        await rc.store_token_family(family_id="fam_a", jti="jti_test_a", ttl_seconds=300)
+        assert await rc.family_exists("fam_a") is True
 
-    def test_revoke_family(self, rc: RedisClient):
-        rc.store_token_family(family_id="fam_rev", user_id=1, ttl_seconds=300)
-        assert rc.revoke_token_family("fam_rev") is True
-        data = rc.get_token_family("fam_rev")
-        assert data is not None
-        assert data["active"] is False
+    async def test_is_jti_in_family(self, rc: RedisSecClient):
+        await rc.store_token_family(family_id="fam_b", jti="jti_b1", ttl_seconds=300)
+        assert await rc.is_jti_in_family("fam_b", "jti_b1")   # 1 ou True selon redis-py version
+        assert not await rc.is_jti_in_family("fam_b", "jti_other")
 
-    def test_revoke_nonexistent_family(self, rc: RedisClient):
-        assert rc.revoke_token_family("fam_ghost") is False
+    async def test_family_not_exists(self, rc: RedisSecClient):
+        assert await rc.family_exists("fam_nope") is False
+
+    async def test_revoke_family_deletes_key(self, rc: RedisSecClient):
+        await rc.store_token_family(family_id="fam_rev", jti="jti_rev", ttl_seconds=300)
+        assert await rc.revoke_token_family("fam_rev") is True
+        assert await rc.family_exists("fam_rev") is False
+
+    async def test_revoke_nonexistent_family(self, rc: RedisSecClient):
+        assert await rc.revoke_token_family("fam_ghost") is False
 
 
 # ── Brute Force Counters ────────────────────────────────────────────────
 
 class TestBruteForce:
-    def test_increment_returns_count(self, rc: RedisClient):
-        count = rc.increment_brute_force("bf_email:", "a@b.com", ttl_seconds=60)
+    # API v3 : increment_brute_force(key, ttl_seconds) — clé complète
+    # Utiliser RedisKeys.brute_force_user/ip/device pour construire la clé.
+
+    async def test_increment_returns_count(self, rc: RedisSecClient):
+        key = RedisKeys.brute_force_user(uid=1001)
+        count = await rc.increment_brute_force(key, ttl_seconds=60)
         assert count == 1
-        count2 = rc.increment_brute_force("bf_email:", "a@b.com", ttl_seconds=60)
+        count2 = await rc.increment_brute_force(key, ttl_seconds=60)
         assert count2 == 2
 
-    def test_get_brute_force_count(self, rc: RedisClient):
-        rc.increment_brute_force("bf_email:", "c@d.com", ttl_seconds=60)
-        rc.increment_brute_force("bf_email:", "c@d.com", ttl_seconds=60)
-        assert rc.get_brute_force_count("bf_email:", "c@d.com") == 2
+    async def test_get_brute_force_count(self, rc: RedisSecClient):
+        key = RedisKeys.brute_force_user(uid=1002)
+        await rc.increment_brute_force(key, ttl_seconds=60)
+        await rc.increment_brute_force(key, ttl_seconds=60)
+        assert await rc.get_brute_force_count(key) == 2
 
-    def test_get_brute_force_count_zero(self, rc: RedisClient):
-        assert rc.get_brute_force_count("bf_email:", "unknown@x.com") == 0
+    async def test_get_brute_force_count_zero(self, rc: RedisSecClient):
+        key = RedisKeys.brute_force_user(uid=9999)
+        assert await rc.get_brute_force_count(key) == 0
 
-    def test_reset_brute_force(self, rc: RedisClient):
-        rc.increment_brute_force("bf_email:", "e@f.com", ttl_seconds=60)
-        assert rc.reset_brute_force("bf_email:", "e@f.com") is True
-        assert rc.get_brute_force_count("bf_email:", "e@f.com") == 0
+    async def test_reset_brute_force(self, rc: RedisSecClient):
+        key = RedisKeys.brute_force_user(uid=1003)
+        await rc.increment_brute_force(key, ttl_seconds=60)
+        assert await rc.reset_brute_force(key) is True
+        assert await rc.get_brute_force_count(key) == 0
 
-    def test_set_and_check_lock(self, rc: RedisClient):
-        rc.set_brute_force_lock("locked@x.com", ttl_seconds=60)
-        assert rc.is_brute_force_locked("locked@x.com") is True
+    async def test_set_and_check_lock(self, rc: RedisSecClient):
+        await rc.set_brute_force_lock("locked@x.com", ttl_seconds=60)
+        assert await rc.is_brute_force_locked("locked@x.com") is True
 
-    def test_not_locked(self, rc: RedisClient):
-        assert rc.is_brute_force_locked("free@x.com") is False
+    async def test_not_locked(self, rc: RedisSecClient):
+        assert await rc.is_brute_force_locked("free@x.com") is False
 
-    def test_lock_ttl(self, rc: RedisClient):
-        rc.set_brute_force_lock("ttl@x.com", ttl_seconds=120)
-        ttl = rc.get_brute_force_lock_ttl("ttl@x.com")
+    async def test_lock_ttl(self, rc: RedisSecClient):
+        await rc.set_brute_force_lock("ttl@x.com", ttl_seconds=120)
+        ttl = await rc.get_brute_force_lock_ttl("ttl@x.com")
         assert 0 < ttl <= 120
 
-    def test_lock_ttl_no_lock(self, rc: RedisClient):
-        assert rc.get_brute_force_lock_ttl("nolock@x.com") == 0
+    async def test_lock_ttl_no_lock(self, rc: RedisSecClient):
+        assert await rc.get_brute_force_lock_ttl("nolock@x.com") == 0
 
-    def test_alert_sent_idempotent(self, rc: RedisClient):
-        # First call: True (marked)
-        assert rc.set_brute_force_alert_sent("alert@x.com", ttl_seconds=60) is True
-        # Second call: False (already marked, NX prevents overwrite)
-        result = rc.set_brute_force_alert_sent("alert@x.com", ttl_seconds=60)
+    async def test_alert_sent_idempotent(self, rc: RedisSecClient):
+        assert await rc.set_brute_force_alert_sent("alert@x.com", ttl_seconds=60) is True
+        result = await rc.set_brute_force_alert_sent("alert@x.com", ttl_seconds=60)
         assert result is None or result is False
 
-    def test_per_ip_counter_separate(self, rc: RedisClient):
-        rc.increment_brute_force("bf_ip:", "1.2.3.4", ttl_seconds=60)
-        rc.increment_brute_force("bf_email:", "user@x.com", ttl_seconds=60)
-        assert rc.get_brute_force_count("bf_ip:", "1.2.3.4") == 1
-        assert rc.get_brute_force_count("bf_email:", "user@x.com") == 1
+    async def test_ip_counter_separate_from_user(self, rc: RedisSecClient):
+        key_ip = RedisKeys.brute_force_ip(ip_hash="1.2.3.4")
+        key_user = RedisKeys.brute_force_user(uid=2001)
+        await rc.increment_brute_force(key_ip, ttl_seconds=60)
+        await rc.increment_brute_force(key_user, ttl_seconds=60)
+        assert await rc.get_brute_force_count(key_ip) == 1
+        assert await rc.get_brute_force_count(key_user) == 1
 
 
 # ── Sessions ─────────────────────────────────────────────────────────────
 
 class TestSessions:
-    def test_store_and_get_session(self, rc: RedisClient):
-        data = {"user_id": 1, "ip": "1.2.3.4", "ua": "Chrome"}
-        assert rc.store_session("sess_1", data, ttl_seconds=300) is True
-        result = rc.get_session("sess_1")
+    # API v3 : session:{uid}:{did}:{sid} = HASH
+    # store_session(user_id, device_id, session_id, data, ttl_seconds)
+    # get_session(user_id, device_id, session_id) → dict | None
+    # delete_session(user_id, device_id, session_id)
+    # update_session_activity(user_id, device_id, session_id, ttl_seconds)
+    # list_user_session_ids(user_id) → list["did:sid"]
+
+    async def test_store_and_get_session(self, rc: RedisSecClient):
+        data = {"ip": "1.2.3.4", "ua": "Chrome"}
+        assert await rc.store_session(
+            user_id=1, device_id="dev1", session_id="sess_1",
+            data=data, ttl_seconds=300,
+        ) is True
+        result = await rc.get_session(user_id=1, device_id="dev1", session_id="sess_1")
         assert result is not None
-        assert result["user_id"] == 1
         assert result["ip"] == "1.2.3.4"
 
-    def test_get_nonexistent_session(self, rc: RedisClient):
-        assert rc.get_session("sess_nope") is None
+    async def test_get_nonexistent_session(self, rc: RedisSecClient):
+        assert await rc.get_session(user_id=99, device_id="devX", session_id="sidX") is None
 
-    def test_delete_session(self, rc: RedisClient):
-        data = {"user_id": 1, "info": "test"}
-        rc.store_session("sess_del", data, ttl_seconds=300)
-        assert rc.delete_session("sess_del", user_id=1) is True
-        assert rc.get_session("sess_del") is None
+    async def test_delete_session(self, rc: RedisSecClient):
+        await rc.store_session(
+            user_id=1, device_id="dev_del", session_id="sess_del",
+            data={"info": "test"}, ttl_seconds=300,
+        )
+        assert await rc.delete_session(user_id=1, device_id="dev_del", session_id="sess_del") is True
+        assert await rc.get_session(user_id=1, device_id="dev_del", session_id="sess_del") is None
 
-    def test_store_session_adds_to_user_index(self, rc: RedisClient):
-        data = {"user_id": 20, "info": "indexed"}
-        rc.store_session("sess_idx1", data, ttl_seconds=300)
-        idx_key = f"{RedisKeys.SESSION_USER_INDEX}20"
-        members = rc.client.smembers(idx_key)
-        assert "sess_idx1" in members
+    async def test_store_session_adds_to_user_index(self, rc: RedisSecClient):
+        await rc.store_session(
+            user_id=20, device_id="dev20", session_id="sess_idx1",
+            data={"info": "indexed"}, ttl_seconds=300,
+        )
+        idx_key = RedisKeys.user_sessions_index(20)
+        members = await rc.client.smembers(idx_key)
+        assert "dev20:sess_idx1" in members
 
-    def test_delete_session_removes_from_user_index(self, rc: RedisClient):
-        data = {"user_id": 21, "info": "will_delete"}
-        rc.store_session("sess_idx_del", data, ttl_seconds=300)
-        rc.delete_session("sess_idx_del", user_id=21)
-        idx_key = f"{RedisKeys.SESSION_USER_INDEX}21"
-        members = rc.client.smembers(idx_key)
-        assert "sess_idx_del" not in members
+    async def test_delete_session_removes_from_user_index(self, rc: RedisSecClient):
+        await rc.store_session(
+            user_id=21, device_id="dev21", session_id="sess_del21",
+            data={"info": "will_delete"}, ttl_seconds=300,
+        )
+        await rc.delete_session(user_id=21, device_id="dev21", session_id="sess_del21")
+        idx_key = RedisKeys.user_sessions_index(21)
+        members = await rc.client.smembers(idx_key)
+        assert "dev21:sess_del21" not in members
 
-    def test_list_user_sessions(self, rc: RedisClient):
+    async def test_list_user_session_ids(self, rc: RedisSecClient):
         for i in range(3):
-            rc.store_session(f"list_s{i}", {"user_id": 30, "n": i}, ttl_seconds=300)
-        sessions = rc.list_user_sessions(user_id=30)
-        assert len(sessions) == 3
+            await rc.store_session(
+                user_id=30, device_id=f"dev30_{i}", session_id=f"sid30_{i}",
+                data={"n": i}, ttl_seconds=300,
+            )
+        ids = await rc.list_user_session_ids(user_id=30)
+        assert len(ids) == 3
 
-    def test_list_user_sessions_cleans_stale(self, rc: RedisClient):
-        # Store a session then delete the data key (simulate expiry)
-        rc.store_session("stale_s", {"user_id": 31}, ttl_seconds=300)
-        rc.client.delete(f"{RedisKeys.SESSION}stale_s")
-        sessions = rc.list_user_sessions(user_id=31)
-        assert len(sessions) == 0
-        # Stale entry should be removed from index
-        members = rc.client.smembers(f"{RedisKeys.SESSION_USER_INDEX}31")
-        assert "stale_s" not in members
+    async def test_list_user_session_ids_empty(self, rc: RedisSecClient):
+        assert await rc.list_user_session_ids(user_id=9990) == []
 
-    def test_list_user_sessions_empty(self, rc: RedisClient):
-        assert rc.list_user_sessions(user_id=999) == []
-
-    def test_delete_all_user_sessions(self, rc: RedisClient):
+    async def test_revoke_all_user_sessions(self, rc: RedisSecClient):
         for i in range(4):
-            rc.store_session(f"all_s{i}", {"user_id": 40}, ttl_seconds=300)
-        count = rc.delete_all_user_sessions(user_id=40)
+            await rc.store_session(
+                user_id=40, device_id=f"dev40_{i}", session_id=f"sid40_{i}",
+                data={"info": "x"}, ttl_seconds=300,
+            )
+            await rc.store_refresh_jti(
+                jti=f"jti40_{i}", user_id=40, tenant_id=1, family_id=f"fam_{i}",
+                device_id=f"dev40_{i}", session_id=f"sid40_{i}", ttl_seconds=300,
+            )
+        count = await rc.revoke_all_user_sessions(user_id=40)
         assert count == 4
-        assert rc.list_user_sessions(user_id=40) == []
+        assert await rc.list_user_session_ids(user_id=40) == []
 
-    def test_update_session_activity(self, rc: RedisClient):
-        data = {"user_id": 50, "last_activity": "old"}
-        rc.store_session("act_s", data, ttl_seconds=300)
-        assert rc.update_session_activity("act_s", ttl_seconds=300) is True
-        updated = rc.get_session("act_s")
+    async def test_update_session_activity(self, rc: RedisSecClient):
+        await rc.store_session(
+            user_id=50, device_id="dev50", session_id="act_s",
+            data={"last_activity": "old"}, ttl_seconds=300,
+        )
+        assert await rc.update_session_activity(
+            user_id=50, device_id="dev50", session_id="act_s", ttl_seconds=300,
+        ) is True
+        updated = await rc.get_session(user_id=50, device_id="dev50", session_id="act_s")
         assert updated["last_activity"] != "old"
 
-    def test_update_session_activity_nonexistent(self, rc: RedisClient):
-        assert rc.update_session_activity("no_sess", ttl_seconds=300) is False
+    async def test_update_session_activity_nonexistent(self, rc: RedisSecClient):
+        assert await rc.update_session_activity(
+            user_id=99, device_id="ghost", session_id="no_sess", ttl_seconds=300,
+        ) is False
 
-    def test_session_ttl_expires(self, rc: RedisClient):
-        rc.store_session("ttl_sess", {"user_id": 60}, ttl_seconds=1)
-        assert rc.get_session("ttl_sess") is not None
+    async def test_session_ttl_expires(self, rc: RedisSecClient):
+        await rc.store_session(
+            user_id=60, device_id="dev60", session_id="ttl_sess",
+            data={"info": "x"}, ttl_seconds=1,
+        )
+        assert await rc.get_session(user_id=60, device_id="dev60", session_id="ttl_sess") is not None
         time.sleep(1.5)
-        assert rc.get_session("ttl_sess") is None
+        assert await rc.get_session(user_id=60, device_id="dev60", session_id="ttl_sess") is None
 
 
-# ── Password Reset Tokens ──────────────────────────────────────────────
+# ── Password Reset Rate Limiting ────────────────────────────────────────
+# Note: tokens migrés vers PostgreSQL (NC-05 — spec §04-AUTH-FLOWS §4.4)
 
-class TestPasswordReset:
-    def test_store_and_get_token(self, rc: RedisClient):
-        assert rc.store_password_reset_token(
-            token_hash="hash_abc", user_id=1, tenant_id=1, email="a@b.com",
-            ttl_seconds=120,
-        ) is True
-        data = rc.get_password_reset_token("hash_abc")
-        assert data is not None
-        assert data["user_id"] == 1
-        assert data["tenant_id"] == 1
-        assert data["email"] == "a@b.com"
-
-    def test_get_nonexistent_token(self, rc: RedisClient):
-        assert rc.get_password_reset_token("hash_nope") is None
-
-    def test_consume_token_single_use(self, rc: RedisClient):
-        rc.store_password_reset_token(
-            token_hash="hash_once", user_id=2, tenant_id=1, email="x@y.com",
-            ttl_seconds=120,
-        )
-        data = rc.consume_password_reset_token("hash_once")
-        assert data is not None
-        assert data["user_id"] == 2
-        # Second consume must return None (single-use)
-        assert rc.consume_password_reset_token("hash_once") is None
-
-    def test_consume_nonexistent_token(self, rc: RedisClient):
-        assert rc.consume_password_reset_token("hash_ghost") is None
-
-    def test_delete_token(self, rc: RedisClient):
-        rc.store_password_reset_token(
-            token_hash="hash_del", user_id=3, tenant_id=1, email="d@e.com",
-            ttl_seconds=120,
-        )
-        assert rc.delete_password_reset_token("hash_del") is True
-        assert rc.get_password_reset_token("hash_del") is None
-
-    def test_delete_nonexistent_token(self, rc: RedisClient):
-        assert rc.delete_password_reset_token("hash_missing") is False
-
-    def test_token_ttl_expires(self, rc: RedisClient):
-        rc.store_password_reset_token(
-            token_hash="hash_ttl", user_id=4, tenant_id=1, email="t@t.com",
-            ttl_seconds=1,
-        )
-        assert rc.get_password_reset_token("hash_ttl") is not None
-        time.sleep(1.5)
-        assert rc.get_password_reset_token("hash_ttl") is None
-
-    def test_increment_rate_counter(self, rc: RedisClient):
-        count1 = rc.increment_password_reset_rate("rate@test.com", ttl_seconds=60)
+class TestPasswordResetRateLimiting:
+    async def test_increment_rate_counter(self, rc: RedisSecClient):
+        count1 = await rc.increment_password_reset_rate("rate@test.com", ttl_seconds=60)
         assert count1 == 1
-        count2 = rc.increment_password_reset_rate("rate@test.com", ttl_seconds=60)
+        count2 = await rc.increment_password_reset_rate("rate@test.com", ttl_seconds=60)
         assert count2 == 2
 
-    def test_get_rate_counter(self, rc: RedisClient):
-        rc.increment_password_reset_rate("cnt@test.com", ttl_seconds=60)
-        rc.increment_password_reset_rate("cnt@test.com", ttl_seconds=60)
-        rc.increment_password_reset_rate("cnt@test.com", ttl_seconds=60)
-        assert rc.get_password_reset_rate("cnt@test.com") == 3
+    async def test_get_rate_counter(self, rc: RedisSecClient):
+        await rc.increment_password_reset_rate("cnt@test.com", ttl_seconds=60)
+        await rc.increment_password_reset_rate("cnt@test.com", ttl_seconds=60)
+        await rc.increment_password_reset_rate("cnt@test.com", ttl_seconds=60)
+        assert await rc.get_password_reset_rate("cnt@test.com") == 3
 
-    def test_get_rate_counter_zero(self, rc: RedisClient):
-        assert rc.get_password_reset_rate("noone@test.com") == 0
+    async def test_get_rate_counter_zero(self, rc: RedisSecClient):
+        assert await rc.get_password_reset_rate("noone@test.com") == 0
 
-    def test_rate_counter_case_insensitive(self, rc: RedisClient):
-        rc.increment_password_reset_rate("MiXeD@Case.COM", ttl_seconds=60)
-        assert rc.get_password_reset_rate("mixed@case.com") == 1
+    async def test_rate_counter_case_insensitive(self, rc: RedisSecClient):
+        await rc.increment_password_reset_rate("MiXeD@Case.COM", ttl_seconds=60)
+        assert await rc.get_password_reset_rate("mixed@case.com") == 1
 
-    def test_rate_counter_ttl_expires(self, rc: RedisClient):
-        rc.increment_password_reset_rate("expire@rate.com", ttl_seconds=1)
-        assert rc.get_password_reset_rate("expire@rate.com") == 1
+    async def test_rate_counter_ttl_expires(self, rc: RedisSecClient):
+        await rc.increment_password_reset_rate("expire@rate.com", ttl_seconds=1)
+        assert await rc.get_password_reset_rate("expire@rate.com") == 1
         time.sleep(1.5)
-        assert rc.get_password_reset_rate("expire@rate.com") == 0
+        assert await rc.get_password_reset_rate("expire@rate.com") == 0

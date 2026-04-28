@@ -1,9 +1,11 @@
 """Repository pour l'entité Product."""
 from typing import Optional
-from sqlalchemy import select, and_
-from sqlalchemy.orm import Session
+from sqlalchemy import select, and_, func
+from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.product import Product
-from app.repositories.base import BaseRepository
+from app.models.product_image import ProductImage
+from app.repositories.base import BaseRepository, AsyncBaseRepository
 
 
 class ProductRepository(BaseRepository[Product]):
@@ -245,6 +247,47 @@ class ProductRepository(BaseRepository[Product]):
         self.db.flush()
         return True
 
+    def list_with_search(
+        self,
+        tenant_id: int,
+        search_term: str,
+        skip: int = 0,
+        limit: int = 100,
+        condition: Optional[str] = None,
+        supplier_id: Optional[int] = None,
+    ) -> tuple[list[Product], int]:
+        """Liste paginée avec count, filtrée par nom/SKU (ilike).
+
+        Returns:
+            Tuple (items, total)
+        """
+        search_pattern = f"%{search_term.lower()}%"
+        name_sku_filter = (
+            (Product.name.ilike(search_pattern)) |
+            (Product.sku.ilike(search_pattern))
+        )
+
+        count_q = select(func.count()).select_from(Product).filter(name_sku_filter)
+        count_q = self._apply_tenant_filter(count_q, tenant_id)
+        count_q = self._apply_active_filter(count_q)
+        if condition:
+            count_q = count_q.filter(Product.condition == condition)
+        if supplier_id is not None:
+            count_q = count_q.filter(Product.supplier_id == supplier_id)
+        total = self.db.execute(count_q).scalar() or 0
+
+        query = select(Product).filter(name_sku_filter)
+        query = self._apply_tenant_filter(query, tenant_id)
+        query = self._apply_active_filter(query)
+        if condition:
+            query = query.filter(Product.condition == condition)
+        if supplier_id is not None:
+            query = query.filter(Product.supplier_id == supplier_id)
+        query = query.order_by(Product.category, Product.name)
+        query = query.offset(skip).limit(min(limit, 1000))
+        result = self.db.execute(query).scalars().all()
+        return (list(result), total)
+
     def search_by_name(
         self,
         search_term: str,
@@ -279,3 +322,183 @@ class ProductRepository(BaseRepository[Product]):
 
         result = self.db.execute(query).scalars().all()
         return list(result)
+
+
+class AsyncProductRepository(AsyncBaseRepository[Product]):
+    """Version async de ProductRepository pour FastAPI."""
+
+    def __init__(self, db: AsyncSession):
+        super().__init__(db, Product)
+
+    async def get_by_id_with_images(
+        self, product_id: int, tenant_id: int, include_inactive: bool = False
+    ) -> Optional[Product]:
+        """Récupère un produit avec ses images eagerly-loaded (évite MissingGreenlet)."""
+        query = (
+            select(Product)
+            .filter(Product.id == product_id)
+            .options(selectinload(Product.images))
+        )
+        query = self._apply_tenant_filter(query, tenant_id)
+        if not include_inactive:
+            query = self._apply_active_filter(query)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def get_by_sku(
+        self, sku: str, tenant_id: int, include_inactive: bool = False
+    ) -> Optional[Product]:
+        query = select(Product).filter(Product.sku == sku.upper().strip())
+        query = self._apply_tenant_filter(query, tenant_id)
+        if not include_inactive:
+            query = self._apply_active_filter(query)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def sku_exists(
+        self, sku: str, tenant_id: int, exclude_id: Optional[int] = None
+    ) -> bool:
+        query = select(Product).filter(Product.sku == sku.upper().strip())
+        query = self._apply_tenant_filter(query, tenant_id)
+        query = self._apply_active_filter(query)
+        if exclude_id:
+            query = query.filter(Product.id != exclude_id)
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none() is not None
+
+    async def list_by_category(
+        self, category: str, tenant_id: int, skip: int = 0, limit: int = 100
+    ) -> list[Product]:
+        items, _ = await self.list(
+            tenant_id=tenant_id, skip=skip, limit=limit, filters={"category": category}
+        )
+        return items
+
+    async def list_available(
+        self, tenant_id: int, skip: int = 0, limit: int = 100, category: Optional[str] = None
+    ) -> list[Product]:
+        query = select(Product).filter(Product.available_quantity > 0)
+        query = self._apply_tenant_filter(query, tenant_id)
+        query = self._apply_active_filter(query)
+        if category:
+            query = query.filter(Product.category == category)
+        query = query.order_by(Product.category, Product.name).offset(skip).limit(min(limit, 1000))
+        result = await self.db.execute(query)
+        return list(result.scalars().all())
+
+    async def check_availability(self, product_id: int, quantity: int, tenant_id: int) -> bool:
+        product = await self.get_by_id(product_id, tenant_id, include_inactive=False)
+        if not product:
+            return False
+        return product.available_quantity >= quantity
+
+    async def _get_for_update(self, product_id: int, tenant_id: int) -> "Product | None":
+        query = select(Product).where(
+            and_(
+                Product.id == product_id,
+                Product.tenant_id == tenant_id,
+                Product.is_active == True,  # noqa: E712
+            )
+        ).with_for_update()
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    async def reserve_stock(self, product_id: int, quantity: int, tenant_id: int) -> bool:
+        product = await self._get_for_update(product_id, tenant_id)
+        if not product or product.available_quantity < quantity:
+            return False
+        product.available_quantity -= quantity
+        await self.db.flush()
+        return True
+
+    async def release_stock(self, product_id: int, quantity: int, tenant_id: int) -> bool:
+        product = await self._get_for_update(product_id, tenant_id)
+        if not product:
+            return False
+        new_available = product.available_quantity + quantity
+        if new_available > product.stock_quantity:
+            new_available = product.stock_quantity
+        product.available_quantity = new_available
+        await self.db.flush()
+        return True
+
+    async def sync_available_from_variants(self, product_id: int, tenant_id: int) -> None:
+        """Recalcule products.available_quantity et stock_quantity depuis les variantes actives.
+
+        Source de vérité unique : SUM des variantes actives.
+        Appelé après chaque reserve/release/create/delete sur une variante.
+        Partage la même AsyncSession → même transaction implicite que l'UPDATE variant.
+        """
+        from sqlalchemy import update
+        from app.models.product_variant import ProductVariant
+
+        subq_available = (
+            select(func.coalesce(func.sum(ProductVariant.available_quantity), 0))
+            .where(
+                ProductVariant.product_id == product_id,
+                ProductVariant.tenant_id == tenant_id,
+                ProductVariant.is_active == True,  # noqa: E712
+            )
+            .scalar_subquery()
+        )
+        subq_stock = (
+            select(func.coalesce(func.sum(ProductVariant.stock_quantity), 0))
+            .where(
+                ProductVariant.product_id == product_id,
+                ProductVariant.tenant_id == tenant_id,
+                ProductVariant.is_active == True,  # noqa: E712
+            )
+            .scalar_subquery()
+        )
+        await self.db.execute(
+            update(Product)
+            .where(Product.id == product_id, Product.tenant_id == tenant_id)
+            .values(available_quantity=subq_available, stock_quantity=subq_stock)
+        )
+
+    async def list_with_search(
+        self,
+        tenant_id: int,
+        search_term: str,
+        skip: int = 0,
+        limit: int = 100,
+        condition: Optional[str] = None,
+        supplier_id: Optional[int] = None,
+    ) -> tuple[list[Product], int]:
+        search_pattern = f"%{search_term.lower()}%"
+        name_sku_filter = (
+            (Product.name.ilike(search_pattern)) | (Product.sku.ilike(search_pattern))
+        )
+        count_q = select(func.count()).select_from(Product).filter(name_sku_filter)
+        count_q = self._apply_tenant_filter(count_q, tenant_id)
+        count_q = self._apply_active_filter(count_q)
+        if condition:
+            count_q = count_q.filter(Product.condition == condition)
+        if supplier_id is not None:
+            count_q = count_q.filter(Product.supplier_id == supplier_id)
+        total_result = await self.db.execute(count_q)
+        total = total_result.scalar() or 0
+
+        query = select(Product).filter(name_sku_filter)
+        query = self._apply_tenant_filter(query, tenant_id)
+        query = self._apply_active_filter(query)
+        if condition:
+            query = query.filter(Product.condition == condition)
+        if supplier_id is not None:
+            query = query.filter(Product.supplier_id == supplier_id)
+        query = query.order_by(Product.category, Product.name).offset(skip).limit(min(limit, 1000))
+        result = await self.db.execute(query)
+        return (list(result.scalars().all()), total)
+
+    async def search_by_name(
+        self, search_term: str, tenant_id: int, skip: int = 0, limit: int = 100
+    ) -> list[Product]:
+        search_pattern = f"%{search_term.lower()}%"
+        query = select(Product).filter(
+            (Product.name.ilike(search_pattern)) | (Product.sku.ilike(search_pattern))
+        )
+        query = self._apply_tenant_filter(query, tenant_id)
+        query = self._apply_active_filter(query)
+        query = query.order_by(Product.category, Product.name).offset(skip).limit(min(limit, 1000))
+        result = await self.db.execute(query)
+        return list(result.scalars().all())

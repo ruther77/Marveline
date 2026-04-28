@@ -2,13 +2,18 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.config import settings
+from app.core.database import get_async_db
+from app.core.deps import get_current_user_async, UserCompat
+from app.core.redis import redis_sec
 from app.core.security import decode_token
-from app.models.user import User
+
+# P1-18 : rate limiting TOTP verification
+TOTP_MAX_ATTEMPTS = 5
+TOTP_LOCKOUT_SECONDS = 300
 from app.schemas.auth import TokenResponse
 from app.schemas.mfa import (
     MFADisableResponse,
@@ -19,10 +24,12 @@ from app.schemas.mfa import (
     MFAVerifyRequest,
     MFAVerifySetupRequest,
     MFAVerifySetupResponse,
+    StepUpVerifyRequest,
+    StepUpVerifyResponse,
 )
 from app.services.audit import AuditService
 from app.services.mfa import mfa_service
-from app.services.session import session_service
+from app.services.session import session_service, generate_device_id
 from app.services.token import token_service
 from app.constants import ErrorMessages
 
@@ -32,9 +39,9 @@ router = APIRouter(prefix="/mfa", tags=["MFA"])
 
 
 @router.post("/setup", response_model=MFASetupResponse, status_code=status.HTTP_200_OK)
-def setup_mfa(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+async def setup_mfa(
+    current_user: UserCompat = Depends(get_current_user_async),
+    async_db: AsyncSession = Depends(get_async_db),
 ) -> MFASetupResponse:
     """Initialise le setup MFA TOTP pour l'utilisateur.
 
@@ -45,13 +52,13 @@ def setup_mfa(
         MFASetupResponse avec secret, provisioning_uri, recovery_codes
     """
     try:
-        secret, provisioning_uri, recovery_codes = mfa_service.setup_totp(
-            db=db,
+        secret, provisioning_uri, recovery_codes = await mfa_service.setup_totp(
+            db=async_db,
             user_id=current_user.id,
             tenant_id=current_user.tenant_id,
             email=current_user.email,
         )
-        db.commit()
+        await async_db.commit()
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -66,10 +73,10 @@ def setup_mfa(
 
 
 @router.post("/verify-setup", response_model=MFAVerifySetupResponse, status_code=status.HTTP_200_OK)
-def verify_setup(
+async def verify_setup(
     body: MFAVerifySetupRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: UserCompat = Depends(get_current_user_async),
+    async_db: AsyncSession = Depends(get_async_db),
 ) -> MFAVerifySetupResponse:
     """Valide le setup MFA avec un premier code TOTP.
 
@@ -79,13 +86,13 @@ def verify_setup(
         MFAVerifySetupResponse avec confirmation
     """
     try:
-        mfa_service.verify_setup(
-            db=db,
+        await mfa_service.verify_setup(
+            db=async_db,
             user_id=current_user.id,
             tenant_id=current_user.tenant_id,
             totp_code=body.totp_code,
         )
-        db.commit()
+        await async_db.commit()
     except ValueError as e:
         error_msg = str(e)
         if "No pending" in error_msg:
@@ -102,11 +109,15 @@ def verify_setup(
     return MFAVerifySetupResponse(enabled=True, message="MFA enabled successfully")
 
 
+_REFRESH_COOKIE_MAX_AGE = 7 * 24 * 3600  # 7 jours en secondes
+
+
 @router.post("/verify", response_model=TokenResponse, status_code=status.HTTP_200_OK)
-def verify_mfa(
+async def verify_mfa(
     body: MFAVerifyRequest,
     request: Request,
-    db: Session = Depends(get_db),
+    response: Response,
+    async_db: AsyncSession = Depends(get_async_db),
 ) -> TokenResponse:
     """Vérifie le code MFA et complète l'authentification (step 2 du login).
 
@@ -117,8 +128,18 @@ def verify_mfa(
     Returns:
         TokenResponse avec access_token, refresh_token, expires_in
     """
-    # Valider le mfa_session_token (single-use, supprimé après lecture)
-    session_data = mfa_service.validate_mfa_session(body.mfa_session_token)
+    # P1-18 : rate limit TOTP par IP
+    client_ip = request.client.host if request.client else "unknown"
+    totp_lockout_key = f"totp_lockout:{client_ip}"
+    totp_attempts_raw = await redis_sec.client.get(totp_lockout_key)
+    if totp_attempts_raw and int(totp_attempts_raw) >= TOTP_MAX_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"error": "TOTP_RATE_LIMITED", "retry_after": TOTP_LOCKOUT_SECONDS},
+        )
+
+    # Valider le mfa_session_token (single-use Redis — méthode synchrone)
+    session_data = await mfa_service.validate_mfa_session(body.mfa_session_token)
     if not session_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -147,20 +168,24 @@ def verify_mfa(
     # Vérifier le code TOTP ou recovery
     try:
         if body.totp_code:
-            mfa_service.verify_totp(
-                db=db,
+            await mfa_service.verify_totp(
+                db=async_db,
                 user_id=user_id,
                 tenant_id=tenant_id,
                 totp_code=body.totp_code,
             )
         else:
-            mfa_service.verify_recovery_code(
-                db=db,
+            await mfa_service.verify_recovery_code(
+                db=async_db,
                 user_id=user_id,
                 tenant_id=tenant_id,
                 recovery_code=body.recovery_code,
             )
     except ValueError as e:
+        # P1-18 : incrementer compteur echec TOTP
+        await redis_sec.client.incr(totp_lockout_key)
+        await redis_sec.client.expire(totp_lockout_key, TOTP_LOCKOUT_SECONDS)
+
         error_msg = str(e)
         if "already used" in error_msg:
             detail = ErrorMessages.MFA_CODE_ALREADY_USED
@@ -180,15 +205,17 @@ def verify_mfa(
             detail=detail,
         )
 
-    # ── MFA vérifié — émettre tokens JWT et créer session ──
+    # P1-18 : reset compteur apres succes
+    await redis_sec.client.delete(totp_lockout_key)
 
-    # Audit log LOGIN_SUCCESS (maintenant que l'authentification est complète)
+    # ── MFA vérifié — audit + session + tokens ──
+
     ip_address = request.client.host if request.client else mfa_ip
     user_agent = request.headers.get("User-Agent", "unknown")
     request_id = getattr(request.state, "request_id", None) or str(uuid.uuid4())
 
-    audit_service = AuditService(db)
-    audit_service.log_login(
+    audit_service = AuditService(async_db)
+    await audit_service.log_login(
         user_id=user_id,
         tenant_id=tenant_id,
         ip_address=ip_address,
@@ -197,47 +224,61 @@ def verify_mfa(
         success=True,
         email=email,
     )
-    db.commit()
+    await async_db.commit()
 
-    # Émettre tokens JWT
-    access_token, refresh_token, expires_in = token_service.issue_tokens(
+    # 1. Générer device_id (fingerprint User-Agent + IP /24)
+    device_id = generate_device_id(user_agent, ip_address)
+
+    # 2. Créer session DB+Redis AVANT d'émettre les tokens (session_id requis dans JWT)
+    session_id = await session_service.create_session(
+        db=async_db,
         user_id=user_id,
         tenant_id=tenant_id,
-        email=email,
-        role=role,
-    )
-
-    # Créer session Redis
-    refresh_payload = decode_token(refresh_token)
-    family_id = refresh_payload.get("family_id", "")
-    session_service.create_session(
-        user_id=user_id,
-        tenant_id=tenant_id,
-        family_id=family_id,
+        device_id=device_id,
         ip_address=ip_address,
         user_agent=user_agent,
+        mfa_verified=True,
+    )
+    await async_db.commit()
+
+    # 3. Émettre tokens JWT avec did + sid v3
+    access_token, refresh_token, expires_in = await token_service.issue_tokens(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        role=role,
+        device_id=device_id,
+        session_id=session_id,
     )
 
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite="lax",
+        max_age=_REFRESH_COOKIE_MAX_AGE,
+    )
     return TokenResponse(
         access_token=access_token,
-        refresh_token=refresh_token,
         token_type="bearer",
         expires_in=expires_in,
     )
 
 
 @router.get("/status", response_model=MFAStatusResponse, status_code=status.HTTP_200_OK)
-def mfa_status(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+async def mfa_status(
+    current_user: UserCompat = Depends(get_current_user_async),
+    async_db: AsyncSession = Depends(get_async_db),
 ) -> MFAStatusResponse:
     """Retourne le statut MFA de l'utilisateur connecté.
 
     Returns:
         MFAStatusResponse avec mfa_enabled et recovery_codes_remaining
     """
-    enabled = mfa_service.is_mfa_enabled(db, current_user.id, current_user.tenant_id)
-    remaining = mfa_service.get_recovery_codes_count(db, current_user.id, current_user.tenant_id)
+    enabled = await mfa_service.is_mfa_enabled(async_db, current_user.id, current_user.tenant_id)
+    remaining = await mfa_service.get_recovery_codes_count(
+        async_db, current_user.id, current_user.tenant_id
+    )
 
     return MFAStatusResponse(
         mfa_enabled=enabled,
@@ -246,9 +287,9 @@ def mfa_status(
 
 
 @router.delete("", response_model=MFADisableResponse, status_code=status.HTTP_200_OK)
-def disable_mfa(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+async def disable_mfa(
+    current_user: UserCompat = Depends(get_current_user_async),
+    async_db: AsyncSession = Depends(get_async_db),
 ) -> MFADisableResponse:
     """Désactive le MFA pour l'utilisateur connecté.
 
@@ -258,12 +299,12 @@ def disable_mfa(
         MFADisableResponse avec confirmation
     """
     try:
-        mfa_service.disable_mfa(
-            db=db,
+        await mfa_service.disable_mfa(
+            db=async_db,
             user_id=current_user.id,
             tenant_id=current_user.tenant_id,
         )
-        db.commit()
+        await async_db.commit()
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -278,11 +319,11 @@ def disable_mfa(
     response_model=MFARegenerateCodesResponse,
     status_code=status.HTTP_200_OK,
 )
-def regenerate_backup_codes(
+async def regenerate_backup_codes(
     body: MFARegenerateCodesRequest,
     request: Request,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user: UserCompat = Depends(get_current_user_async),
+    async_db: AsyncSession = Depends(get_async_db),
 ) -> MFARegenerateCodesResponse:
     """Régénère les codes de récupération MFA.
 
@@ -294,8 +335,8 @@ def regenerate_backup_codes(
     """
     # Vérifier le code TOTP d'abord (preuve d'identité)
     try:
-        mfa_service.verify_totp(
-            db=db,
+        await mfa_service.verify_totp(
+            db=async_db,
             user_id=current_user.id,
             tenant_id=current_user.tenant_id,
             totp_code=body.totp_code,
@@ -317,8 +358,8 @@ def regenerate_backup_codes(
 
     # Régénérer les codes
     try:
-        new_codes = mfa_service.regenerate_recovery_codes(
-            db=db,
+        new_codes = await mfa_service.regenerate_recovery_codes(
+            db=async_db,
             user_id=current_user.id,
             tenant_id=current_user.tenant_id,
         )
@@ -333,8 +374,8 @@ def regenerate_backup_codes(
     user_agent = request.headers.get("User-Agent")
     request_id = getattr(request.state, "request_id", None)
 
-    audit_service = AuditService(db)
-    audit_service.log_action(
+    audit_service = AuditService(async_db)
+    await audit_service.log_action(
         action="RECOVERY_CODES_REGENERATED",
         tenant_id=current_user.tenant_id,
         user_id=current_user.id,
@@ -345,7 +386,40 @@ def regenerate_backup_codes(
         user_agent=user_agent,
         request_id=request_id,
     )
-
-    db.commit()
+    await async_db.commit()
 
     return MFARegenerateCodesResponse(recovery_codes=new_codes)
+
+
+@router.post("/stepup/verify", response_model=StepUpVerifyResponse, status_code=status.HTTP_200_OK)
+async def verify_mfa_stepup(
+    payload: StepUpVerifyRequest,
+    request: Request,
+    current_user: UserCompat = Depends(get_current_user_async),
+    async_db: AsyncSession = Depends(get_async_db),
+) -> StepUpVerifyResponse:
+    """Valide le MFA step-up pour accéder à une action sensible (spec §05.3).
+
+    Vérifie le code TOTP et enregistre le step-up valide pour 15 minutes.
+    À appeler avant un endpoint protégé par require_stepup().
+
+    Returns:
+        StepUpVerifyResponse avec statut et durée de validité
+    """
+    device_id = ""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            tok = decode_token(auth_header[len("Bearer "):])
+            device_id = tok.get("did", "")
+        except Exception:
+            pass
+
+    try:
+        await mfa_service.verify_stepup(
+            async_db, current_user.id, device_id, payload.totp_code
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+
+    return StepUpVerifyResponse()

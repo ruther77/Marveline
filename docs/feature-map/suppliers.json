@@ -1,0 +1,159 @@
+{
+  "id": "page:suppliers",
+  "type": "page",
+  "name": "Fournisseurs",
+  "description": "Page principale \"Fournisseurs\". Contenu non détecté automatiquement.",
+  "route": "/products/suppliers",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "manager",
+      "admin"
+    ],
+    "group": "Catalogue",
+    "dom_h1": "Fournisseurs"
+  },
+  "params": {},
+  "features": [],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "f±@gmail.com",
+      "trigger": "click",
+      "target_id": "page:external:mailto-f-gmail-com",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "0756855181",
+      "trigger": "click",
+      "target_id": "page:external:tel-0756855181",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nouveau fournisseur",
+      "trigger": "click",
+      "target_id": "modal:nouveau-fournisseur",
+      "node": {
+        "id": "modal:nouveau-fournisseur",
+        "type": "form",
+        "name": "Nouveau fournisseur",
+        "description": "Formulaire \"Nouveau fournisseur\". Contient : Champ : Nom du fournisseur, Champ : Nom du contact, Champ : contact@fournisseur.fr, Champ : 06 XX XX XX XX, Champ : Adresse complète, Champ : Informations complémentaires…. Paramètres : nom-du-fournisseur, nom-du-contact, contact-fournisseur-fr, 06-xx-xx-xx-xx, adresse-complete, informations-complementaires.",
+        "attributes": {
+          "depth": 1,
+          "opened_from_depth": 0
+        },
+        "params": {
+          "nom-du-fournisseur": "text",
+          "nom-du-contact": "text",
+          "contact-fournisseur-fr": "email",
+          "06-xx-xx-xx-xx": "tel",
+          "adresse-complete": "text",
+          "informations-complementaires": "textarea"
+        },
+        "features": [
+          "Champ : Nom du fournisseur",
+          "Champ : Nom du contact",
+          "Champ : contact@fournisseur.fr",
+          "Champ : 06 XX XX XX XX",
+          "Champ : Adresse complète",
+          "Champ : Informations complémentaires…",
+          "Fermer",
+          "Annuler",
+          "Créer"
+        ],
+        "children": [
+          {
+            "link_type": "action",
+            "label": "Fermer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "action",
+            "label": "Annuler",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "form_submit",
+            "label": "Créer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          }
+        ]
+      }
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Modifier",
+      "trigger": "click",
+      "target_id": "modal:modifier",
+      "node": {
+        "id": "modal:modifier",
+        "type": "modal",
+        "name": "Modifier",
+        "description": "Modal/panneau ouvert(e) par le bouton \"Modifier\" sur la page Fournisseurs. Non extrait automatiquement.",
+        "attributes": {
+          "scan_status": "placeholder"
+        },
+        "params": {},
+        "features": [],
+        "children": []
+      }
+    },
+    {
+      "link_type": "action",
+      "label": "Supprimer",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

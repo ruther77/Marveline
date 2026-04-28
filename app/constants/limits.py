@@ -35,8 +35,8 @@ class Limits:
     PASSWORD_MIN_LENGTH = 8
     """Longueur minimale d'un mot de passe."""
 
-    JWT_SECRET_MIN_LENGTH = 32
-    """Longueur minimale du secret JWT (256 bits)."""
+    RSA_KEY_MIN_BITS = 2048
+    """Taille minimale de la cle RSA pour JWT RS256."""
 
     # ─────────────────────────────────────────────────────────────────────
     # Rate Limiting
@@ -49,14 +49,17 @@ class Limits:
     """Fenêtre de temps pour le rate limiting (1 minute)."""
 
     # ─────────────────────────────────────────────────────────────────────
-    # Tokens
+    # Tokens (CaroCorp §1.4, §2.1)
     # ─────────────────────────────────────────────────────────────────────
 
-    ACCESS_TOKEN_EXPIRE_MINUTES = 30
-    """Durée de validité d'un access token JWT."""
+    ACCESS_TOKEN_EXPIRE_SECONDS = 900
+    """Duree de validite d'un access token JWT (15 min)."""
 
-    REFRESH_TOKEN_EXPIRE_DAYS = 7
-    """Durée de validité d'un refresh token."""
+    REFRESH_TOKEN_EXPIRE_SECONDS = 604800
+    """Duree de validite d'un refresh token (7 jours)."""
+
+    MAX_SESSIONS_PER_USER = 5
+    """Nombre max de sessions simultanees par utilisateur (CaroCorp §6.8)."""
 
     # ─────────────────────────────────────────────────────────────────────
     # Password Reset
@@ -70,6 +73,12 @@ class Limits:
 
     PASSWORD_RESET_WINDOW_MINUTES = 15
     """Fenêtre de rate limiting pour les demandes reset (en minutes)."""
+
+    PASSWORD_CHANGE_MAX_ATTEMPTS = 3
+    """Nombre max de tentatives échouées pour change_password (§4.5 S-09.3)."""
+
+    PASSWORD_CHANGE_WINDOW_SECONDS = 900
+    """Fenêtre brute force pour change_password : 15 min glissantes (§4.5)."""
 
     # ─────────────────────────────────────────────────────────────────────
     # Business Logic

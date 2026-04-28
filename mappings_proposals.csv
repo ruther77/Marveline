@@ -1,0 +1,191 @@
+keep,ordre,ingredient_id,ingredient_nom,ingredient_unite,ingredient_categ,ingredient_cout_cts,epicerie_produit_id,epicerie_designation,epicerie_volume_ml,epicerie_unite_base,epicerie_colisage,score,facteur_conv_suggere,notes
+?,0,36,Gésier,kg,Abats,550,9015,Snickers 50g,,g,40,55,1.0,INCERTAIN
+?,1,36,Gésier,kg,Abats,550,8177,Snickers 50g,,g,32,55,1.0,INCERTAIN
+?,0,35,Rognon,kg,Abats,700,7561,Oignons 5kg,,kg,,58,1.0,INCERTAIN
+NON,,34,Tripes,kg,Abats,600,,,,,,,,pas de match ≥ min_score
+OUI,0,86,1664 (bouteille),bouteille,Boissons stock,150,7630,1664 25cL,250,cL,20,100,1.0,AUTO
+?,1,86,1664 (bouteille),bouteille,Boissons stock,150,8340,1664 50cL,500,cL,24,100,1.0,AUTO
+?,2,86,1664 (bouteille),bouteille,Boissons stock,150,7540,1664 75cL,750,cL,6,100,1.0,AUTO
+?,0,92,33 Export (bouteille),bouteille,Boissons stock,180,8623,Nem Porc 33g,,g,50,66,1.0,INCERTAIN
+?,1,92,33 Export (bouteille),bouteille,Boissons stock,180,8624,Nem Poulet 33g,,g,50,60,1.0,INCERTAIN
+OUI,0,103,Baileys (70cl),bouteille,Boissons stock,1500,7595,Baileys Irish Creme 70cL,700,cL,1,100,1.0,AUTO
+?,0,100,Black Label (70cl),bouteille,Boissons stock,2500,8244,Cogn Meukov Black Vs 70cL,700,cL,1,70,1.0,INCERTAIN
+?,1,100,Black Label (70cl),bouteille,Boissons stock,2500,7593,Jwalker Black 12a Whisky 70cL,700,cL,1,70,1.0,INCERTAIN
+?,2,100,Black Label (70cl),bouteille,Boissons stock,2500,8822,Label Whisky 70cL,700,cL,1,70,1.0,INCERTAIN
+NON,,122,Booster (canette),canette,Boissons stock,200,,,,,,,,pas de match ≥ min_score
+OUI,0,114,Bordeaux (75cl),bouteille,Boissons stock,500,7847,Arguille Mil Bordeaux Bl Moel 75cL,750,cL,6,100,1.0,AUTO
+?,1,114,Bordeaux (75cl),bouteille,Boissons stock,500,8747,Bordeaux Rouge Champagne Champ Mars 75cL,750,cL,6,100,1.0,AUTO
+?,2,114,Bordeaux (75cl),bouteille,Boissons stock,500,8936,Bordeaux Rouge Cru Maqueline Mil 75cL,750,cL,6,100,1.0,AUTO
+NON,,125,Café (grain),kg,Boissons stock,1500,,,,,,,,pas de match ≥ min_score
+OUI,0,108,Campari (70cl),bouteille,Boissons stock,1000,7644,Campari 25d 1L,1000,L,1,100,1.0,AUTO
+?,1,108,Campari (70cl),bouteille,Boissons stock,1000,7848,Ruinart Champagne 75cL,750,cL,1,56,1.0,INCERTAIN
+NON,,91,Castel (bouteille),bouteille,Boissons stock,180,,,,,,,,pas de match ≥ min_score
+OUI,0,99,Chivas (70cl),bouteille,Boissons stock,2500,7592,Chivas Whisky 12a 70cL,700,cL,1,100,1.0,AUTO
+?,1,99,Chivas (70cl),bouteille,Boissons stock,2500,7718,Chivas Whisky 18ans 70cL,700,cL,1,100,1.0,AUTO
+?,0,117,Coca-Cola (bouteille),bouteille,Boissons stock,80,7541,Cocacola 50cL,500,cL,24,72,1.0,INCERTAIN
+?,1,117,Coca-Cola (bouteille),bouteille,Boissons stock,80,7479,Coca Cola 25cL,250,cL,12,69,1.0,INCERTAIN
+?,2,117,Coca-Cola (bouteille),bouteille,Boissons stock,80,8088,Coca Cola 25cL,250,colis,6,69,1.0,INCERTAIN
+OUI,0,105,Cognac (70cl),bouteille,Boissons stock,2000,9093,Courcel Cognac 20cL,200,cL,6,100,1.0,AUTO
+?,1,105,Cognac (70cl),bouteille,Boissons stock,2000,7455,Courvoisier Cognac Vs 70cL,700,cL,1,100,1.0,AUTO
+?,2,105,Cognac (70cl),bouteille,Boissons stock,2000,7814,Delaitre Cognac Vs 70cL,700,cL,1,100,1.0,AUTO
+OUI,0,87,Desperados (bouteille),bouteille,Boissons stock,300,7611,Desperados 33cL,330,cL,12,100,1.0,AUTO
+?,1,87,Desperados (bouteille),bouteille,Boissons stock,300,8934,Desperados 33cL,330,cL,24,100,1.0,AUTO
+?,2,87,Desperados (bouteille),bouteille,Boissons stock,300,8504,Desperados Red 33cL,330,cL,12,100,1.0,AUTO
+?,0,88,Desperados grande (bouteille),bouteille,Boissons stock,250,7611,Desperados 33cL,330,cL,12,65,1.0,INCERTAIN
+?,1,88,Desperados grande (bouteille),bouteille,Boissons stock,250,8934,Desperados 33cL,330,cL,24,65,1.0,INCERTAIN
+?,2,88,Desperados grande (bouteille),bouteille,Boissons stock,250,8998,Desperad Red 65cL,650,cL,12,64,1.0,INCERTAIN
+?,0,89,Desperados petite (bouteille),bouteille,Boissons stock,180,7611,Desperados 33cL,330,cL,12,80,1.0,VERIFIER
+?,1,89,Desperados petite (bouteille),bouteille,Boissons stock,180,8934,Desperados 33cL,330,cL,24,80,1.0,VERIFIER
+?,2,89,Desperados petite (bouteille),bouteille,Boissons stock,180,8504,Desperados Red 33cL,330,cL,12,74,1.0,INCERTAIN
+NON,,120,Eau gazeuse (bouteille),bouteille,Boissons stock,80,,,,,,,,pas de match ≥ min_score
+?,0,119,Eau minérale (bouteille),bouteille,Boissons stock,30,8542,Couteaux Table Menu,,piece,12,58,1.0,INCERTAIN
+?,0,121,Ginger ale (bouteille),bouteille,Boissons stock,100,7805,Cidtron Ginger Miel Pukka,,piece,20,75,1.0,VERIFIER
+?,1,121,Ginger ale (bouteille),bouteille,Boissons stock,100,7520,Ginger Beer 2L,2000,L,8,75,1.0,VERIFIER
+?,2,121,Ginger ale (bouteille),bouteille,Boissons stock,100,8104,Ginger Beer Soda,,colis,24,75,1.0,VERIFIER
+OUI,0,101,Glenfiddich (70cl),bouteille,Boissons stock,3500,7839,Glenfiddich Whisky 15a 70cL,700,cL,1,100,1.0,AUTO
+?,1,101,Glenfiddich (70cl),bouteille,Boissons stock,3500,8579,Glenfiddich Whisky Sb 18a 70cL,700,cL,1,100,1.0,AUTO
+OUI,0,80,Guinness (bouteille),bouteille,Boissons stock,250,7864,Guinness 33cL,330,cL,24,100,1.0,AUTO
+?,1,80,Guinness (bouteille),bouteille,Boissons stock,250,8079,Malta Guiness,,colis,48,66,1.0,INCERTAIN
+?,2,80,Guinness (bouteille),bouteille,Boissons stock,250,8096,Guiness Irlande,,colis,48,60,1.0,INCERTAIN
+?,0,81,Guinness grande (bouteille),bouteille,Boissons stock,300,7864,Guinness 33cL,330,cL,24,61,1.0,INCERTAIN
+?,0,82,Guinness petite (bouteille),bouteille,Boissons stock,150,7864,Guinness 33cL,330,cL,24,76,1.0,VERIFIER
+?,1,82,Guinness petite (bouteille),bouteille,Boissons stock,150,8096,Guiness Irlande,,colis,48,66,1.0,INCERTAIN
+?,2,82,Guinness petite (bouteille),bouteille,Boissons stock,150,8079,Malta Guiness,,colis,48,64,1.0,INCERTAIN
+OUI,0,79,Heineken (bouteille),bouteille,Boissons stock,250,7610,Heineken 33cL,330,cL,12,100,1.0,AUTO
+?,1,79,Heineken (bouteille),bouteille,Boissons stock,250,8452,Heineken 5d 33cL,330,cL,24,100,1.0,AUTO
+?,2,79,Heineken (bouteille),bouteille,Boissons stock,250,7539,Heineken 5d 65cL,650,cL,12,100,1.0,AUTO
+NON,,94,Isenbeck (bouteille),bouteille,Boissons stock,250,,,,,,,,pas de match ≥ min_score
+OUI,0,98,Jack Daniel's (70cl),bouteille,Boissons stock,2500,8290,Jack Daniel's Fire 35cL,350,cL,1,100,1.0,AUTO
+?,1,98,Jack Daniel's (70cl),bouteille,Boissons stock,2500,8552,Jack Daniel's Fire 70cL,700,cL,1,100,1.0,AUTO
+?,2,98,Jack Daniel's (70cl),bouteille,Boissons stock,2500,9010,Jack Daniel's Honey 35cL,350,cL,1,100,1.0,AUTO
+OUI,0,102,JB (70cl),bouteille,Boissons stock,2000,7880,Aro Jb Choix 20t 800g,,g,1,100,1.0,AUTO
+?,1,102,JB (70cl),bouteille,Boissons stock,2000,8779,Jb Cuit Torchon Supdd 10trx90g,,piece,1,100,1.0,AUTO
+?,2,102,JB (70cl),bouteille,Boissons stock,2000,8987,Jb Foret Noire Tranch IGP 100g,,g,1,100,1.0,AUTO
+?,0,118,Jus de fruits (bouteille),bouteille,Boissons stock,80,8856,150sucettes Fruits Cresti Tb,,piece,1,63,1.0,INCERTAIN
+?,1,118,Jus de fruits (bouteille),bouteille,Boissons stock,80,8677,Carambar Fruits Mini 1kg,,kg,1,63,1.0,INCERTAIN
+?,2,118,Jus de fruits (bouteille),bouteille,Boissons stock,80,8256,Skittles Fruits 45g,,g,36,63,1.0,INCERTAIN
+?,0,95,Kadji Beer (bouteille),bouteille,Boissons stock,180,7520,Ginger Beer 2L,2000,L,8,57,1.0,INCERTAIN
+?,1,95,Kadji Beer (bouteille),bouteille,Boissons stock,180,8104,Ginger Beer Soda,,colis,24,57,1.0,INCERTAIN
+OUI,0,83,Leffe (bouteille),bouteille,Boissons stock,300,8144,Leffe 25cL,250,cL,28,100,1.0,AUTO
+?,1,83,Leffe (bouteille),bouteille,Boissons stock,300,7803,Leffe Blonde 25cL,250,cL,24,100,1.0,AUTO
+?,2,83,Leffe (bouteille),bouteille,Boissons stock,300,7471,Leffe Blonde 33cL,330,cL,12,100,1.0,AUTO
+?,0,84,Leffe grande (bouteille),bouteille,Boissons stock,250,8658,Leffe Blonde 50cL,500,cL,24,62,1.0,INCERTAIN
+?,1,84,Leffe grande (bouteille),bouteille,Boissons stock,250,7472,Leffe Blonde 75cL,750,cL,6,62,1.0,INCERTAIN
+?,0,85,Leffe petite (bouteille),bouteille,Boissons stock,180,8144,Leffe 25cL,250,cL,28,66,1.0,INCERTAIN
+?,1,85,Leffe petite (bouteille),bouteille,Boissons stock,180,9054,Petite Rose Nuancee Azyme,,piece,72,66,1.0,INCERTAIN
+?,2,85,Leffe petite (bouteille),bouteille,Boissons stock,180,7803,Leffe Blonde 25cL,250,cL,24,58,1.0,INCERTAIN
+OUI,0,96,Malta (bouteille),bouteille,Boissons stock,150,8079,Malta Guiness,,colis,48,100,1.0,AUTO
+OUI,0,107,Martini (70cl),bouteille,Boissons stock,1000,7536,Martini Blanc 1.5L,1500,L,1,100,1.0,AUTO
+?,1,107,Martini (70cl),bouteille,Boissons stock,1000,7892,Martini Blanc 1L,1000,L,1,100,1.0,AUTO
+?,2,107,Martini (70cl),bouteille,Boissons stock,1000,8883,Martini Dry 1L,1000,L,1,100,1.0,AUTO
+OUI,0,116,Moelleux (75cl),bouteille,Boissons stock,500,8462,Cake Choco Moelleux 175g,,g,6,100,1.0,AUTO
+OUI,0,109,Moët (75cl),bouteille,Boissons stock,3000,7955,Moët & Chandon Champagne Moet&chandon Imperial 150cL,1500,cL,1,100,1.0,AUTO
+?,1,109,Moët (75cl),bouteille,Boissons stock,3000,7758,Moët & Chandon Champagne Moet&chandon Imperial 75cL,750,cL,6,100,1.0,AUTO
+NON,,90,Mutzig (bouteille),bouteille,Boissons stock,180,,,,,,,,pas de match ≥ min_score
+NON,,112,Nicola (75cl),bouteille,Boissons stock,2000,,,,,,,,pas de match ≥ min_score
+?,0,93,Pelfort (bouteille),bouteille,Boissons stock,200,7465,Pelforth Brun 25cL,250,cL,24,56,1.0,INCERTAIN
+?,0,124,Petit CD (bouteille),bouteille,Boissons stock,150,8431,Attot Jus Original Petit 250mL,250,colis,6,76,1.0,VERIFIER
+?,1,124,Petit CD (bouteille),bouteille,Boissons stock,150,8336,Ecolier Choc. Petit Lait 150g,,g,6,76,1.0,VERIFIER
+?,2,124,Petit CD (bouteille),bouteille,Boissons stock,150,8001,Noix Petit Kola,,colis,,76,1.0,VERIFIER
+OUI,0,123,Red Bull (canette),canette,Boissons stock,150,7456,Red Bull 25cL,250,cL,24,100,1.0,AUTO
+?,1,123,Red Bull (canette),canette,Boissons stock,150,8555,Red Bull Abricot 25cL,250,cL,24,100,1.0,AUTO
+?,2,123,Red Bull (canette),canette,Boissons stock,150,7921,Red Bull Blue 25cL,250,cL,24,100,1.0,AUTO
+OUI,0,106,Rhum (70cl),bouteille,Boissons stock,1200,9081,Baca Carta Oro Rhum 70cL,700,cL,1,100,1.0,AUTO
+?,1,106,Rhum (70cl),bouteille,Boissons stock,1200,7891,Dillon Rhum Blanc 1L,1000,L,1,100,1.0,AUTO
+?,2,106,Rhum (70cl),bouteille,Boissons stock,1200,8890,Dillon Rhum Blanc 70cL,700,cL,1,100,1.0,AUTO
+NON,,115,Rosé (75cl),bouteille,Boissons stock,500,,,,,,,,pas de match ≥ min_score
+OUI,0,111,Ruinart (75cl),bouteille,Boissons stock,8000,7848,Ruinart Champagne 75cL,750,cL,1,100,1.0,AUTO
+OUI,0,97,Top (bouteille),bouteille,Boissons stock,200,7618,Amora Ketchup Top Down 550g,,g,1,100,1.0,AUTO
+?,1,97,Top (bouteille),bouteille,Boissons stock,200,8038,Top Down Fs Mayo Lesieur 450mL,450,mL,1,100,1.0,AUTO
+OUI,0,110,Veuve Clicquot (75cl),bouteille,Boissons stock,3500,9125,Veuve Clicquot Champagne Brut 150cL,1500,cL,1,100,1.0,AUTO
+?,1,110,Veuve Clicquot (75cl),bouteille,Boissons stock,3500,7826,Veuve Clicquot Champagne Brut 75cL,750,cL,6,100,1.0,AUTO
+?,2,110,Veuve Clicquot (75cl),bouteille,Boissons stock,3500,7890,Veuve Clicquot Champagne Cliquot Radiating 75cL,750,cL,1,100,1.0,AUTO
+?,0,113,Vin blanc (75cl),bouteille,Boissons stock,500,7991,Broz Gaillac Blanc Dx Mil 75cL,750,cL,6,79,1.0,VERIFIER
+?,1,113,Vin blanc (75cl),bouteille,Boissons stock,500,7808,Ail Blanc Tetes C1 Fr,,piece,1,71,1.0,INCERTAIN
+?,2,113,Vin blanc (75cl),bouteille,Boissons stock,500,8833,Aro 1p Blanc,,piece,29,71,1.0,INCERTAIN
+OUI,0,104,Vodka (70cl),bouteille,Boissons stock,1500,8272,Absolut Vodka 35cL,350,cL,12,100,1.0,AUTO
+?,1,104,Vodka (70cl),bouteille,Boissons stock,1500,8664,Absolut Vodka Blue 70cL,700,cL,1,100,1.0,AUTO
+?,2,104,Vodka (70cl),bouteille,Boissons stock,1500,8972,Absolut Vodka Raspb 70cL,700,cL,1,100,1.0,AUTO
+?,0,27,Bouillon cube,pièce,Condiments et épices,,8426,Jumbo Bouillon Bôuf 1kg,,colis,10,76,1.0,VERIFIER
+?,1,27,Bouillon cube,pièce,Condiments et épices,,8425,Jumbo Bouillon Crevette Fumée 1kg,,colis,10,76,1.0,VERIFIER
+?,2,27,Bouillon cube,pièce,Condiments et épices,,8097,Jumbo Bouillon Volaille 1kg,,colis,10,76,1.0,VERIFIER
+NON,,25,Njansang,kg,Condiments et épices,,,,,,,,,pas de match ≥ min_score
+OUI,0,23,Pâte d'arachide,kg,Condiments et épices,457,8027,Pâte D'arachide Pcd Gr,,colis,12,100,1.0,AUTO
+?,1,23,Pâte d'arachide,kg,Condiments et épices,457,8418,Pâte D'arachide Pindaka 2.5kg,,colis,2,100,1.0,AUTO
+?,0,24,Pistache pilée,kg,Condiments et épices,,8101,Tomate Pelée Gr,,colis,12,55,1.0,INCERTAIN
+OUI,0,58,Baguette,pièce,Féculents,60,8573,Marque Commune Baguette Precuit 140g,,g,6,100,1.0,AUTO
+?,0,55,Farine de blé,kg,Féculents,120,8156,"Farine Manioc Fufu °1,",,colis,12,63,1.0,INCERTAIN
+?,1,55,Farine de blé,kg,Féculents,120,8402,Farine Mil Zamzam 1kg,,colis,12,63,1.0,INCERTAIN
+?,2,55,Farine de blé,kg,Féculents,120,8883,Martini Dry 1L,1000,L,1,59,1.0,INCERTAIN
+?,0,54,Pommes de terre,kg,Féculents,150,8042,Fécule Pomme Terre,,colis,12,78,1.0,VERIFIER
+?,1,54,Pommes de terre,kg,Féculents,150,7995,Sac Pomme Terre 5kg,,colis,5,76,1.0,VERIFIER
+NON,,21,Huile de palme,L,Huiles,341,,,,,,,,pas de match ≥ min_score
+NON,,22,Huile végétale,L,Huiles,247,,,,,,,,pas de match ≥ min_score
+NON,,40,Avocat,kg,Légumes,350,,,,,,,,pas de match ≥ min_score
+?,0,14,Champignons,kg,Légumes,800,7678,Kola Champion 33cL,330,cL,24,55,0.33,INCERTAIN
+NON,,42,Concombre,kg,Légumes,150,,,,,,,,pas de match ≥ min_score
+NON,,12,Épinards,kg,Légumes,145,,,,,,,,pas de match ≥ min_score
+NON,,11,Feuilles Eru,kg,Légumes,616,,,,,,,,pas de match ≥ min_score
+NON,,10,Feuilles Ndolé,kg,Légumes,269,,,,,,,,pas de match ≥ min_score
+OUI,0,9,Gombo,kg,Légumes,2360,8083,Gombo 4kg,4000,colis,,100,4.0,AUTO
+?,1,9,Gombo,kg,Légumes,2360,8022,Gombo (hibiscus Esculentus) 5kg,,colis,,100,1.0,AUTO
+OUI,0,51,Haricots blancs,kg,Légumes,180,8412,Haricots Blancs °1,,colis,12,100,1.0,AUTO
+?,1,51,Haricots blancs,kg,Légumes,180,8763,Charlotte Blanc,,piece,1,73,1.0,INCERTAIN
+?,2,51,Haricots blancs,kg,Légumes,180,8224,Haricots Cornilles °1,,colis,12,69,1.0,INCERTAIN
+?,0,41,Laitue,kg,Légumes,200,7931,Aro Friture 25L,25000,L,1,57,25.0,INCERTAIN
+?,0,139,Maïs doux,kg,Légumes,,8413,Maïs Dégermé Jaune 1kg,,colis,12,61,1.0,INCERTAIN
+?,1,139,Maïs doux,kg,Légumes,,7999,Number One Chips Plantain °1 Doux Gr,,colis,160,61,1.0,INCERTAIN
+?,2,139,Maïs doux,kg,Légumes,,7807,Oig Doux C1 Esp Espagne 1kg,,kg,1,61,1.0,INCERTAIN
+NON,,140,Mix légumes sautés,kg,Légumes,,,,,,,,,pas de match ≥ min_score
+OUI,0,16,Oignons,kg,Légumes,58,7561,Oignons 5kg,,kg,,100,1.0,AUTO
+?,1,16,Oignons,kg,Légumes,58,7741,Sac Bonbon,,piece,95,58,1.0,INCERTAIN
+OUI,0,19,Piment,kg,Légumes,1981,8281,3kg Piment 3kg,,colis,2,100,1.0,AUTO
+?,1,19,Piment,kg,Légumes,1981,8405,Pilchard Tomate Piment °1 Gr,,colis,12,100,1.0,AUTO
+?,2,19,Piment,kg,Légumes,1981,8069,Piment 2kg,2000,colis,,100,2.0,AUTO
+OUI,0,13,Plantain,kg,Légumes,163,8417,Ail Chips Plantain °1 Numberone 85g,,colis,40,100,1.0,AUTO
+?,1,13,Plantain,kg,Légumes,163,7696,Banane Plantain Jaune,,U,,100,1.0,AUTO
+?,2,13,Plantain,kg,Légumes,163,8026,Number One Chips Plantain °1 Bbq 85g,,colis,20,100,1.0,AUTO
+NON,,43,Poivron,kg,Légumes,300,,,,,,,,pas de match ≥ min_score
+?,0,20,Riz blanc,kg,Légumes,200,7808,Ail Blanc Tetes C1 Fr,,piece,1,71,1.0,INCERTAIN
+?,1,20,Riz blanc,kg,Légumes,200,8833,Aro 1p Blanc,,piece,29,71,1.0,INCERTAIN
+?,2,20,Riz blanc,kg,Légumes,200,7688,Aro Poivre Blanc 1kg,,kg,1,71,1.0,INCERTAIN
+OUI,0,15,Tomates,kg,Légumes,,8428,Pilchards Tomates Glenryck Gr,,colis,24,100,1.0,AUTO
+?,1,15,Tomates,kg,Légumes,,8676,Tomates Cuisines 425g,,g,6,100,1.0,AUTO
+?,0,37,Capitaine,kg,Poissons et fruits de mer,1200,7683,Cristalline 1.5L,1500,L,6,56,1.5,INCERTAIN
+?,1,37,Capitaine,kg,Poissons et fruits de mer,1200,7560,Cristalline 50cL,500,cL,24,56,0.5,INCERTAIN
+NON,,8,Écrevisses séchées,kg,Poissons et fruits de mer,,,,,,,,,pas de match ≥ min_score
+?,0,6,Maquereau moyen,kg,Poissons et fruits de mer,282,7559,Redbull Moyen 355mL,355,mL,24,58,0.355,INCERTAIN
+?,0,7,Poisson fumé,kg,Poissons et fruits de mer,,8059,Chat Poisson 4kg,,colis,,73,1.0,INCERTAIN
+?,1,7,Poisson fumé,kg,Poissons et fruits de mer,,8075,Chat Poisson (clarias Macrocep 4kg,,colis,2,73,1.0,INCERTAIN
+?,2,7,Poisson fumé,kg,Poissons et fruits de mer,,8004,Chat Poisson Number One 4kg,,colis,,73,1.0,INCERTAIN
+NON,,39,Sole,kg,Poissons et fruits de mer,1800,,,,,,,,pas de match ≥ min_score
+OUI,0,38,Tilapia,kg,Poissons et fruits de mer,800,8111,Tilapia Moyen Kg(oreochrom Number One,,colis,2,100,1.0,AUTO
+?,1,38,Tilapia,kg,Poissons et fruits de mer,800,8061,Tilapia Rouge (oreochromi 4kg,,colis,3,100,1.0,AUTO
+?,2,38,Tilapia,kg,Poissons et fruits de mer,800,8005,Tilapia Ve 800gr+ Ch (oreochromis 4kg,,colis,2,100,1.0,AUTO
+NON,,78,Œufs,pièce,Produits laitiers,25,,,,,,,,pas de match ≥ min_score
+OUI,0,3,Crevettes,kg,Protéine,,8531,Beignets Crevettes Sach 1kg,,kg,1,100,1.0,AUTO
+?,1,3,Crevettes,kg,Protéine,,8094,Yumyum Crevette 60g,,colis,2,57,1.0,INCERTAIN
+?,2,3,Crevettes,kg,Protéine,,8247,Maggi Cube Crevette Pcs,,colis,8,56,1.0,INCERTAIN
+OUI,0,1,Poulet,kg,Protéine,,8543,Chunk Poulet Pane Halal 1kg,,kg,1,100,1.0,AUTO
+?,1,1,Poulet,kg,Protéine,,7877,Cordon Bleu Poulet Halal 1kg,,kg,1,100,1.0,AUTO
+?,2,1,Poulet,kg,Protéine,,8795,Donuts Poulet Halal 100g,,g,8,100,1.0,AUTO
+OUI,0,2,Thon,kg,Protéine,,8243,Darne Thon Net (thunnus Alba 800g,,colis,10,100,1.0,AUTO
+?,1,2,Thon,kg,Protéine,,8699,Pizza Ristorante Thon 355g,,g,1,100,1.0,AUTO
+?,2,2,Thon,kg,Protéine,,8449,Thon Garba (euthynnus Alletera),,colis,20,100,1.0,AUTO
+NON,,5,Bœuf,kg,Viandes,999,,,,,,,,pas de match ≥ min_score
+?,0,29,Bœuf brochettes,kg,Viandes,1100,8054,Piques Brochette,,colis,20,70,1.0,INCERTAIN
+?,1,29,Bœuf brochettes,kg,Viandes,1100,8589,Brochette 15cm,,piece,1,62,1.0,INCERTAIN
+?,2,29,Bœuf brochettes,kg,Viandes,1100,8838,Brochette Lasso Cm,,piece,1,60,1.0,INCERTAIN
+?,0,30,Bœuf séché (soya),kg,Viandes,1500,8203,Stockfish Morue Séché Entier 7kg,,colis,,66,1.0,INCERTAIN
+OUI,0,28,Porc (filet),kg,Viandes,850,8862,Echine France Cote Porc 1kg,,kg,1,100,1.0,AUTO
+?,1,28,Porc (filet),kg,Viandes,850,8736,Jarreton Porc Francilin Sv,,piece,5,100,1.0,AUTO
+?,2,28,Porc (filet),kg,Viandes,850,8623,Nem Porc 33g,,g,50,100,1.0,AUTO
+?,0,33,Ailes de poulet,kg,Volaille,500,8264,Nollens Aile Poulet 10kg,,colis,10,66,1.0,INCERTAIN
+?,1,33,Ailes de poulet,kg,Volaille,500,8003,Van o Bel Aile Poulet 10kg,,colis,10,63,1.0,INCERTAIN
+?,2,33,Ailes de poulet,kg,Volaille,500,8624,Nem Poulet 33g,,g,50,62,1.0,INCERTAIN
+?,0,32,Cuisses de poulet,kg,Volaille,700,8076,Nollens Cuisse Poulet 10kg,,colis,2,69,1.0,INCERTAIN
+?,1,32,Cuisses de poulet,kg,Volaille,700,7996,Van o Bel Cuisse Poulet 10kg,,colis,2,62,1.0,INCERTAIN
+?,2,32,Cuisses de poulet,kg,Volaille,700,8624,Nem Poulet 33g,,g,50,60,1.0,INCERTAIN
+?,0,31,Poulet entier,kg,Volaille,650,8135,Exeter Poulet 340g,,colis,24,70,1.0,INCERTAIN
+?,1,31,Poulet entier,kg,Volaille,650,8624,Nem Poulet 33g,,g,50,66,1.0,INCERTAIN
+?,2,31,Poulet entier,kg,Volaille,650,8138,Baracouda Entier (sphyraena Obstus 10kg,,colis,,63,1.0,INCERTAIN

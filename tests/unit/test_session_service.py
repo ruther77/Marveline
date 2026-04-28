@@ -1,394 +1,379 @@
-"""Tests unitaires pour SessionService — gestion sessions Redis.
+"""Tests unitaires pour app/services/session.py — v3 async (DB + Redis dual-write).
 
 Couvre :
-    - Création de session (metadata, UUID)
-    - Enforcement max sessions (éviction plus ancienne)
-    - Listing sessions (tri par date)
-    - Révocation session (+ tokens associés)
-    - Révocation toutes sessions
-    - Mise à jour last_activity
-    - Recherche par family_id (pour logout)
-    - Vérification ownership (pas de cross-user)
-
-Fichier service testé : app/services/session.py
-Fichier constants : app/constants/security.py (SessionConfig, RedisKeys)
-Fichier Redis : app/core/redis.py (méthodes session)
+    - generate_device_id (IPv4 /24, IPv6, SHA-256)
+    - create_session (DB + Redis, mfa_verified)
+    - _enforce_max_sessions (éviction Redis + DB, CSRF inclus — D1 with_for_update, D2 CSRF)
+    - revoke_session / revoke_all_sessions
+    - list_sessions / get_session / update_activity
 """
 import uuid
 from datetime import datetime, timezone
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.services.session import SessionService, session_service
-from app.constants import SessionConfig, RedisKeys
+from app.services.session import (
+    SessionService,
+    session_service,
+    generate_device_id,
+)
+from app.constants import SessionConfig
+from app.models.account_session import AccountSession
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Fixtures
-# ─────────────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
-@pytest.fixture
-def svc():
-    """Instance fraîche du service (pas le singleton)."""
-    return SessionService()
-
-
-@pytest.fixture
-def mock_redis():
-    """Mock du redis_client pour tests unitaires purs."""
-    with patch("app.services.session.redis_client") as mock:
-        # Defaults
-        mock.store_session.return_value = True
-        mock.get_session.return_value = None
-        mock.delete_session.return_value = True
-        mock.list_user_sessions.return_value = []
-        mock.delete_all_user_sessions.return_value = 0
-        mock.update_session_activity.return_value = True
-        mock.revoke_token_family.return_value = True
-        yield mock
+def _make_session(session_id: str, user_id: int = 1, device_id: str = "dev_abc") -> MagicMock:
+    """Mock AccountSession avec attributs réalistes."""
+    sess = MagicMock(spec=AccountSession)
+    sess.session_id = session_id
+    sess.account_id = user_id
+    sess.device_id = device_id
+    sess.tenant_id = 1
+    sess.revoked_at = None
+    sess.revoke_reason = None
+    sess.mfa_verified = False
+    sess.ip_address = "192.168.1.1"
+    sess.user_agent = "TestAgent/1.0"
+    sess.created_at = datetime.now(timezone.utc)
+    sess.last_active_at = datetime.now(timezone.utc)
+    return sess
 
 
-# ─────────────────────────────────────────────────────────────────────
-# create_session
-# ─────────────────────────────────────────────────────────────────────
+def _membership_mock(membership_id: int = 1) -> MagicMock:
+    """Crée un TenantMembership mock pour le lookup dans create_session."""
+    m = MagicMock()
+    m.id = membership_id
+    return m
+
+
+def _async_db_mock(first_result=None, all_result=None, scalar_one_or_none=None) -> AsyncMock:
+    """Mock AsyncSession SQLAlchemy — couvre execute/add/flush async."""
+    db = AsyncMock()
+
+    scalars = MagicMock()
+    scalars.first.return_value = first_result
+    scalars.all.return_value = all_result or []
+
+    result = MagicMock()
+    result.scalars.return_value = scalars
+    result.scalar_one_or_none.return_value = scalar_one_or_none
+
+    db.execute.return_value = result
+    return db
+
+
+def _redis_mock() -> MagicMock:
+    """Mock redis_sec — toutes méthodes async."""
+    r = MagicMock()
+    r.store_session = AsyncMock()
+    r.revoke_refresh_jti = AsyncMock()
+    r.delete_session = AsyncMock()
+    r.revoke_csrf_token = AsyncMock()
+    r.revoke_all_user_sessions = AsyncMock()
+    r.revoke_sessions_except_device = AsyncMock()
+    r.update_session_activity = AsyncMock()
+    return r
+
+
+# ── generate_device_id ────────────────────────────────────────────────────────
+
+class TestGenerateDeviceId:
+
+    def test_returns_32_hex_chars(self):
+        did = generate_device_id("Mozilla/5.0", "192.168.1.100")
+        assert isinstance(did, str)
+        assert len(did) == 32
+        assert all(c in "0123456789abcdef" for c in did)
+
+    def test_deterministic(self):
+        assert (
+            generate_device_id("Mozilla/5.0", "192.168.1.100")
+            == generate_device_id("Mozilla/5.0", "192.168.1.100")
+        )
+
+    def test_same_ipv4_subnet_same_device_id(self):
+        """Deux IPs dans le même /24 → même device_id."""
+        did1 = generate_device_id("Mozilla/5.0", "192.168.1.50")
+        did2 = generate_device_id("Mozilla/5.0", "192.168.1.99")
+        assert did1 == did2
+
+    def test_different_subnet_different_device_id(self):
+        did1 = generate_device_id("Mozilla/5.0", "192.168.1.1")
+        did2 = generate_device_id("Mozilla/5.0", "10.0.0.1")
+        assert did1 != did2
+
+    def test_different_user_agent_different_device_id(self):
+        did1 = generate_device_id("Mozilla/5.0", "192.168.1.1")
+        did2 = generate_device_id("curl/7.0", "192.168.1.1")
+        assert did1 != did2
+
+    def test_ipv6_handled(self):
+        did = generate_device_id("Mozilla/5.0", "2001:db8::1")
+        assert isinstance(did, str)
+        assert len(did) == 32
+
+
+# ── create_session ────────────────────────────────────────────────────────────
 
 class TestCreateSession:
-    """Tests pour create_session()."""
 
-    def test_returns_uuid_string(self, svc, mock_redis):
-        """create_session retourne un UUID valide."""
-        session_id = svc.create_session(
-            user_id=1, tenant_id=1, family_id="fam-1",
-            ip_address="1.2.3.4", user_agent="Chrome/120",
-        )
-        # Doit être un UUID valide
-        parsed = uuid.UUID(session_id)
-        assert str(parsed) == session_id
+    async def test_returns_uuid_string(self):
+        db = _async_db_mock(all_result=[], scalar_one_or_none=_membership_mock())
+        with patch("app.services.session.redis_sec", _redis_mock()):
+            sid = await session_service.create_session(
+                db=db, user_id=1, tenant_id=1,
+                device_id="dev_x", ip_address="127.0.0.1",
+            )
+        uuid.UUID(sid)  # lève ValueError si pas un UUID valide
 
-    def test_stores_session_in_redis(self, svc, mock_redis):
-        """create_session appelle store_session avec les bonnes données."""
-        session_id = svc.create_session(
-            user_id=42, tenant_id=3, family_id="fam-abc",
-            ip_address="10.0.0.1", user_agent="Firefox/130",
-        )
-        mock_redis.store_session.assert_called_once()
-        call_args = mock_redis.store_session.call_args
-        assert call_args.kwargs["session_id"] == session_id
-        data = call_args.kwargs["data"]
-        assert data["session_id"] == session_id
-        assert data["user_id"] == 42
-        assert data["tenant_id"] == 3
-        assert data["family_id"] == "fam-abc"
-        assert data["ip_address"] == "10.0.0.1"
-        assert data["user_agent"] == "Firefox/130"
-        assert "created_at" in data
-        assert "last_activity" in data
-        assert call_args.kwargs["ttl_seconds"] == SessionConfig.SESSION_TTL_SECONDS
+    async def test_db_add_and_flush_called(self):
+        db = _async_db_mock(all_result=[], scalar_one_or_none=_membership_mock())
+        with patch("app.services.session.redis_sec", _redis_mock()):
+            await session_service.create_session(
+                db=db, user_id=1, tenant_id=1,
+                device_id="dev_x", ip_address="127.0.0.1",
+            )
+        db.add.assert_called_once()
+        db.flush.assert_called_once()
 
-    def test_session_has_timestamps(self, svc, mock_redis):
-        """Session data contient created_at et last_activity."""
-        svc.create_session(
-            user_id=1, tenant_id=1, family_id="fam-1",
-            ip_address="1.2.3.4", user_agent="Chrome",
-        )
-        data = mock_redis.store_session.call_args.kwargs["data"]
-        # Les timestamps doivent être des ISO strings valides
-        created = datetime.fromisoformat(data["created_at"])
-        activity = datetime.fromisoformat(data["last_activity"])
-        assert created == activity  # Égaux à la création
+    async def test_redis_store_session_called_with_user_id(self):
+        db = _async_db_mock(all_result=[], scalar_one_or_none=_membership_mock())
+        redis = _redis_mock()
+        with patch("app.services.session.redis_sec", redis):
+            await session_service.create_session(
+                db=db, user_id=42, tenant_id=5,
+                device_id="dev_y", ip_address="10.0.0.1",
+            )
+        redis.store_session.assert_called_once()
+        kwargs = redis.store_session.call_args.kwargs
+        assert kwargs.get("user_id") == 42
 
-    def test_enforces_max_sessions(self, svc, mock_redis):
-        """Si user a MAX sessions, la plus ancienne est évincée."""
-        # Simuler 5 sessions existantes
-        existing_sessions = [
-            {"session_id": f"old-{i}", "user_id": 1, "family_id": f"fam-{i}",
-             "created_at": f"2026-02-{10+i:02d}T00:00:00+00:00"}
-            for i in range(5)
-        ]
-        mock_redis.list_user_sessions.return_value = existing_sessions
+    async def test_mfa_verified_stored_on_db_object(self):
+        db = _async_db_mock(all_result=[], scalar_one_or_none=_membership_mock())
+        with patch("app.services.session.redis_sec", _redis_mock()):
+            await session_service.create_session(
+                db=db, user_id=1, tenant_id=1,
+                device_id="dev_x", ip_address="1.2.3.4",
+                mfa_verified=True,
+            )
+        added = db.add.call_args.args[0]
+        assert added.mfa_verified is True
 
-        svc.create_session(
-            user_id=1, tenant_id=1, family_id="fam-new",
-            ip_address="1.2.3.4", user_agent="Chrome",
-        )
+    async def test_user_agent_optional(self):
+        db = _async_db_mock(all_result=[], scalar_one_or_none=_membership_mock())
+        with patch("app.services.session.redis_sec", _redis_mock()):
+            sid = await session_service.create_session(
+                db=db, user_id=1, tenant_id=1,
+                device_id="dev_x", ip_address="1.2.3.4",
+            )
+        assert sid  # pas d'exception
 
-        # La plus ancienne (old-0, 2026-02-10) doit être supprimée
-        mock_redis.delete_session.assert_called_with("old-0", 1)
-        mock_redis.revoke_token_family.assert_called_with("fam-0")
 
-    def test_no_eviction_under_max(self, svc, mock_redis):
-        """Pas d'éviction si user a < MAX sessions."""
+# ── _enforce_max_sessions ─────────────────────────────────────────────────────
+
+class TestEnforceMaxSessions:
+    """_enforce_max_sessions testé via create_session."""
+
+    async def test_no_eviction_below_max(self):
         existing = [
-            {"session_id": f"s-{i}", "user_id": 1, "family_id": f"f-{i}",
-             "created_at": f"2026-02-{10+i:02d}T00:00:00+00:00"}
-            for i in range(3)
+            _make_session(f"sid{i}", device_id=f"dev{i}")
+            for i in range(SessionConfig.MAX_SESSIONS_PER_USER - 1)
         ]
-        mock_redis.list_user_sessions.return_value = existing
+        db = _async_db_mock(all_result=existing, scalar_one_or_none=_membership_mock())
+        redis = _redis_mock()
+        with patch("app.services.session.redis_sec", redis):
+            await session_service.create_session(
+                db=db, user_id=1, tenant_id=1,
+                device_id="new_dev", ip_address="1.2.3.4",
+            )
+        redis.revoke_refresh_jti.assert_not_called()
 
-        svc.create_session(
-            user_id=1, tenant_id=1, family_id="fam-new",
-            ip_address="1.2.3.4", user_agent="Chrome",
-        )
-
-        mock_redis.delete_session.assert_not_called()
-        mock_redis.revoke_token_family.assert_not_called()
-
-
-# ─────────────────────────────────────────────────────────────────────
-# get_session
-# ─────────────────────────────────────────────────────────────────────
-
-class TestGetSession:
-    """Tests pour get_session()."""
-
-    def test_returns_session_data(self, svc, mock_redis):
-        """get_session retourne les données de session."""
-        mock_redis.get_session.return_value = {"session_id": "abc", "user_id": 1}
-        result = svc.get_session("abc")
-        assert result == {"session_id": "abc", "user_id": 1}
-        mock_redis.get_session.assert_called_once_with("abc")
-
-    def test_returns_none_if_not_found(self, svc, mock_redis):
-        """get_session retourne None si session inexistante."""
-        mock_redis.get_session.return_value = None
-        assert svc.get_session("nonexistent") is None
-
-
-# ─────────────────────────────────────────────────────────────────────
-# get_session_by_family
-# ─────────────────────────────────────────────────────────────────────
-
-class TestGetSessionByFamily:
-    """Tests pour get_session_by_family()."""
-
-    def test_finds_matching_session(self, svc, mock_redis):
-        """Trouve la session avec le bon family_id."""
-        sessions = [
-            {"session_id": "s-1", "user_id": 1, "family_id": "fam-A"},
-            {"session_id": "s-2", "user_id": 1, "family_id": "fam-B"},
+    async def test_evicts_oldest_when_at_max(self):
+        existing = [
+            _make_session(f"sid{i}", device_id=f"dev{i}")
+            for i in range(SessionConfig.MAX_SESSIONS_PER_USER)
         ]
-        mock_redis.list_user_sessions.return_value = sessions
+        db = _async_db_mock(all_result=existing, scalar_one_or_none=_membership_mock())
+        redis = _redis_mock()
+        with patch("app.services.session.redis_sec", redis):
+            await session_service.create_session(
+                db=db, user_id=1, tenant_id=1,
+                device_id="new_dev", ip_address="1.2.3.4",
+            )
+        assert redis.revoke_refresh_jti.call_count == 1
+        assert redis.delete_session.call_count == 1
 
-        result = svc.get_session_by_family(user_id=1, family_id="fam-B")
-        assert result["session_id"] == "s-2"
-
-    def test_returns_none_if_not_found(self, svc, mock_redis):
-        """Retourne None si aucune session ne match."""
-        mock_redis.list_user_sessions.return_value = [
-            {"session_id": "s-1", "user_id": 1, "family_id": "fam-A"},
+    async def test_evicts_multiple_when_over_max(self):
+        extra = 2
+        existing = [
+            _make_session(f"sid{i}", device_id=f"dev{i}")
+            for i in range(SessionConfig.MAX_SESSIONS_PER_USER + extra - 1)
         ]
-        result = svc.get_session_by_family(user_id=1, family_id="fam-Z")
-        assert result is None
+        db = _async_db_mock(all_result=existing, scalar_one_or_none=_membership_mock())
+        redis = _redis_mock()
+        with patch("app.services.session.redis_sec", redis):
+            await session_service.create_session(
+                db=db, user_id=1, tenant_id=1,
+                device_id="new_dev", ip_address="1.2.3.4",
+            )
+        assert redis.revoke_refresh_jti.call_count == extra
 
-    def test_returns_none_if_no_sessions(self, svc, mock_redis):
-        """Retourne None si user n'a aucune session."""
-        mock_redis.list_user_sessions.return_value = []
-        result = svc.get_session_by_family(user_id=1, family_id="fam-X")
-        assert result is None
-
-
-# ─────────────────────────────────────────────────────────────────────
-# list_sessions
-# ─────────────────────────────────────────────────────────────────────
-
-class TestListSessions:
-    """Tests pour list_sessions()."""
-
-    def test_returns_sorted_by_created_at_desc(self, svc, mock_redis):
-        """Sessions triées par created_at décroissant (plus récente en premier)."""
-        sessions = [
-            {"session_id": "s-1", "created_at": "2026-02-10T00:00:00+00:00"},
-            {"session_id": "s-3", "created_at": "2026-02-12T00:00:00+00:00"},
-            {"session_id": "s-2", "created_at": "2026-02-11T00:00:00+00:00"},
+    async def test_eviction_revokes_csrf_token(self):
+        """D2 — CSRF token révoqué pour chaque session évincée (évite CSRF orphelins)."""
+        existing = [
+            _make_session(f"evict-sid{i}", device_id=f"dev{i}")
+            for i in range(SessionConfig.MAX_SESSIONS_PER_USER)
         ]
-        mock_redis.list_user_sessions.return_value = sessions
+        db = _async_db_mock(all_result=existing, scalar_one_or_none=_membership_mock())
+        redis = _redis_mock()
+        with patch("app.services.session.redis_sec", redis):
+            await session_service.create_session(
+                db=db, user_id=1, tenant_id=1,
+                device_id="new_dev", ip_address="1.2.3.4",
+            )
+        # 1 session évincée → revoke_csrf_token appelé 1 fois avec la plus ancienne
+        redis.revoke_csrf_token.assert_called_once_with("evict-sid0")
 
-        result = svc.list_sessions(user_id=1)
-        assert [s["session_id"] for s in result] == ["s-3", "s-2", "s-1"]
 
-    def test_empty_list_for_no_sessions(self, svc, mock_redis):
-        """Retourne liste vide si pas de sessions."""
-        mock_redis.list_user_sessions.return_value = []
-        assert svc.list_sessions(user_id=1) == []
-
-
-# ─────────────────────────────────────────────────────────────────────
-# revoke_session
-# ─────────────────────────────────────────────────────────────────────
+# ── revoke_session ────────────────────────────────────────────────────────────
 
 class TestRevokeSession:
-    """Tests pour revoke_session()."""
 
-    def test_revokes_session_and_tokens(self, svc, mock_redis):
-        """Révoque la session + famille de tokens."""
-        mock_redis.get_session.return_value = {
-            "session_id": "s-1", "user_id": 1, "family_id": "fam-A",
-        }
-
-        result = svc.revoke_session("s-1", user_id=1)
+    async def test_revokes_existing_session(self):
+        sess = _make_session("sess-123", user_id=1, device_id="dev_abc")
+        db = _async_db_mock(first_result=sess)
+        redis = _redis_mock()
+        with patch("app.services.session.redis_sec", redis):
+            result = await session_service.revoke_session(db, "sess-123", user_id=1)
         assert result is True
-        mock_redis.revoke_token_family.assert_called_once_with("fam-A")
-        mock_redis.delete_session.assert_called_once_with("s-1", 1)
+        assert sess.revoked_at is not None
+        redis.revoke_refresh_jti.assert_called_once_with(1, "dev_abc", "sess-123")
+        redis.delete_session.assert_called_once_with(1, "dev_abc", "sess-123")
+        redis.revoke_csrf_token.assert_called_once_with("sess-123")
 
-    def test_returns_false_if_not_found(self, svc, mock_redis):
-        """Retourne False si session inexistante."""
-        mock_redis.get_session.return_value = None
-        result = svc.revoke_session("nonexistent", user_id=1)
+    async def test_returns_false_when_not_found(self):
+        db = _async_db_mock(first_result=None)
+        redis = _redis_mock()
+        with patch("app.services.session.redis_sec", redis):
+            result = await session_service.revoke_session(db, "ghost", user_id=1)
         assert result is False
-        mock_redis.delete_session.assert_not_called()
+        redis.revoke_refresh_jti.assert_not_called()
 
-    def test_denies_cross_user_revoke(self, svc, mock_redis):
-        """Interdit de révoquer la session d'un autre utilisateur."""
-        mock_redis.get_session.return_value = {
-            "session_id": "s-1", "user_id": 99, "family_id": "fam-X",
-        }
-        result = svc.revoke_session("s-1", user_id=1)
-        assert result is False
-        mock_redis.delete_session.assert_not_called()
-        mock_redis.revoke_token_family.assert_not_called()
+    async def test_custom_reason_stored(self):
+        sess = _make_session("sess-abc", device_id="dev_x")
+        db = _async_db_mock(first_result=sess)
+        with patch("app.services.session.redis_sec", _redis_mock()):
+            await session_service.revoke_session(db, "sess-abc", user_id=1, reason="admin_revoke")
+        assert sess.revoke_reason == "admin_revoke"
 
-    def test_handles_session_without_family_id(self, svc, mock_redis):
-        """Session sans family_id (edge case) — supprime quand même la session."""
-        mock_redis.get_session.return_value = {
-            "session_id": "s-1", "user_id": 1,
-        }
-        result = svc.revoke_session("s-1", user_id=1)
-        assert result is True
-        mock_redis.revoke_token_family.assert_not_called()
-        mock_redis.delete_session.assert_called_once_with("s-1", 1)
+    async def test_default_reason_user_logout(self):
+        sess = _make_session("sess-def", device_id="dev_y")
+        db = _async_db_mock(first_result=sess)
+        with patch("app.services.session.redis_sec", _redis_mock()):
+            await session_service.revoke_session(db, "sess-def", user_id=1)
+        assert sess.revoke_reason == "user_logout"
 
 
-# ─────────────────────────────────────────────────────────────────────
-# revoke_all_sessions
-# ─────────────────────────────────────────────────────────────────────
+# ── revoke_all_sessions ───────────────────────────────────────────────────────
 
 class TestRevokeAllSessions:
-    """Tests pour revoke_all_sessions()."""
 
-    def test_revokes_all_and_returns_count(self, svc, mock_redis):
-        """Révoque toutes les sessions et retourne le count."""
-        mock_redis.list_user_sessions.return_value = [
-            {"session_id": "s-1", "user_id": 1, "family_id": "fam-A"},
-            {"session_id": "s-2", "user_id": 1, "family_id": "fam-B"},
-        ]
-        mock_redis.delete_all_user_sessions.return_value = 2
+    async def test_marks_all_sessions_revoked(self):
+        sessions = [_make_session(f"sid{i}") for i in range(3)]
+        db = _async_db_mock(all_result=sessions)
+        redis = _redis_mock()
+        with patch("app.services.session.redis_sec", redis):
+            count = await session_service.revoke_all_sessions(db, user_id=1)
+        assert count == 3
+        for sess in sessions:
+            assert sess.revoked_at is not None
+        redis.revoke_all_user_sessions.assert_called_once_with(1)
 
-        count = svc.revoke_all_sessions(user_id=1)
-        assert count == 2
-        assert mock_redis.revoke_token_family.call_count == 2
-        mock_redis.revoke_token_family.assert_any_call("fam-A")
-        mock_redis.revoke_token_family.assert_any_call("fam-B")
-        mock_redis.delete_all_user_sessions.assert_called_once_with(1)
+    async def test_returns_zero_if_no_sessions(self):
+        db = _async_db_mock(all_result=[], scalar_one_or_none=_membership_mock())
+        redis = _redis_mock()
+        with patch("app.services.session.redis_sec", redis):
+            count = await session_service.revoke_all_sessions(db, user_id=99)
+        assert count == 0
+        redis.revoke_all_user_sessions.assert_called_once_with(99)
 
-    def test_returns_zero_if_no_sessions(self, svc, mock_redis):
-        """Retourne 0 si pas de sessions."""
-        mock_redis.list_user_sessions.return_value = []
-        mock_redis.delete_all_user_sessions.return_value = 0
-        assert svc.revoke_all_sessions(user_id=1) == 0
+    async def test_custom_reason(self):
+        sessions = [_make_session("s1")]
+        db = _async_db_mock(all_result=sessions)
+        with patch("app.services.session.redis_sec", _redis_mock()):
+            await session_service.revoke_all_sessions(db, user_id=1, reason="password_reset")
+        assert sessions[0].revoke_reason == "password_reset"
 
 
-# ─────────────────────────────────────────────────────────────────────
-# update_activity
-# ─────────────────────────────────────────────────────────────────────
+# ── list_sessions ─────────────────────────────────────────────────────────────
+
+class TestListSessions:
+
+    async def test_returns_active_sessions(self):
+        sessions = [_make_session(f"sid{i}") for i in range(3)]
+        db = _async_db_mock(all_result=sessions)
+        result = await session_service.list_sessions(db, user_id=1)
+        assert len(result) == 3
+
+    async def test_returns_empty_list(self):
+        db = _async_db_mock(all_result=[], scalar_one_or_none=_membership_mock())
+        result = await session_service.list_sessions(db, user_id=1)
+        assert result == []
+
+
+# ── get_session ───────────────────────────────────────────────────────────────
+
+class TestGetSession:
+
+    async def test_returns_session(self):
+        sess = _make_session("sess-xyz")
+        db = _async_db_mock(first_result=sess)
+        result = await session_service.get_session(db, "sess-xyz")
+        assert result is sess
+
+    async def test_returns_none_when_not_found(self):
+        db = _async_db_mock(first_result=None)
+        result = await session_service.get_session(db, "missing")
+        assert result is None
+
+
+# ── update_activity ───────────────────────────────────────────────────────────
 
 class TestUpdateActivity:
-    """Tests pour update_activity()."""
 
-    def test_updates_activity(self, svc, mock_redis):
-        """update_activity délègue à redis_client."""
-        mock_redis.update_session_activity.return_value = True
-        assert svc.update_activity("s-1") is True
-        mock_redis.update_session_activity.assert_called_once_with("s-1")
+    async def test_updates_last_active_at(self):
+        before = datetime.now(timezone.utc)
+        sess = _make_session("sess-1", device_id="dev_z")
+        db = _async_db_mock(first_result=sess)
+        redis = _redis_mock()
+        with patch("app.services.session.redis_sec", redis):
+            result = await session_service.update_activity(
+                db, "sess-1", user_id=1, device_id="dev_z",
+            )
+        assert result is True
+        assert sess.last_active_at >= before
+        redis.update_session_activity.assert_called_once_with(1, "dev_z", "sess-1")
 
-    def test_returns_false_if_not_found(self, svc, mock_redis):
-        """Retourne False si session inexistante."""
-        mock_redis.update_session_activity.return_value = False
-        assert svc.update_activity("nonexistent") is False
-
-
-# ─────────────────────────────────────────────────────────────────────
-# Constants
-# ─────────────────────────────────────────────────────────────────────
-
-class TestSessionConstants:
-    """Tests pour les constantes de session."""
-
-    def test_max_sessions_per_user(self):
-        """MAX_SESSIONS_PER_USER = 5."""
-        assert SessionConfig.MAX_SESSIONS_PER_USER == 5
-
-    def test_session_ttl(self):
-        """SESSION_TTL = 7 jours."""
-        assert SessionConfig.SESSION_TTL_SECONDS == 7 * 24 * 3600
-
-    def test_redis_keys_exist(self):
-        """Les clés Redis session existent."""
-        assert RedisKeys.SESSION == "session:"
-        assert RedisKeys.SESSION_USER_INDEX == "session_idx:"
-
-    def test_session_user_index_helper(self):
-        """Helper génère la bonne clé."""
-        assert RedisKeys.session_user_index(42) == "session_idx:42"
+    async def test_returns_false_when_not_found(self):
+        db = _async_db_mock(first_result=None)
+        redis = _redis_mock()
+        with patch("app.services.session.redis_sec", redis):
+            result = await session_service.update_activity(
+                db, "ghost", user_id=1, device_id="dev_z",
+            )
+        assert result is False
+        redis.update_session_activity.assert_not_called()
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Singleton
-# ─────────────────────────────────────────────────────────────────────
+# ── singleton ─────────────────────────────────────────────────────────────────
 
 class TestSingleton:
-    """Tests pour le singleton session_service."""
 
-    def test_singleton_is_session_service(self):
-        """session_service est une instance de SessionService."""
+    def test_session_service_is_singleton(self):
+        from app.services.session import session_service as s1, session_service as s2
+        assert s1 is s2
+
+    def test_is_instance_of_session_service(self):
         assert isinstance(session_service, SessionService)
-
-    def test_singleton_identity(self):
-        """Imports multiples retournent le même objet."""
-        from app.services.session import session_service as svc2
-        assert session_service is svc2
-
-
-# ─────────────────────────────────────────────────────────────────────
-# Eviction — cas avancés
-# ─────────────────────────────────────────────────────────────────────
-
-class TestEvictionAdvanced:
-    """Tests avancés pour l'éviction de sessions."""
-
-    def test_evicts_multiple_when_over_max(self, svc, mock_redis):
-        """Si user a 6 sessions (>MAX), évince les 2 plus anciennes."""
-        existing = [
-            {"session_id": f"s-{i}", "user_id": 1, "family_id": f"f-{i}",
-             "created_at": f"2026-02-{10+i:02d}T00:00:00+00:00"}
-            for i in range(6)
-        ]
-        mock_redis.list_user_sessions.return_value = existing
-
-        svc.create_session(
-            user_id=1, tenant_id=1, family_id="fam-new",
-            ip_address="1.2.3.4", user_agent="Chrome",
-        )
-
-        # 6 existantes + 1 nouvelle = 7, max = 5. Doit évincer 7 - 5 = 2 plus anciennes.
-        # Les appels delete_session doivent être pour s-0 et s-1
-        delete_calls = mock_redis.delete_session.call_args_list
-        assert len(delete_calls) == 2
-        assert delete_calls[0] == call("s-0", 1)
-        assert delete_calls[1] == call("s-1", 1)
-
-    def test_eviction_revokes_token_families(self, svc, mock_redis):
-        """L'éviction révoque aussi les familles de tokens."""
-        existing = [
-            {"session_id": "s-old", "user_id": 1, "family_id": "fam-old",
-             "created_at": "2026-02-01T00:00:00+00:00"},
-        ] * 5  # 5 sessions identiques (simplification)
-        mock_redis.list_user_sessions.return_value = existing
-
-        svc.create_session(
-            user_id=1, tenant_id=1, family_id="fam-new",
-            ip_address="1.2.3.4", user_agent="Chrome",
-        )
-
-        # Au moins 1 famille révoquée
-        assert mock_redis.revoke_token_family.call_count >= 1

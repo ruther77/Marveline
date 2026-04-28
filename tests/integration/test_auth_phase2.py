@@ -12,8 +12,8 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.redis import redis_client
 from app.core.security import verify_password, get_password_hash
+from app.repositories.password_reset_token import PasswordResetTokenRepository
 from tests.conftest import csrf_token_for_user
 
 
@@ -40,8 +40,8 @@ class TestChangePassword:
         assert response.json()["message"] == "Password changed successfully"
 
         # Vérifier que le mot de passe a bien changé en DB
-        test_db.refresh(test_user)
-        assert verify_password("NewSecurePass456!", test_user.hashed_password)
+        test_db.refresh(test_user._account)
+        assert verify_password("NewSecurePass456!", test_user._account.hashed_password)
 
     def test_change_password_wrong_current(
         self, client: TestClient, test_user, auth_headers_real
@@ -195,17 +195,17 @@ class TestForgotPassword:
 class TestResetPassword:
     """POST /api/v1/auth/reset-password — public, token single-use."""
 
-    def _store_reset_token(self, user_id: int, tenant_id: int, email: str) -> str:
-        """Helper : crée un token de reset dans Redis, retourne le token brut."""
-        raw_token = secrets.token_urlsafe(48)
-        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-        redis_client.store_password_reset_token(
+    def _store_reset_token(self, db, account_id: int, email: str) -> str:
+        """Helper : crée un token de reset en BD (NC-05 — spec §4.4), retourne le token brut (hex)."""
+        raw_bytes = secrets.token_bytes(32)
+        raw_token = raw_bytes.hex()
+        token_hash = hashlib.sha256(raw_bytes).hexdigest()
+        PasswordResetTokenRepository(db).create(
             token_hash=token_hash,
-            user_id=user_id,
-            tenant_id=tenant_id,
+            account_id=account_id,
             email=email,
-            ttl_seconds=1800,
         )
+        db.commit()
         return raw_token
 
     def test_reset_password_success(
@@ -213,7 +213,7 @@ class TestResetPassword:
     ):
         """Reset avec token valide → 200 + mot de passe changé."""
         raw_token = self._store_reset_token(
-            test_user.id, test_user.tenant_id, test_user.email,
+            test_db, test_user.id, test_user.email,
         )
 
         response = client.post(
@@ -228,8 +228,8 @@ class TestResetPassword:
         assert "reset successfully" in response.json()["message"].lower()
 
         # Vérifier que le mot de passe a changé
-        test_db.refresh(test_user)
-        assert verify_password("ResetSecurePass789!", test_user.hashed_password)
+        test_db.refresh(test_user._account)
+        assert verify_password("ResetSecurePass789!", test_user._account.hashed_password)
 
     def test_reset_password_invalid_token(self, client: TestClient):
         """Token invalide → 400."""
@@ -245,11 +245,11 @@ class TestResetPassword:
         assert "Invalid or expired" in response.json()["detail"]
 
     def test_reset_password_token_single_use(
-        self, client: TestClient, test_user
+        self, client: TestClient, test_db, test_user
     ):
         """Token ne peut être utilisé qu'une seule fois."""
         raw_token = self._store_reset_token(
-            test_user.id, test_user.tenant_id, test_user.email,
+            test_db, test_user.id, test_user.email,
         )
 
         # Première utilisation → OK
@@ -267,11 +267,11 @@ class TestResetPassword:
         assert resp2.status_code == 400
 
     def test_reset_password_weak_password(
-        self, client: TestClient, test_user
+        self, client: TestClient, test_db, test_user
     ):
         """Nouveau mot de passe trop faible → 400."""
         raw_token = self._store_reset_token(
-            test_user.id, test_user.tenant_id, test_user.email,
+            test_db, test_user.id, test_user.email,
         )
 
         response = client.post(
@@ -295,7 +295,7 @@ class TestResetPassword:
 
         # Reset password
         raw_token = self._store_reset_token(
-            test_user.id, test_user.tenant_id, test_user.email,
+            test_db, test_user.id, test_user.email,
         )
         resp = client.post(
             "/api/v1/auth/reset-password",
@@ -316,5 +316,5 @@ class TestResetPassword:
         # Selon l'implémentation, le JWT reste valide mais la session Redis est supprimée
         # Le comportement exact dépend de si get_current_user vérifie la session
         # On vérifie juste que le reset a fonctionné et le password est changé
-        test_db.refresh(test_user)
-        assert verify_password("AfterReset123!", test_user.hashed_password)
+        test_db.refresh(test_user._account)
+        assert verify_password("AfterReset123!", test_user._account.hashed_password)

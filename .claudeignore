@@ -1,0 +1,56 @@
+# Build artifacts
+**/dist/
+**/build/
+**/.next/
+**/node_modules/
+
+# PDFs fournisseur (570 fichiers, jamais lus par Claude)
+docs/METRO/Téléchargement*/
+docs/METRO/*.json
+
+# Data files
+data/brand_dictionary.json
+data/*.csv
+
+# Uploads
+uploads/
+
+# Docker / Infra
+.docker/
+*.tar
+*.tar.gz
+
+# Media
+**/*.pdf
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.svg
+**/*.ico
+**/*.woff
+**/*.woff2
+**/*.ttf
+**/*.eot
+
+# Caches
+**/.cache/
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+*.pyc
+
+# Logs
+**/*.log
+test-results/
+
+# Environment
+.env
+.env.local
+
+# Lock files (huge)
+pnpm-lock.yaml
+package-lock.json
+
+# Git
+.git/

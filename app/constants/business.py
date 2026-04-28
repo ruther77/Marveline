@@ -70,14 +70,18 @@ class CustomerType(str, Enum):
 
     INDIVIDUAL = "individual"
     COMPANY = "company"
+    PROFESSIONAL = "professional"
+    ASSOCIATION = "association"
 
 
 class ReservationStatus(str, Enum):
     """Statut du cycle de vie d'une réservation.
 
     Workflow :
-        DRAFT → CONFIRMED → DELIVERED → RETURNED
+        DRAFT → CONFIRMED → DELIVERED → RETURNED → COMPLETED
                          ↘ CANCELLED
+        RETURNED_DISPUTE → RETURNED → COMPLETED
+                         ↘ COMPLETED (clôture directe)
 
     Utilisé dans :
         - models.Reservation.status
@@ -93,6 +97,7 @@ class ReservationStatus(str, Enum):
     EXTENDED = "extended"
     RETURNED = "returned"
     RETURNED_DISPUTE = "returned_dispute"
+    COMPLETED = "completed"
     CANCELLED = "cancelled"
 
 
@@ -117,6 +122,24 @@ class InvoiceStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class DepositStatus(str, Enum):
+    """Statut du cycle de vie d'une caution.
+
+    Workflow :
+        HELD → RELEASED (restitution complète)
+        HELD → RETAINED  (retenue partielle ou totale, ex: dommages)
+
+    Utilisé dans :
+        - models.Deposit.status
+        - schemas.DepositUpdate.status
+        - Filtres API GET /deposits?status=...
+    """
+
+    HELD = "held"
+    RELEASED = "released"
+    RETAINED = "retained"
+
+
 class PaymentMethod(str, Enum):
     """Méthodes de paiement acceptées.
 
@@ -133,25 +156,32 @@ class PaymentMethod(str, Enum):
 
 
 class UserRole(str, Enum):
-    """Rôles utilisateur pour contrôle d'accès (RBAC).
+    """Roles utilisateur pour controle d'acces RBAC (CaroCorp §6.1).
 
-    Hiérarchie :
-        ADMIN > MANAGER > STAFF
+    Hierarchie (level 0 = plus eleve) :
+        SUPER_ADMIN(0) > PLATFORM_OPS(1) > TENANT_ADMIN(2) > MANAGER(3) > STAFF(4) > VIEWER(5)
 
-    Permissions :
-        - ADMIN : Tous droits + gestion users
-        - MANAGER : CRUD réservations/factures/clients
-        - STAFF : Read-only
+    Niveaux :
+        - Niveau 1 (systeme, cross-tenant) : super_admin, platform_ops
+        - Niveau 2 (tenant) : tenant_admin, manager, staff, viewer
 
-    Utilisé dans :
-        - models.User.role
-        - core.deps.require_role (décorateur endpoints)
-        - Middleware RBAC
+    Utilise dans :
+        - models.User.role (legacy, migration vers user_roles)
+        - auth_roles table (source de verite)
+        - JWT claim "role"
     """
 
-    ADMIN = "admin"
+    SUPER_ADMIN = "super_admin"
+    PLATFORM_OPS = "platform_ops"
+    TENANT_ADMIN = "tenant_admin"
     MANAGER = "manager"
     STAFF = "staff"
+    VIEWER = "viewer"
+
+    # Legacy : "admin" existe en DB (CHECK constraint users.role).
+    # Migration Alembic convertira "admin" → "tenant_admin".
+    # Jusqu'a la migration, le code legacy utilise ADMIN = "admin".
+    ADMIN = "admin"
 
 
 class TokenType(str, Enum):
@@ -268,6 +298,30 @@ class ProductColor(str, Enum):
     TAUPE = "taupe"
 
 
+class ProductGamme(str, Enum):
+    """Gammes/finitions disponibles pour les variantes de produits.
+
+    Utilisé pour les verres, couverts et articles avec niveaux de finition :
+        - classique : gamme standard
+        - elegance  : gamme intermédiaire
+        - open_up   : gamme Open'Up (verres spéciaux)
+        - prestige  : gamme haut de gamme
+        - vintage   : gamme vintage
+        - bois      : gamme bois/naturel
+
+    Utilisé dans :
+        - models.ProductVariant.gamme
+        - schemas.ProductVariantCreate.gamme
+    """
+
+    CLASSIQUE = "classique"
+    ELEGANCE  = "elegance"
+    OPEN_UP   = "open_up"
+    PRESTIGE  = "prestige"
+    VINTAGE   = "vintage"
+    BOIS      = "bois"
+
+
 class StockItemStatus(str, Enum):
     """Statuts d'une unité physique de stock.
 
@@ -307,11 +361,14 @@ DEPOSIT_RATE: float = 3.0
 SELFIE_BOOTH_DEPOSIT_CENTS: int = 300_000
 """Caution fixe borne à selfie = 3 000€ (exception au taux général)."""
 
-ADVANCE_PAYMENT_PERCENT: float = 0.40
-"""Acompte 40% du montant TTC dû à la réservation."""
+ADVANCE_PAYMENT_PERCENT: int = 40
+"""Acompte 40% du montant TTC — en pourcentage entier (pas float)."""
+
+ADVANCE_DUE_DAYS: int = 7
+"""Echeance acompte : N jours apres confirmation."""
 
 BALANCE_DUE_DAYS_BEFORE_EVENT: int = 7
-"""Solde restant dû 7 jours avant la date de l'événement."""
+"""Solde restant du N jours avant la date de l'evenement."""
 
 LATE_RETURN_PENALTY_RATE: float = 0.20
 """Pénalité retard : 20% du montant TTC par jour de retard."""
@@ -405,6 +462,39 @@ class EventStatus(str, Enum):
     CLOSED = "closed"
 
 
+class ReservationDeliveryMethod(str, Enum):
+    """Méthode de livraison d'une réservation.
+
+    Utilisé dans :
+        - models.Reservation.delivery_method
+        - schemas.ReservationUpdate.delivery_method
+    """
+
+    SELF = "self"        # Livraison propre — calcul auto frais
+    CARRIER = "carrier"  # Transporteur externe (Boxtal) — tarif choisi
+    PICKUP = "pickup"    # Retrait client — 0€
+
+
+# Seuils logistiques livraison
+WEIGHT_SURCHARGE_THRESHOLD_GRAMS = 500_000  # 500 kg
+WEIGHT_SURCHARGE_CENTS = 5000  # 50€ de surcharge poids
+
+
+class ContainerType(str, Enum):
+    """Type de contenant logistique Marveline.
+
+    Utilisé dans :
+        - models.Container.container_type
+        - schemas.ContainerCreate.container_type
+    """
+
+    BAC = "bac"
+    CARTON = "carton"
+    PALETTE = "palette"
+    HOUSSE = "housse"
+    CAISSE = "caisse"
+
+
 class RelanceStatus(str, Enum):
     """Statut d'une relance planifiée.
 
@@ -420,6 +510,15 @@ class RelanceStatus(str, Enum):
     SCHEDULED = "scheduled"
     SENT = "sent"
     CANCELLED = "cancelled"
+
+
+# ── Event type constraints ──────────────────────────────────────────
+EVENT_TYPE_MIN_DAYS: dict[str, int] = {
+    "mariage": 3,
+    "entreprise": 2,
+    "anniversaire": 1,
+    "autre": 1,
+}
 
 
 __all__ = [
@@ -441,10 +540,15 @@ __all__ = [
     "DevisStatus",
     "VenteStatus",
     "EventStatus",
+    "ReservationDeliveryMethod",
+    "WEIGHT_SURCHARGE_THRESHOLD_GRAMS",
+    "WEIGHT_SURCHARGE_CENTS",
+    "ContainerType",
     "RelanceStatus",
     # Règles métier marveline.fr
     "DEPOSIT_RATE",
     "SELFIE_BOOTH_DEPOSIT_CENTS",
+    "ADVANCE_DUE_DAYS",
     "ADVANCE_PAYMENT_PERCENT",
     "BALANCE_DUE_DAYS_BEFORE_EVENT",
     "LATE_RETURN_PENALTY_RATE",
@@ -454,5 +558,7 @@ __all__ = [
     "TVA_RATE",
     "LOW_STOCK_THRESHOLD",
     "ProductColor",
+    "ProductGamme",
     "StockItemStatus",
+    "EVENT_TYPE_MIN_DAYS",
 ]

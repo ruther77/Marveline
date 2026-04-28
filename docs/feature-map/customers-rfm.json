@@ -1,0 +1,115 @@
+{
+  "id": "page:customers-rfm",
+  "type": "page",
+  "name": "Clients — Analyse RFM",
+  "description": "Page principale \"Clients — Analyse RFM\". Contenu non détecté automatiquement.",
+  "route": "/customers/rfm",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "manager",
+      "admin"
+    ],
+    "group": "Clients",
+    "dom_h1": "Analyse RFM"
+  },
+  "params": {},
+  "features": [],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Champions\n\n0\n\n0% des clients",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Fidèles\n\n0\n\n0% des clients",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Potentiels\n\n0\n\n0% des clients",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nouveaux\n\n21\n\n100% des clients",
+      "trigger": "click",
+      "target_id": "modal:nouveaux-21-100-des-clients",
+      "node": {
+        "id": "modal:nouveaux-21-100-des-clients",
+        "type": "modal",
+        "name": "Nouveaux\n\n21\n\n100% des clients",
+        "description": "Modal/panneau ouvert(e) par le bouton \"Nouveaux\n\n21\n\n100% des clients\" sur la page Clients — Analyse RFM. Non extrait automatiquement.",
+        "attributes": {
+          "scan_status": "placeholder"
+        },
+        "params": {},
+        "features": [],
+        "children": []
+      }
+    },
+    {
+      "link_type": "action",
+      "label": "À risque\n\n0\n\n0% des clients",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Perdus\n\n0\n\n0% des clients",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

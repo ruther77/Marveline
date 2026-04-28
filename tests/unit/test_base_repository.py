@@ -1,10 +1,29 @@
 """Tests unitaires pour BaseRepository."""
 import pytest
+from unittest.mock import MagicMock, patch
 from sqlalchemy import String, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 from app.repositories.base import BaseRepository
 from app.models.base import Base, TenantMixin, SoftDeleteMixin
 from app.models.product import Product
+
+
+@pytest.fixture(autouse=True)
+def mock_cache_and_metrics():
+    """Neutralise cache Redis et métriques Prometheus pour tests sync BaseRepository.
+
+    CacheService.get/set/delete sont async — incompatibles avec BaseRepository (sync).
+    Sans ce mock, cache_service.get() retourne une coroutine (truthy), ce qui déclenche
+    le bloc cache HIT et crashe sur from_dict(coroutine) → AttributeError.
+    """
+    cache_mock = MagicMock()
+    cache_mock.get.return_value = None  # cache always miss → path DB
+    metrics_mock = (MagicMock(), MagicMock(), MagicMock())
+    with (
+        patch("app.repositories.base._get_cache_service", return_value=cache_mock),
+        patch("app.repositories.base._get_cache_metrics", return_value=metrics_mock),
+    ):
+        yield
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -32,7 +51,7 @@ def test_product_for_base(test_db):
         name="Product Base Test",
         sku="PROD-BASE-001",
         category="assiettes",
-        price_per_day=100,
+        price_per_day_cents=100,
         stock_quantity=50,
         available_quantity=30,
         is_active=True
@@ -51,7 +70,7 @@ def test_product_inactive(test_db):
         name="Product Inactive",
         sku="PROD-INACTIVE-001",
         category="verres",
-        price_per_day=50,
+        price_per_day_cents=50,
         stock_quantity=20,
         available_quantity=0,
         is_active=False  # Soft-deleted
@@ -70,13 +89,13 @@ def test_list_filter_operator_gt(test_db, test_product_for_base):
     """Test filtre avec opérateur 'gt' (greater than)."""
     repo = BaseRepository(test_db, Product)
 
-    # Créer produit avec price_per_day=200
+    # Créer produit avec price_per_day_cents=200
     product_high_price = Product(
         tenant_id=1,
         name="Product High Price",
         sku="PROD-HIGH-001",
         category="assiettes",
-        price_per_day=200,
+        price_per_day_cents=200,
         stock_quantity=10,
         available_quantity=10,
         is_active=True
@@ -113,13 +132,13 @@ def test_list_filter_operator_lt(test_db, test_product_for_base):
     """Test filtre avec opérateur 'lt' (less than)."""
     repo = BaseRepository(test_db, Product)
 
-    # Créer produit avec price_per_day=50
+    # Créer produit avec price_per_day_cents=50
     product_low_price = Product(
         tenant_id=1,
         name="Product Low Price",
         sku="PROD-LOW-001",
         category="assiettes",
-        price_per_day=50,
+        price_per_day_cents=50,
         stock_quantity=10,
         available_quantity=10,
         is_active=True
@@ -156,13 +175,13 @@ def test_list_filter_operator_ne(test_db, test_product_for_base):
     """Test filtre avec opérateur 'ne' (not equal)."""
     repo = BaseRepository(test_db, Product)
 
-    # Créer produit avec price_per_day=200
+    # Créer produit avec price_per_day_cents=200
     product_different = Product(
         tenant_id=1,
         name="Product Different",
         sku="PROD-DIFF-001",
         category="assiettes",
-        price_per_day=200,
+        price_per_day_cents=200,
         stock_quantity=10,
         available_quantity=10,
         is_active=True
@@ -216,13 +235,13 @@ def test_count_filter_operator_gt(test_db, test_product_for_base):
     """Test count avec opérateur 'gt'."""
     repo = BaseRepository(test_db, Product)
 
-    # Créer produit avec price_per_day=200
+    # Créer produit avec price_per_day_cents=200
     product_high_price = Product(
         tenant_id=1,
         name="Product High Count",
         sku="PROD-COUNT-001",
         category="assiettes",
-        price_per_day=200,
+        price_per_day_cents=200,
         stock_quantity=10,
         available_quantity=10,
         is_active=True
@@ -397,29 +416,32 @@ def test_restore_cross_tenant(test_db, test_product_inactive):
 # ═══════════════════════════════════════════════════════════════════════════
 
 def test_model_without_tenant_mixin(test_db):
-    """Test BaseRepository avec modèle sans TenantMixin."""
-    # Créer table pour SimpleModel
-    SimpleModel.__table__.create(test_db.bind, checkfirst=True)
+    """Test BaseRepository avec modèle sans TenantMixin.
 
-    try:
-        repo = BaseRepository(test_db, SimpleModel)
+    Utilise CategorieProduit (ADR-01 : référentiel partagé, pas de tenant_id)
+    au lieu d'un SimpleModel DDL temporaire : évite le deadlock ACCESS EXCLUSIVE
+    (DROP TABLE) vs ACCESS SHARE (SELECT de get_by_id sur la même connexion test_db).
+    """
+    from app.models.catalogue.categories_produit import CategorieProduit
 
-        # Vérifier que _has_tenant_mixin() retourne False
-        assert repo._has_tenant_mixin() is False
+    repo = BaseRepository(test_db, CategorieProduit)
 
-        # Créer entité (pas besoin de tenant_id)
-        simple = SimpleModel(name="Test Simple", value=42)
-        test_db.add(simple)
-        test_db.commit()
-        test_db.refresh(simple)
+    # Vérifier que _has_tenant_mixin() retourne False (ADR-01)
+    assert repo._has_tenant_mixin() is False
 
-        # get_by_id sans tenant_id devrait fonctionner
-        # Mais BaseRepository exige tenant_id, donc passer 0 ou None
-        # La ligne 64 "return query" sera exécutée (pas de filtre tenant)
-        result = repo.get_by_id(simple.id, tenant_id=0)
+    # Créer entité sans tenant_id
+    cat = CategorieProduit(
+        code="tbr_no_tenant",
+        nom="Test Base Repository",
+        famille="Test",
+        categorie="Test Cat",
+    )
+    test_db.add(cat)
+    test_db.commit()
+    test_db.refresh(cat)
 
-        assert result is not None
-        assert result.name == "Test Simple"
-    finally:
-        # Nettoyer
-        SimpleModel.__table__.drop(test_db.bind, checkfirst=True)
+    # get_by_id sans filtre tenant_id (modèle sans TenantMixin → _apply_tenant_filter no-op)
+    result = repo.get_by_id(cat.id, tenant_id=0)
+
+    assert result is not None
+    assert result.code == "tbr_no_tenant"

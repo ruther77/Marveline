@@ -10,9 +10,9 @@ from app.schemas.feature_flag import FeatureFlagCreate, FeatureFlagUpdate
 
 
 @pytest.fixture
-def service(test_db):
+def service(async_db):
     """FeatureFlagService instance."""
-    return FeatureFlagService(test_db)
+    return FeatureFlagService(async_db)
 
 
 @pytest.fixture
@@ -27,15 +27,17 @@ def sample_flag_data():
     )
 
 
+@pytest.mark.asyncio
 class TestCreateFlag:
     """Tests pour creation de feature flags."""
 
     @patch("app.services.feature_flag.redis_client")
-    def test_create_flag_success(self, mock_redis, service, test_db, sample_flag_data):
+    async def test_create_flag_success(self, mock_redis, service, async_db,
+                                       sample_flag_data):
         """create_flag() cree un flag valide."""
-        flag = service.create_flag(sample_flag_data)
-        test_db.commit()
-        test_db.refresh(flag)
+        flag = await service.create_flag(sample_flag_data)
+        await async_db.commit()
+        await async_db.refresh(flag)
 
         assert flag.id is not None
         assert flag.name == "stripe_payments"
@@ -47,12 +49,12 @@ class TestCreateFlag:
         assert flag.updated_at is not None
 
     @patch("app.services.feature_flag.redis_client")
-    def test_create_flag_defaults(self, mock_redis, service, test_db):
+    async def test_create_flag_defaults(self, mock_redis, service, async_db):
         """create_flag() utilise les valeurs par defaut."""
         data = FeatureFlagCreate(name="basic_flag")
-        flag = service.create_flag(data)
-        test_db.commit()
-        test_db.refresh(flag)
+        flag = await service.create_flag(data)
+        await async_db.commit()
+        await async_db.refresh(flag)
 
         assert flag.is_enabled is False
         assert flag.target_tenants is None
@@ -60,13 +62,14 @@ class TestCreateFlag:
         assert flag.metadata_json is None
 
     @patch("app.services.feature_flag.redis_client")
-    def test_create_flag_duplicate_name_409(self, mock_redis, service, test_db, sample_flag_data):
+    async def test_create_flag_duplicate_name_409(self, mock_redis, service, async_db,
+                                                   sample_flag_data):
         """create_flag() leve 409 si le nom existe deja."""
-        service.create_flag(sample_flag_data)
-        test_db.commit()
+        await service.create_flag(sample_flag_data)
+        await async_db.commit()
 
         with pytest.raises(HTTPException) as exc_info:
-            service.create_flag(sample_flag_data)
+            await service.create_flag(sample_flag_data)
 
         assert exc_info.value.status_code == 409
         assert "existe deja" in exc_info.value.detail
@@ -92,161 +95,175 @@ class TestCreateFlag:
             FeatureFlagCreate(name="test_flag", rollout_pct=-1)
 
 
+@pytest.mark.asyncio
 class TestUpdateFlag:
     """Tests pour mise a jour de feature flags."""
 
     @patch("app.services.feature_flag.redis_client")
-    def test_update_flag_description(self, mock_redis, service, test_db, sample_flag_data):
+    async def test_update_flag_description(self, mock_redis, service, async_db,
+                                           sample_flag_data):
         """update_flag() met a jour la description."""
-        flag = service.create_flag(sample_flag_data)
-        test_db.commit()
+        flag = await service.create_flag(sample_flag_data)
+        await async_db.commit()
 
-        updated = service.update_flag(flag.id, FeatureFlagUpdate(description="Nouvelle desc"))
-        test_db.commit()
-        test_db.refresh(updated)
+        updated = await service.update_flag(flag.id,
+                                            FeatureFlagUpdate(description="Nouvelle desc"))
+        await async_db.commit()
+        await async_db.refresh(updated)
 
         assert updated.description == "Nouvelle desc"
         assert updated.name == "stripe_payments"  # Inchange
 
     @patch("app.services.feature_flag.redis_client")
-    def test_update_flag_is_enabled(self, mock_redis, service, test_db, sample_flag_data):
+    async def test_update_flag_is_enabled(self, mock_redis, service, async_db,
+                                          sample_flag_data):
         """update_flag() bascule is_enabled."""
-        flag = service.create_flag(sample_flag_data)
-        test_db.commit()
+        flag = await service.create_flag(sample_flag_data)
+        await async_db.commit()
 
-        updated = service.update_flag(flag.id, FeatureFlagUpdate(is_enabled=False))
-        test_db.commit()
-        test_db.refresh(updated)
+        updated = await service.update_flag(flag.id, FeatureFlagUpdate(is_enabled=False))
+        await async_db.commit()
+        await async_db.refresh(updated)
 
         assert updated.is_enabled is False
 
     @patch("app.services.feature_flag.redis_client")
-    def test_update_flag_rollout_pct(self, mock_redis, service, test_db, sample_flag_data):
+    async def test_update_flag_rollout_pct(self, mock_redis, service, async_db,
+                                           sample_flag_data):
         """update_flag() met a jour le rollout_pct."""
-        flag = service.create_flag(sample_flag_data)
-        test_db.commit()
+        flag = await service.create_flag(sample_flag_data)
+        await async_db.commit()
 
-        updated = service.update_flag(flag.id, FeatureFlagUpdate(rollout_pct=50))
-        test_db.commit()
-        test_db.refresh(updated)
+        updated = await service.update_flag(flag.id, FeatureFlagUpdate(rollout_pct=50))
+        await async_db.commit()
+        await async_db.refresh(updated)
 
         assert updated.rollout_pct == 50
 
     @patch("app.services.feature_flag.redis_client")
-    def test_update_flag_target_tenants(self, mock_redis, service, test_db, sample_flag_data):
+    async def test_update_flag_target_tenants(self, mock_redis, service, async_db,
+                                              sample_flag_data):
         """update_flag() met a jour target_tenants."""
-        flag = service.create_flag(sample_flag_data)
-        test_db.commit()
+        flag = await service.create_flag(sample_flag_data)
+        await async_db.commit()
 
-        updated = service.update_flag(flag.id, FeatureFlagUpdate(target_tenants=[3, 4, 5]))
-        test_db.commit()
-        test_db.refresh(updated)
+        updated = await service.update_flag(
+            flag.id, FeatureFlagUpdate(target_tenants=[3, 4, 5])
+        )
+        await async_db.commit()
+        await async_db.refresh(updated)
 
         assert updated.target_tenants == [3, 4, 5]
 
     @patch("app.services.feature_flag.redis_client")
-    def test_update_flag_not_found_404(self, mock_redis, service):
+    async def test_update_flag_not_found_404(self, mock_redis, service):
         """update_flag() leve 404 si flag inexistant."""
         with pytest.raises(HTTPException) as exc_info:
-            service.update_flag(99999, FeatureFlagUpdate(is_enabled=False))
+            await service.update_flag(99999, FeatureFlagUpdate(is_enabled=False))
 
         assert exc_info.value.status_code == 404
 
     @patch("app.services.feature_flag.redis_client")
-    def test_update_flag_invalidates_cache(self, mock_redis, service, test_db, sample_flag_data):
+    async def test_update_flag_invalidates_cache(self, mock_redis, service, async_db,
+                                                  sample_flag_data):
         """update_flag() invalide le cache Redis."""
-        flag = service.create_flag(sample_flag_data)
-        test_db.commit()
+        flag = await service.create_flag(sample_flag_data)
+        await async_db.commit()
 
-        service.update_flag(flag.id, FeatureFlagUpdate(is_enabled=False))
-        test_db.commit()
+        await service.update_flag(flag.id, FeatureFlagUpdate(is_enabled=False))
+        await async_db.commit()
 
         mock_redis.client.delete.assert_called()
 
 
+@pytest.mark.asyncio
 class TestDeleteFlag:
     """Tests pour suppression de feature flags."""
 
     @patch("app.services.feature_flag.redis_client")
-    def test_delete_flag_success(self, mock_redis, service, test_db, sample_flag_data):
+    async def test_delete_flag_success(self, mock_redis, service, async_db,
+                                       sample_flag_data):
         """delete_flag() supprime le flag physiquement."""
-        flag = service.create_flag(sample_flag_data)
-        test_db.commit()
+        flag = await service.create_flag(sample_flag_data)
+        await async_db.commit()
         flag_id = flag.id
 
-        service.delete_flag(flag_id)
-        test_db.commit()
+        await service.delete_flag(flag_id)
+        await async_db.commit()
 
         # Flag plus en base
-        assert test_db.get(FeatureFlag, flag_id) is None
+        assert await async_db.get(FeatureFlag, flag_id) is None
 
     @patch("app.services.feature_flag.redis_client")
-    def test_delete_flag_not_found_404(self, mock_redis, service):
+    async def test_delete_flag_not_found_404(self, mock_redis, service):
         """delete_flag() leve 404 si flag inexistant."""
         with pytest.raises(HTTPException) as exc_info:
-            service.delete_flag(99999)
+            await service.delete_flag(99999)
 
         assert exc_info.value.status_code == 404
 
 
+@pytest.mark.asyncio
 class TestGetFlag:
     """Tests pour recuperation de feature flags."""
 
     @patch("app.services.feature_flag.redis_client")
-    def test_get_flag_by_id(self, mock_redis, service, test_db, sample_flag_data):
+    async def test_get_flag_by_id(self, mock_redis, service, async_db, sample_flag_data):
         """get_flag() retourne le flag par ID."""
-        flag = service.create_flag(sample_flag_data)
-        test_db.commit()
+        flag = await service.create_flag(sample_flag_data)
+        await async_db.commit()
 
-        result = service.get_flag(flag.id)
+        result = await service.get_flag(flag.id)
         assert result.id == flag.id
         assert result.name == "stripe_payments"
 
     @patch("app.services.feature_flag.redis_client")
-    def test_get_flag_not_found_404(self, mock_redis, service):
+    async def test_get_flag_not_found_404(self, mock_redis, service):
         """get_flag() leve 404 si inexistant."""
         with pytest.raises(HTTPException) as exc_info:
-            service.get_flag(99999)
+            await service.get_flag(99999)
 
         assert exc_info.value.status_code == 404
 
     @patch("app.services.feature_flag.redis_client")
-    def test_get_flag_by_name(self, mock_redis, service, test_db, sample_flag_data):
+    async def test_get_flag_by_name(self, mock_redis, service, async_db,
+                                    sample_flag_data):
         """get_flag_by_name() retourne le flag par nom."""
-        flag = service.create_flag(sample_flag_data)
-        test_db.commit()
+        flag = await service.create_flag(sample_flag_data)
+        await async_db.commit()
 
-        result = service.get_flag_by_name("stripe_payments")
+        result = await service.get_flag_by_name("stripe_payments")
         assert result.id == flag.id
 
     @patch("app.services.feature_flag.redis_client")
-    def test_get_flag_by_name_not_found_404(self, mock_redis, service):
+    async def test_get_flag_by_name_not_found_404(self, mock_redis, service):
         """get_flag_by_name() leve 404 si inexistant."""
         with pytest.raises(HTTPException) as exc_info:
-            service.get_flag_by_name("nonexistent_flag")
+            await service.get_flag_by_name("nonexistent_flag")
 
         assert exc_info.value.status_code == 404
 
 
+@pytest.mark.asyncio
 class TestListFlags:
     """Tests pour listing de feature flags."""
 
     @patch("app.services.feature_flag.redis_client")
-    def test_list_flags_empty(self, mock_redis, service):
+    async def test_list_flags_empty(self, mock_redis, service):
         """list_flags() retourne liste vide si aucun flag."""
-        flags, total = service.list_flags()
+        flags, total = await service.list_flags()
         assert flags == []
         assert total == 0
 
     @patch("app.services.feature_flag.redis_client")
-    def test_list_flags_multiple(self, mock_redis, service, test_db):
+    async def test_list_flags_multiple(self, mock_redis, service, async_db):
         """list_flags() retourne tous les flags."""
-        service.create_flag(FeatureFlagCreate(name="flag_a", is_enabled=True))
-        service.create_flag(FeatureFlagCreate(name="flag_b", is_enabled=False))
-        service.create_flag(FeatureFlagCreate(name="flag_c", is_enabled=True))
-        test_db.commit()
+        await service.create_flag(FeatureFlagCreate(name="flag_a", is_enabled=True))
+        await service.create_flag(FeatureFlagCreate(name="flag_b", is_enabled=False))
+        await service.create_flag(FeatureFlagCreate(name="flag_c", is_enabled=True))
+        await async_db.commit()
 
-        flags, total = service.list_flags()
+        flags, total = await service.list_flags()
         assert total == 3
         assert len(flags) == 3
         # Tri par nom
@@ -254,155 +271,156 @@ class TestListFlags:
         assert names == sorted(names)
 
     @patch("app.services.feature_flag.redis_client")
-    def test_list_flags_pagination(self, mock_redis, service, test_db):
+    async def test_list_flags_pagination(self, mock_redis, service, async_db):
         """list_flags() respecte skip/limit."""
         for i in range(5):
-            service.create_flag(FeatureFlagCreate(name=f"flag_{chr(97+i)}"))
-        test_db.commit()
+            await service.create_flag(FeatureFlagCreate(name=f"flag_{chr(97+i)}"))
+        await async_db.commit()
 
-        flags, total = service.list_flags(skip=2, limit=2)
+        flags, total = await service.list_flags(skip=2, limit=2)
         assert total == 5
         assert len(flags) == 2
 
 
+@pytest.mark.asyncio
 class TestIsFeatureEnabled:
     """Tests pour evaluation de feature flags."""
 
     @patch("app.services.feature_flag.redis_client")
-    def test_kill_switch_disabled(self, mock_redis, service, test_db):
+    async def test_kill_switch_disabled(self, mock_redis, service, async_db):
         """is_enabled=False retourne (False, 'kill_switch')."""
         mock_redis.client.get.return_value = None
 
-        service.create_flag(FeatureFlagCreate(
+        await service.create_flag(FeatureFlagCreate(
             name="disabled_flag",
             is_enabled=False,
             target_tenants=[1, 2],
         ))
-        test_db.commit()
+        await async_db.commit()
 
-        enabled, reason = service.is_feature_enabled("disabled_flag", tenant_id=1)
+        enabled, reason = await service.is_feature_enabled("disabled_flag", tenant_id=1)
         assert enabled is False
         assert reason == "kill_switch"
 
     @patch("app.services.feature_flag.redis_client")
-    def test_whitelist_tenant_in_list(self, mock_redis, service, test_db):
+    async def test_whitelist_tenant_in_list(self, mock_redis, service, async_db):
         """Tenant dans target_tenants retourne (True, 'whitelist')."""
         mock_redis.client.get.return_value = None
 
-        service.create_flag(FeatureFlagCreate(
+        await service.create_flag(FeatureFlagCreate(
             name="whitelist_flag",
             is_enabled=True,
             target_tenants=[1, 2, 3],
         ))
-        test_db.commit()
+        await async_db.commit()
 
-        enabled, reason = service.is_feature_enabled("whitelist_flag", tenant_id=2)
+        enabled, reason = await service.is_feature_enabled("whitelist_flag", tenant_id=2)
         assert enabled is True
         assert reason == "whitelist"
 
     @patch("app.services.feature_flag.redis_client")
-    def test_whitelist_tenant_not_in_list(self, mock_redis, service, test_db):
+    async def test_whitelist_tenant_not_in_list(self, mock_redis, service, async_db):
         """Tenant hors target_tenants retourne (False, 'not_in_whitelist')."""
         mock_redis.client.get.return_value = None
 
-        service.create_flag(FeatureFlagCreate(
+        await service.create_flag(FeatureFlagCreate(
             name="whitelist_flag2",
             is_enabled=True,
             target_tenants=[1, 2],
         ))
-        test_db.commit()
+        await async_db.commit()
 
-        enabled, reason = service.is_feature_enabled("whitelist_flag2", tenant_id=99)
+        enabled, reason = await service.is_feature_enabled("whitelist_flag2", tenant_id=99)
         assert enabled is False
         assert reason == "not_in_whitelist"
 
     @patch("app.services.feature_flag.redis_client")
-    def test_whitelist_empty_list(self, mock_redis, service, test_db):
+    async def test_whitelist_empty_list(self, mock_redis, service, async_db):
         """target_tenants=[] retourne (False, 'not_in_whitelist') pour tous."""
         mock_redis.client.get.return_value = None
 
-        service.create_flag(FeatureFlagCreate(
+        await service.create_flag(FeatureFlagCreate(
             name="empty_whitelist",
             is_enabled=True,
             target_tenants=[],
         ))
-        test_db.commit()
+        await async_db.commit()
 
-        enabled, reason = service.is_feature_enabled("empty_whitelist", tenant_id=1)
+        enabled, reason = await service.is_feature_enabled("empty_whitelist", tenant_id=1)
         assert enabled is False
         assert reason == "not_in_whitelist"
 
     @patch("app.services.feature_flag.redis_client")
-    def test_rollout_100_percent(self, mock_redis, service, test_db):
+    async def test_rollout_100_percent(self, mock_redis, service, async_db):
         """rollout_pct=100 retourne (True, 'rollout') pour tous."""
         mock_redis.client.get.return_value = None
 
-        service.create_flag(FeatureFlagCreate(
+        await service.create_flag(FeatureFlagCreate(
             name="full_rollout",
             is_enabled=True,
             target_tenants=None,
             rollout_pct=100,
         ))
-        test_db.commit()
+        await async_db.commit()
 
-        enabled, reason = service.is_feature_enabled("full_rollout", tenant_id=42)
+        enabled, reason = await service.is_feature_enabled("full_rollout", tenant_id=42)
         assert enabled is True
         assert reason == "rollout"
 
     @patch("app.services.feature_flag.redis_client")
-    def test_rollout_0_percent(self, mock_redis, service, test_db):
+    async def test_rollout_0_percent(self, mock_redis, service, async_db):
         """rollout_pct=0 retourne (False, 'rollout') pour tous."""
         mock_redis.client.get.return_value = None
 
-        service.create_flag(FeatureFlagCreate(
+        await service.create_flag(FeatureFlagCreate(
             name="no_rollout",
             is_enabled=True,
             target_tenants=None,
             rollout_pct=0,
         ))
-        test_db.commit()
+        await async_db.commit()
 
-        enabled, reason = service.is_feature_enabled("no_rollout", tenant_id=42)
+        enabled, reason = await service.is_feature_enabled("no_rollout", tenant_id=42)
         assert enabled is False
         assert reason == "rollout"
 
     @patch("app.services.feature_flag.redis_client")
-    def test_rollout_deterministic(self, mock_redis, service, test_db):
+    async def test_rollout_deterministic(self, mock_redis, service, async_db):
         """Le rollout est deterministe (meme resultat pour meme tenant)."""
         mock_redis.client.get.return_value = None
 
-        service.create_flag(FeatureFlagCreate(
+        await service.create_flag(FeatureFlagCreate(
             name="partial_rollout",
             is_enabled=True,
             target_tenants=None,
             rollout_pct=50,
         ))
-        test_db.commit()
+        await async_db.commit()
 
         results = []
         for _ in range(10):
-            enabled, _ = service.is_feature_enabled("partial_rollout", tenant_id=42)
+            enabled, _ = await service.is_feature_enabled("partial_rollout", tenant_id=42)
             results.append(enabled)
 
         # Toutes les evaluations sont identiques (deterministe)
         assert all(r == results[0] for r in results)
 
     @patch("app.services.feature_flag.redis_client")
-    def test_rollout_different_tenants(self, mock_redis, service, test_db):
+    async def test_rollout_different_tenants(self, mock_redis, service, async_db):
         """Differents tenants obtiennent des resultats differents avec rollout partiel."""
         mock_redis.client.get.return_value = None
 
-        service.create_flag(FeatureFlagCreate(
+        await service.create_flag(FeatureFlagCreate(
             name="varied_rollout",
             is_enabled=True,
             target_tenants=None,
             rollout_pct=50,
         ))
-        test_db.commit()
+        await async_db.commit()
 
         results = set()
         for tid in range(1, 101):
-            enabled, _ = service.is_feature_enabled("varied_rollout", tenant_id=tid)
+            enabled, _ = await service.is_feature_enabled("varied_rollout", tenant_id=tid)
             results.add(enabled)
 
         # Avec 100 tenants et 50%, on devrait avoir True et False
@@ -410,11 +428,11 @@ class TestIsFeatureEnabled:
         assert False in results
 
     @patch("app.services.feature_flag.redis_client")
-    def test_flag_not_found(self, mock_redis, service, test_db):
+    async def test_flag_not_found(self, mock_redis, service, async_db):
         """Flag inexistant retourne (False, 'not_found')."""
         mock_redis.client.get.return_value = None
 
-        enabled, reason = service.is_feature_enabled("nonexistent_flag", tenant_id=1)
+        enabled, reason = await service.is_feature_enabled("nonexistent_flag", tenant_id=1)
         assert enabled is False
         assert reason == "not_found"
 

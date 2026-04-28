@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo Light Mode — 3 approches contraste</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Manrope', system-ui, sans-serif;
+    color: #16253d;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  h1, h2, h3 { font-family: 'Sora', system-ui, sans-serif; font-weight: 700; }
+
+  /* SWITCHER */
+  .switcher {
+    position: sticky; top: 0; z-index: 100;
+    background: #fff;
+    border-bottom: 2px solid #e4ebf4;
+    padding: 12px 24px;
+    display: flex; align-items: center; gap: 12px;
+    box-shadow: 0 2px 12px rgba(20,40,74,.08);
+  }
+  .switcher h1 { font-size: 14px; color: #6f8298; margin-right: 12px; }
+  .switcher button {
+    padding: 10px 18px; border-radius: 11px;
+    border: 1.5px solid #d8e2ef; background: #f7fafe;
+    font-size: 13px; font-weight: 600; color: #6f8298;
+    cursor: pointer; transition: all .15s;
+  }
+  .switcher button.active {
+    background: #fff0fb; border-color: #f2c8e8; color: #8e3a6f;
+    box-shadow: 0 2px 8px rgba(217,64,168,.12);
+  }
+  .switcher button:hover:not(.active) { border-color: #c5d3e4; }
+
+  .approach-label {
+    margin: 24px 24px 8px; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .06em; color: #8ea0b5;
+  }
+  .approach-desc {
+    margin: 0 24px 16px; font-size: 13px; color: #6f8298; max-width: 700px;
+  }
+
+  /* PAGE */
+  .page {
+    max-width: 720px; margin: 0 auto; padding: 20px 16px 80px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+
+  /* ====== A — Actuel ====== */
+  .approach-a { background: linear-gradient(180deg, #edf3fb 0%, #e2eaf5 100%); }
+  .approach-a .card {
+    background: #ffffff; border: 1px solid #e4ebf4; border-radius: 13px;
+    padding: 24px; box-shadow: 0 1px 3px rgba(20,40,74,.06), 0 2px 8px rgba(20,40,74,.08);
+  }
+  .approach-a .kpi {
+    background: #ffffff; border: 1px solid #e4ebf4; border-radius: 13px;
+    padding: 16px; box-shadow: 0 1px 3px rgba(20,40,74,.06), 0 2px 8px rgba(20,40,74,.08);
+  }
+  .approach-a .alert-banner {
+    background: rgba(16,185,129,.06); border: 1px solid rgba(16,185,129,.15);
+    border-radius: 13px; padding: 16px;
+  }
+
+  /* ====== B — Ombres + bordures ====== */
+  .approach-b { background: linear-gradient(180deg, #edf3fb 0%, #e2eaf5 100%); }
+  .approach-b .card {
+    background: #ffffff; border: 1px solid #c5d3e4; border-bottom: 2px solid #b8c8db;
+    border-radius: 13px; padding: 24px;
+    box-shadow: 0 1px 2px rgba(20,40,74,.06), 0 4px 12px rgba(20,40,74,.10), 0 8px 24px rgba(20,40,74,.06);
+    transition: box-shadow .2s, border-color .2s;
+  }
+  .approach-b .card:hover {
+    box-shadow: 0 4px 14px rgba(18,39,73,.12), 0 12px 32px rgba(18,39,73,.08);
+    border-color: #b0c2d6;
+  }
+  .approach-b .kpi {
+    background: #ffffff; border: 1.5px solid #c5d3e4; border-bottom: 2.5px solid #b8c8db;
+    border-radius: 13px; padding: 16px;
+    box-shadow: 0 2px 6px rgba(20,40,74,.08), 0 6px 18px rgba(20,40,74,.08);
+    transition: box-shadow .2s, transform .15s;
+  }
+  .approach-b .kpi:hover { box-shadow: 0 4px 14px rgba(18,39,73,.14); transform: translateY(-1px); }
+  .approach-b .alert-banner {
+    background: rgba(16,185,129,.06); border: 1.5px solid rgba(16,185,129,.25);
+    border-radius: 13px; padding: 16px; box-shadow: 0 2px 8px rgba(16,185,129,.08);
+  }
+
+  /* ====== C — Pastels ====== */
+  .approach-c { background: linear-gradient(180deg, #edf3fb 0%, #e2eaf5 100%); }
+  .approach-c .card {
+    background: linear-gradient(135deg, #ffffff 0%, #faf5fc 100%);
+    border: 1px solid #ebd5e6; border-radius: 13px; padding: 24px;
+    box-shadow: 0 1px 3px rgba(20,40,74,.06), 0 2px 8px rgba(20,40,74,.08);
+    transition: all .2s;
+  }
+  .approach-c .card:hover { border-color: #e0b8d8; box-shadow: 0 2px 8px rgba(217,64,168,.08), 0 4px 14px rgba(20,40,74,.08); }
+  .approach-c .card.card-info {
+    background: linear-gradient(135deg, #ffffff 0%, #f0f6ff 100%); border-color: #cddcf2;
+  }
+  .approach-c .card.card-info:hover { border-color: #b8cbe5; }
+  .approach-c .card.card-finance {
+    background: linear-gradient(135deg, #ffffff 0%, #f0fbf4 100%); border-color: #c8e8d5;
+  }
+  .approach-c .card.card-finance:hover { border-color: #ade0c0; }
+  .approach-c .card.card-notes {
+    background: linear-gradient(135deg, #ffffff 0%, #fff8ee 100%); border-color: #f0dfc0;
+  }
+  .approach-c .kpi { border-radius: 13px; padding: 16px; transition: all .2s; }
+  .approach-c .kpi.kpi-green {
+    background: linear-gradient(135deg, #ecfbf4, #d4f5e4); border: 1.5px solid #b2e4c8;
+    box-shadow: 0 2px 8px rgba(17,170,113,.08);
+  }
+  .approach-c .kpi.kpi-blue {
+    background: linear-gradient(135deg, #eaf3ff, #d5e5fb); border: 1.5px solid #b5d0f0;
+    box-shadow: 0 2px 8px rgba(47,124,214,.08);
+  }
+  .approach-c .kpi.kpi-amber {
+    background: linear-gradient(135deg, #fffbeb, #fef0c7); border: 1.5px solid #f0d780;
+    box-shadow: 0 2px 8px rgba(190,148,31,.08);
+  }
+  .approach-c .kpi.kpi-pink {
+    background: linear-gradient(135deg, #fff0fb, #fce0f3); border: 1.5px solid #f0b8df;
+    box-shadow: 0 2px 8px rgba(217,64,168,.08);
+  }
+  .approach-c .kpi:hover { box-shadow: 0 4px 14px rgba(20,40,74,.10); transform: translateY(-1px); }
+  .approach-c .alert-banner {
+    background: linear-gradient(135deg, #ecfbf4, #d4f5e4); border: 1.5px solid #8edcb0;
+    border-radius: 13px; padding: 16px; box-shadow: 0 2px 8px rgba(16,185,129,.10);
+  }
+
+  /* ====== D — Combine B+C ====== */
+  .approach-d { background: linear-gradient(180deg, #edf3fb 0%, #e2eaf5 100%); }
+  .approach-d .card {
+    background: linear-gradient(135deg, #ffffff 0%, #faf5fc 100%);
+    border: 1px solid #d4c0e0; border-bottom: 2px solid #c8b0d8; border-radius: 13px; padding: 24px;
+    box-shadow: 0 1px 2px rgba(20,40,74,.06), 0 4px 12px rgba(20,40,74,.08), 0 8px 20px rgba(217,64,168,.04);
+    transition: all .2s;
+  }
+  .approach-d .card:hover {
+    border-color: #c0a8d4;
+    box-shadow: 0 4px 14px rgba(18,39,73,.10), 0 8px 28px rgba(217,64,168,.06);
+    transform: translateY(-1px);
+  }
+  .approach-d .card.card-info {
+    background: linear-gradient(135deg, #ffffff 0%, #f0f6ff 100%);
+    border-color: #b8cde8; border-bottom-color: #a8bddc;
+  }
+  .approach-d .card.card-finance {
+    background: linear-gradient(135deg, #ffffff 0%, #f0fbf4 100%);
+    border-color: #a8d8be; border-bottom-color: #90ccab;
+  }
+  .approach-d .card.card-notes {
+    background: linear-gradient(135deg, #ffffff 0%, #fff8ee 100%);
+    border-color: #e0d0a8; border-bottom-color: #d4c290;
+  }
+  .approach-d .kpi { border-radius: 13px; padding: 16px; transition: all .2s; }
+  .approach-d .kpi.kpi-green {
+    background: linear-gradient(135deg, #ecfbf4, #d4f5e4);
+    border: 1.5px solid #90d8b0; border-bottom: 2.5px solid #70c898;
+    box-shadow: 0 2px 6px rgba(17,170,113,.06), 0 6px 18px rgba(17,170,113,.06);
+  }
+  .approach-d .kpi.kpi-blue {
+    background: linear-gradient(135deg, #eaf3ff, #d5e5fb);
+    border: 1.5px solid #98c0e8; border-bottom: 2.5px solid #78aedd;
+    box-shadow: 0 2px 6px rgba(47,124,214,.06), 0 6px 18px rgba(47,124,214,.06);
+  }
+  .approach-d .kpi.kpi-amber {
+    background: linear-gradient(135deg, #fffbeb, #fef0c7);
+    border: 1.5px solid #e0c860; border-bottom: 2.5px solid #d0b840;
+    box-shadow: 0 2px 6px rgba(190,148,31,.06), 0 6px 18px rgba(190,148,31,.06);
+  }
+  .approach-d .kpi.kpi-pink {
+    background: linear-gradient(135deg, #fff0fb, #fce0f3);
+    border: 1.5px solid #e098cc; border-bottom: 2.5px solid #d080bc;
+    box-shadow: 0 2px 6px rgba(217,64,168,.06), 0 6px 18px rgba(217,64,168,.06);
+  }
+  .approach-d .kpi:hover { transform: translateY(-2px); filter: brightness(1.01); }
+  .approach-d .alert-banner {
+    background: linear-gradient(135deg, #ecfbf4, #d4f5e4);
+    border: 1.5px solid #70c898; border-bottom: 2.5px solid #58b882;
+    border-radius: 13px; padding: 16px; box-shadow: 0 2px 8px rgba(16,185,129,.10);
+  }
+
+  /* ====== SHARED ====== */
+  .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .card-header h2 { font-size: 15px; }
+  .card-header .action { font-size: 13px; color: #d940a8; font-weight: 600; cursor: pointer; }
+  .card-header .action:hover { opacity: .75; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+  .field-label { font-size: 12px; color: #8ea0b5; display: block; margin-bottom: 2px; }
+  .field-value { font-size: 14px; font-weight: 500; }
+  .field-value.money { font-weight: 700; }
+  .icon-inline { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+  .icon-inline .dot {
+    width: 16px; height: 16px; border-radius: 4px; display: inline-flex;
+    align-items: center; justify-content: center; font-size: 10px;
+  }
+  .icon-inline .dot.cal { background: #eaf3ff; color: #2f7cd6; }
+  .icon-inline .dot.loc { background: #f5f0ff; color: #7f64ca; }
+  .icon-inline .dot.usr { background: #fff0fb; color: #d940a8; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 8px; border-radius: 8px; font-size: 11px; font-weight: 600;
+  }
+  .badge-green { background: #e8fbf3; color: #1c8e5b; border: 1px solid #caecd9; }
+  .badge-pink { background: #fff0fb; color: #8e3a6f; border: 1px solid #f2c8e8; }
+  .divider { border: none; border-top: 1px solid #e4ebf4; margin: 12px 0; }
+  .alert-banner { display: flex; align-items: center; gap: 12px; }
+  .alert-banner .alert-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(16,185,129,.12); color: #11aa71; font-size: 18px; font-weight: 700; flex-shrink: 0;
+  }
+  .alert-banner .alert-text { flex: 1; }
+  .alert-banner .alert-text p:first-child { font-size: 13px; font-weight: 700; color: #1c8e5b; }
+  .alert-banner .alert-text p:last-child { font-size: 12px; color: #6f8298; }
+  .alert-banner .alert-btn {
+    padding: 10px 16px; border-radius: 10px; border: none;
+    background: #11aa71; color: #fff; font-size: 13px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+  }
+  .kpi-label { font-size: 11px; font-weight: 600; color: #8ea0b5; text-transform: uppercase; letter-spacing: .04em; }
+  .kpi-value { font-size: 22px; font-weight: 800; margin-top: 4px; font-family: 'Sora', system-ui; }
+  .kpi-change { font-size: 11px; margin-top: 4px; font-weight: 600; }
+  .kpi-change.up { color: #1c8e5b; }
+  .kpi-change.down { color: #d65366; }
+  .notes-text { font-size: 13px; color: #6f8298; white-space: pre-wrap; line-height: 1.6; }
+  .hidden { display: none !important; }
+  @media (max-width: 640px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .grid-3 { grid-template-columns: 1fr; }
+    .grid-4 { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="switcher">
+  <h1>Contraste Light Mode</h1>
+  <button class="active" data-approach="a">A. Actuel</button>
+  <button data-approach="b">B. Ombres + Bordures</button>
+  <button data-approach="c">C. Pastels</button>
+  <button data-approach="d">D. Combine B+C</button>
+</div>
+
+<!-- ==================== A ==================== -->
+<div id="approach-a" class="approach-a">
+  <p class="approach-label">A. Actuel</p>
+  <p class="approach-desc">Cartes blanches, bordure #e4ebf4, shadow-sm quasi invisible. Faible contraste sur fond #f2f6fb.</p>
+  <div class="page">
+    <div class="alert-banner">
+      <div class="alert-icon">&#10003;</div>
+      <div class="alert-text"><p>Prete au depart</p><p>Pre-check complete — validation du depart disponible</p></div>
+      <button class="alert-btn">Proceder au depart</button>
+    </div>
+    <div class="grid-4">
+      <div class="kpi"><p class="kpi-label">Total HT</p><p class="kpi-value">2 450 &#8364;</p><p class="kpi-change up">+12% vs mois dernier</p></div>
+      <div class="kpi"><p class="kpi-label">Articles</p><p class="kpi-value">38</p><p class="kpi-change">8 categories</p></div>
+      <div class="kpi"><p class="kpi-label">Caution</p><p class="kpi-value">800 &#8364;</p><p class="kpi-change">En attente</p></div>
+      <div class="kpi"><p class="kpi-label">Factures</p><p class="kpi-value">2</p><p class="kpi-change">1 en attente</p></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>Informations</h2><span class="action">Vue complete</span></div>
+      <div class="grid-2">
+        <div class="icon-inline"><span class="dot cal">&#128197;</span><span style="font-size:12px;color:#8ea0b5">Type</span><span class="badge badge-pink">Mariage</span></div>
+        <div class="icon-inline"><span class="dot cal">&#128197;</span><span style="font-size:12px;color:#8ea0b5">Date</span><span class="field-value">22 mars 2026</span></div>
+        <div class="icon-inline"><span class="dot loc">&#128205;</span><span style="font-size:12px;color:#8ea0b5">Lieu</span><span class="field-value">Chateau de Versailles</span></div>
+        <div class="icon-inline"><span class="dot usr">&#128101;</span><span style="font-size:12px;color:#8ea0b5">Invites</span><span class="field-value">180</span></div>
+      </div>
+      <hr class="divider">
+      <p style="font-size:13px;color:#8ea0b5">Client : <span style="color:#16253d;font-weight:600">Marie Dupont-Laurent</span></p>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>Dates &amp; logistique</h2></div>
+      <div class="grid-3">
+        <div><span class="field-label">Livraison</span><span class="field-value">20 mars 2026</span></div>
+        <div><span class="field-label">Retour</span><span class="field-value">24 mars 2026</span></div>
+        <div><span class="field-label">Lignes</span><span class="field-value">12 articles</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>Financier</h2></div>
+      <div class="grid-4">
+        <div><span class="field-label">Total HT</span><span class="field-value money">2 450,00 &#8364;</span></div>
+        <div><span class="field-label">Caution</span><span class="field-value money" style="color:#11aa71">800,00 &#8364;</span></div>
+        <div><span class="field-label">Paye</span><span class="field-value money">1 200,00 &#8364;</span></div>
+        <div><span class="field-label">Reste</span><span class="field-value money" style="color:#d65366">1 250,00 &#8364;</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>Notes</h2></div>
+      <p class="notes-text">Attention : acces au chateau uniquement par l'entree sud.
+Contacter le responsable du domaine 48h avant livraison.
+Nappes blanches x20 + set de couverts argent x180.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== B ==================== -->
+<div id="approach-b" class="approach-b hidden">
+  <p class="approach-label">B. Ombres + Bordures renforcees</p>
+  <p class="approach-desc">Memes fonds blancs, bordures plus marquees (#c5d3e4), border-bottom plus fonce, ombres profondes. Hover = elevation.</p>
+  <div class="page">
+    <div class="alert-banner">
+      <div class="alert-icon">&#10003;</div>
+      <div class="alert-text"><p>Prete au depart</p><p>Pre-check complete — validation du depart disponible</p></div>
+      <button class="alert-btn">Proceder au depart</button>
+    </div>
+    <div class="grid-4">
+      <div class="kpi"><p class="kpi-label">Total HT</p><p class="kpi-value">2 450 &#8364;</p><p class="kpi-change up">+12% vs mois dernier</p></div>
+      <div class="kpi"><p class="kpi-label">Articles</p><p class="kpi-value">38</p><p class="kpi-change">8 categories</p></div>
+      <div class="kpi"><p class="kpi-label">Caution</p><p class="kpi-value">800 &#8364;</p><p class="kpi-change">En attente</p></div>
+      <div class="kpi"><p class="kpi-label">Factures</p><p class="kpi-value">2</p><p class="kpi-change">1 en attente</p></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>Informations</h2><span class="action">Vue complete</span></div>
+      <div class="grid-2">
+        <div class="icon-inline"><span class="dot cal">&#128197;</span><span style="font-size:12px;color:#8ea0b5">Type</span><span class="badge badge-pink">Mariage</span></div>
+        <div class="icon-inline"><span class="dot cal">&#128197;</span><span style="font-size:12px;color:#8ea0b5">Date</span><span class="field-value">22 mars 2026</span></div>
+        <div class="icon-inline"><span class="dot loc">&#128205;</span><span style="font-size:12px;color:#8ea0b5">Lieu</span><span class="field-value">Chateau de Versailles</span></div>
+        <div class="icon-inline"><span class="dot usr">&#128101;</span><span style="font-size:12px;color:#8ea0b5">Invites</span><span class="field-value">180</span></div>
+      </div>
+      <hr class="divider">
+      <p style="font-size:13px;color:#8ea0b5">Client : <span style="color:#16253d;font-weight:600">Marie Dupont-Laurent</span></p>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>Dates &amp; logistique</h2></div>
+      <div class="grid-3">
+        <div><span class="field-label">Livraison</span><span class="field-value">20 mars 2026</span></div>
+        <div><span class="field-label">Retour</span><span class="field-value">24 mars 2026</span></div>
+        <div><span class="field-label">Lignes</span><span class="field-value">12 articles</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>Financier</h2></div>
+      <div class="grid-4">
+        <div><span class="field-label">Total HT</span><span class="field-value money">2 450,00 &#8364;</span></div>
+        <div><span class="field-label">Caution</span><span class="field-value money" style="color:#11aa71">800,00 &#8364;</span></div>
+        <div><span class="field-label">Paye</span><span class="field-value money">1 200,00 &#8364;</span></div>
+        <div><span class="field-label">Reste</span><span class="field-value money" style="color:#d65366">1 250,00 &#8364;</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>Notes</h2></div>
+      <p class="notes-text">Attention : acces au chateau uniquement par l'entree sud.
+Contacter le responsable du domaine 48h avant livraison.
+Nappes blanches x20 + set de couverts argent x180.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== C ==================== -->
+<div id="approach-c" class="approach-c hidden">
+  <p class="approach-label">C. Fonds pastels colores</p>
+  <p class="approach-desc">Chaque carte a un fond pastel contextuel (rose info, bleu logistique, vert finance, ambre notes). KPIs en gradient colore.</p>
+  <div class="page">
+    <div class="alert-banner">
+      <div class="alert-icon">&#10003;</div>
+      <div class="alert-text"><p>Prete au depart</p><p>Pre-check complete — validation du depart disponible</p></div>
+      <button class="alert-btn">Proceder au depart</button>
+    </div>
+    <div class="grid-4">
+      <div class="kpi kpi-green"><p class="kpi-label">Total HT</p><p class="kpi-value">2 450 &#8364;</p><p class="kpi-change up">+12% vs mois dernier</p></div>
+      <div class="kpi kpi-blue"><p class="kpi-label">Articles</p><p class="kpi-value">38</p><p class="kpi-change">8 categories</p></div>
+      <div class="kpi kpi-amber"><p class="kpi-label">Caution</p><p class="kpi-value">800 &#8364;</p><p class="kpi-change">En attente</p></div>
+      <div class="kpi kpi-pink"><p class="kpi-label">Factures</p><p class="kpi-value">2</p><p class="kpi-change">1 en attente</p></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>Informations</h2><span class="action">Vue complete</span></div>
+      <div class="grid-2">
+        <div class="icon-inline"><span class="dot cal">&#128197;</span><span style="font-size:12px;color:#8ea0b5">Type</span><span class="badge badge-pink">Mariage</span></div>
+        <div class="icon-inline"><span class="dot cal">&#128197;</span><span style="font-size:12px;color:#8ea0b5">Date</span><span class="field-value">22 mars 2026</span></div>
+        <div class="icon-inline"><span class="dot loc">&#128205;</span><span style="font-size:12px;color:#8ea0b5">Lieu</span><span class="field-value">Chateau de Versailles</span></div>
+        <div class="icon-inline"><span class="dot usr">&#128101;</span><span style="font-size:12px;color:#8ea0b5">Invites</span><span class="field-value">180</span></div>
+      </div>
+      <hr class="divider">
+      <p style="font-size:13px;color:#8ea0b5">Client : <span style="color:#16253d;font-weight:600">Marie Dupont-Laurent</span></p>
+    </div>
+    <div class="card card-info">
+      <div class="card-header"><h2>Dates &amp; logistique</h2></div>
+      <div class="grid-3">
+        <div><span class="field-label">Livraison</span><span class="field-value">20 mars 2026</span></div>
+        <div><span class="field-label">Retour</span><span class="field-value">24 mars 2026</span></div>
+        <div><span class="field-label">Lignes</span><span class="field-value">12 articles</span></div>
+      </div>
+    </div>
+    <div class="card card-finance">
+      <div class="card-header"><h2>Financier</h2></div>
+      <div class="grid-4">
+        <div><span class="field-label">Total HT</span><span class="field-value money">2 450,00 &#8364;</span></div>
+        <div><span class="field-label">Caution</span><span class="field-value money" style="color:#11aa71">800,00 &#8364;</span></div>
+        <div><span class="field-label">Paye</span><span class="field-value money">1 200,00 &#8364;</span></div>
+        <div><span class="field-label">Reste</span><span class="field-value money" style="color:#d65366">1 250,00 &#8364;</span></div>
+      </div>
+    </div>
+    <div class="card card-notes">
+      <div class="card-header"><h2>Notes</h2></div>
+      <p class="notes-text">Attention : acces au chateau uniquement par l'entree sud.
+Contacter le responsable du domaine 48h avant livraison.
+Nappes blanches x20 + set de couverts argent x180.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== D ==================== -->
+<div id="approach-d" class="approach-d hidden">
+  <p class="approach-label">D. Combine — Pastels + Ombres + Bordures</p>
+  <p class="approach-desc">Fonds pastels contextuels + bordures marquees + border-bottom + ombres profondes + hover elevation.</p>
+  <div class="page">
+    <div class="alert-banner">
+      <div class="alert-icon">&#10003;</div>
+      <div class="alert-text"><p>Prete au depart</p><p>Pre-check complete — validation du depart disponible</p></div>
+      <button class="alert-btn">Proceder au depart</button>
+    </div>
+    <div class="grid-4">
+      <div class="kpi kpi-green"><p class="kpi-label">Total HT</p><p class="kpi-value">2 450 &#8364;</p><p class="kpi-change up">+12% vs mois dernier</p></div>
+      <div class="kpi kpi-blue"><p class="kpi-label">Articles</p><p class="kpi-value">38</p><p class="kpi-change">8 categories</p></div>
+      <div class="kpi kpi-amber"><p class="kpi-label">Caution</p><p class="kpi-value">800 &#8364;</p><p class="kpi-change">En attente</p></div>
+      <div class="kpi kpi-pink"><p class="kpi-label">Factures</p><p class="kpi-value">2</p><p class="kpi-change">1 en attente</p></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>Informations</h2><span class="action">Vue complete</span></div>
+      <div class="grid-2">
+        <div class="icon-inline"><span class="dot cal">&#128197;</span><span style="font-size:12px;color:#8ea0b5">Type</span><span class="badge badge-pink">Mariage</span></div>
+        <div class="icon-inline"><span class="dot cal">&#128197;</span><span style="font-size:12px;color:#8ea0b5">Date</span><span class="field-value">22 mars 2026</span></div>
+        <div class="icon-inline"><span class="dot loc">&#128205;</span><span style="font-size:12px;color:#8ea0b5">Lieu</span><span class="field-value">Chateau de Versailles</span></div>
+        <div class="icon-inline"><span class="dot usr">&#128101;</span><span style="font-size:12px;color:#8ea0b5">Invites</span><span class="field-value">180</span></div>
+      </div>
+      <hr class="divider">
+      <p style="font-size:13px;color:#8ea0b5">Client : <span style="color:#16253d;font-weight:600">Marie Dupont-Laurent</span></p>
+    </div>
+    <div class="card card-info">
+      <div class="card-header"><h2>Dates &amp; logistique</h2></div>
+      <div class="grid-3">
+        <div><span class="field-label">Livraison</span><span class="field-value">20 mars 2026</span></div>
+        <div><span class="field-label">Retour</span><span class="field-value">24 mars 2026</span></div>
+        <div><span class="field-label">Lignes</span><span class="field-value">12 articles</span></div>
+      </div>
+    </div>
+    <div class="card card-finance">
+      <div class="card-header"><h2>Financier</h2></div>
+      <div class="grid-4">
+        <div><span class="field-label">Total HT</span><span class="field-value money">2 450,00 &#8364;</span></div>
+        <div><span class="field-label">Caution</span><span class="field-value money" style="color:#11aa71">800,00 &#8364;</span></div>
+        <div><span class="field-label">Paye</span><span class="field-value money">1 200,00 &#8364;</span></div>
+        <div><span class="field-label">Reste</span><span class="field-value money" style="color:#d65366">1 250,00 &#8364;</span></div>
+      </div>
+    </div>
+    <div class="card card-notes">
+      <div class="card-header"><h2>Notes</h2></div>
+      <p class="notes-text">Attention : acces au chateau uniquement par l'entree sud.
+Contacter le responsable du domaine 48h avant livraison.
+Nappes blanches x20 + set de couverts argent x180.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.switcher button').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var id = this.getAttribute('data-approach');
+    var approaches = ['a','b','c','d'];
+    for (var i = 0; i < approaches.length; i++) {
+      var el = document.getElementById('approach-' + approaches[i]);
+      if (approaches[i] === id) {
+        el.classList.remove('hidden');
+      } else {
+        el.classList.add('hidden');
+      }
+    }
+    document.querySelectorAll('.switcher button').forEach(function(b) {
+      if (b.getAttribute('data-approach') === id) {
+        b.classList.add('active');
+      } else {
+        b.classList.remove('active');
+      }
+    });
+  });
+});
+</script>
+</body>
+</html>

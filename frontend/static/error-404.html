@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DEVUP — Page introuvable</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:Manrope,system-ui,sans-serif;background:linear-gradient(160deg,#0b1628,#16253d);color:#dde6f0}
+.c{text-align:center;padding:2rem;max-width:440px}
+.brand{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:2.5rem}
+.brand svg{width:28px;height:28px}
+.brand-text{font-family:Sora,sans-serif;font-weight:800;font-size:1rem;letter-spacing:1px}
+.brand-text .dev{color:#fff}
+.brand-text .up{color:#a78bfa}
+.icon{margin:0 auto 1.5rem;width:72px;height:72px;border-radius:20px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);display:flex;align-items:center;justify-content:center}
+.icon svg{width:36px;height:36px;stroke:#fbbf24;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.code{font-family:Sora,sans-serif;font-size:3.5rem;font-weight:800;background:linear-gradient(135deg,#fbbf24,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.25rem}
+h1{font-family:Sora,sans-serif;font-size:1.25rem;font-weight:700;margin-bottom:.75rem}
+p{color:#7a90a8;font-size:.875rem;line-height:1.6;margin-bottom:1.5rem}
+.btn{display:inline-flex;align-items:center;gap:.5rem;padding:.8rem 1.5rem;background:linear-gradient(135deg,#7c3aed,#6d28d9);border:none;border-radius:12px;color:#fff;font-weight:700;font-size:.85rem;cursor:pointer;transition:all .2s;text-decoration:none;box-shadow:0 4px 14px rgba(124,58,237,.35)}
+.btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(124,58,237,.45)}
+.path{margin-top:1.5rem;padding:.6rem 1rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:8px;font-family:monospace;font-size:.75rem;color:#3d5068;word-break:break-all}
+.sub{font-size:.7rem;color:#3d5068;margin-top:1.5rem}
+.sub a{color:#7c3aed;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="c">
+  <div class="brand">
+    <svg viewBox="0 0 88 88" fill="none" width="28" height="28">
+      <defs><linearGradient id="rg" x1="10" y1="6" x2="68" y2="74" gradientUnits="userSpaceOnUse"><stop stop-color="#a78bfa"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs>
+      <path d="M44 66 L33 80 L44 75 L55 80 Z" fill="#4c1d95"/>
+      <path d="M44 8 C44 8 68 26 68 50 C68 64 58 72 44 74 C30 72 20 64 20 50 C20 26 44 8 44 8Z" fill="url(#rg)"/>
+      <circle cx="44" cy="48" r="11" fill="rgba(255,255,255,.15)"/>
+      <circle cx="44" cy="48" r="11" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="1.5"/>
+      <line x1="44" y1="56" x2="44" y2="43" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+      <polyline points="39,47.5 44,41.5 49,47.5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M37 74 C37 79 44 88 44 88 C44 88 51 79 51 74Z" fill="#f59e0b" opacity=".9"/>
+    </svg>
+    <span class="brand-text"><span class="dev">DEV</span><span class="up">UP</span></span>
+  </div>
+
+  <div class="icon">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+  </div>
+
+  <div class="code">404</div>
+  <h1>Page introuvable</h1>
+  <p>La page que vous cherchez n'existe pas ou a ete deplacee.</p>
+
+  <a href="/" class="btn">Retour a l'accueil</a>
+
+  <div class="path" id="path"></div>
+
+  <p class="sub">Propulse par <a href="#">DEVUP</a></p>
+</div>
+<script>document.getElementById('path').textContent=location.pathname</script>
+</body>
+</html>

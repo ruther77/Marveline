@@ -1,8 +1,8 @@
 """Schemas Pydantic pour les mouvements de stock (départs/retours)."""
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
-from pydantic import Field, field_validator, computed_field
+from pydantic import Field, field_validator, computed_field, model_validator
 
 from app.schemas.base import BaseSchema, EntityResponseSchema, TimestampSchema
 from app.constants import (
@@ -17,6 +17,17 @@ from app.constants import (
 # ── Movement Item Schemas ─────────────────────────────────────────────
 
 
+class MovementItemUnitRead(BaseSchema):
+    """Unité physique affectée à une ligne de mouvement (lecture seule)."""
+
+    id: int
+    stock_item_id: int
+    status_before: Optional[str] = None
+    status_after: Optional[str] = None
+    condition: Optional[str] = None
+    condition_notes: Optional[str] = None
+
+
 class MovementItemCreate(BaseSchema):
     """Schema pour ajouter un article à un mouvement."""
 
@@ -28,9 +39,9 @@ class MovementItemCreate(BaseSchema):
         default=None,
         description="ID du produit",
     )
-    product_variation_id: Optional[int] = Field(
+    variant_id: Optional[int] = Field(
         default=None,
-        description="ID de la variation produit",
+        description="ID de la variante couleur (obligatoire si le produit a des variantes)",
     )
     quantity_expected: int = Field(
         ...,
@@ -74,11 +85,27 @@ class MovementItemResponse(TimestampSchema):
     movement_id: int
     event_item_id: Optional[int] = None
     product_id: Optional[int] = None
-    product_variation_id: Optional[int] = None
+    variant_id: Optional[int] = None
     quantity_expected: int
     quantity_actual: Optional[int] = None
     condition: Optional[str] = None
     condition_notes: Optional[str] = None
+    product_name: Optional[str] = None
+    units: List[MovementItemUnitRead] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def extract_product_name(cls, data: object) -> object:
+        if hasattr(data, "product_id"):  # ORM instance
+            name = None
+            if hasattr(data, "product") and data.product:
+                name = data.product.name
+            elif hasattr(data, "variant") and data.variant and hasattr(data.variant, "product") and data.variant.product:
+                name = data.variant.product.name
+            elif hasattr(data, "_bundle_name") and data._bundle_name:
+                name = data._bundle_name
+            object.__setattr__(data, "product_name", name)
+        return data
 
 
 # ── Movement Schemas ──────────────────────────────────────────────────
@@ -209,6 +236,7 @@ class MovementListItem(EntityResponseSchema):
     status: str
     delivery_method: Optional[str] = None
     items_count: int = 0
+    product_names: List[str] = Field(default_factory=list)
 
 
 class MovementStatistics(BaseSchema):

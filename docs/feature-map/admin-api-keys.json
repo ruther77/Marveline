@@ -1,0 +1,119 @@
+{
+  "id": "page:admin-api-keys",
+  "type": "page",
+  "name": "API Keys",
+  "description": "Page principale \"API Keys\". Contenu non détecté automatiquement.",
+  "route": "/admin/api-keys",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "admin"
+    ],
+    "group": "Admin",
+    "dom_h1": "API Keys"
+  },
+  "params": {},
+  "features": [],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nouvelle cle",
+      "trigger": "click",
+      "target_id": "modal:nouvelle-cle",
+      "node": {
+        "id": "modal:nouvelle-cle-api",
+        "type": "form",
+        "name": "Nouvelle cle API",
+        "description": "Formulaire \"Nouvelle cle API\". Contient : La cle sera affichee une seule fois apres la creation., Champ : API Integration ERP, Champ : 1000, Fermer, Annuler, Creer la cle. Paramètres : 1000, api-integration-erp.",
+        "attributes": {
+          "depth": 1,
+          "opened_from_depth": 0
+        },
+        "params": {
+          "1000": "number",
+          "api-integration-erp": "text"
+        },
+        "features": [
+          "La cle sera affichee une seule fois apres la creation.",
+          "Champ : API Integration ERP",
+          "Champ : 1000",
+          "Fermer",
+          "Annuler",
+          "Creer la cle"
+        ],
+        "children": [
+          {
+            "link_type": "action",
+            "label": "Fermer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "action",
+            "label": "Annuler",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "action",
+            "label": "Creer la cle",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          }
+        ]
+      }
+    },
+    {
+      "link_type": "action",
+      "label": "Creer la premiere",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

@@ -1,85 +1,116 @@
-"""Cryptographic utilities — AES-256-GCM for TOTP secret encryption.
+"""Cryptographic utilities — AES-256-GCM envelope encryption for TOTP secrets.
 
-Provides symmetric encryption/decryption for sensitive data that must be
-stored encrypted at rest (e.g. MFA TOTP secrets in the database).
+Architecture v2 (spec §05-MFA-TOTP §5.4 — envelope encryption) :
+    - DEK (Data Encryption Key) : 32 bytes random per operation
+    - KEK (Key Encryption Key) : HMAC-SHA256(TOTP_DEV_MASTER_KEY) en dev,
+                                  AWS KMS GenerateDataKey en prod
+    - Colonnes DB séparées : ciphertext, nonce, encrypted_dek, key_version
+
+Architecture v1 (legacy — migration uniquement) :
+    - Ciphertext format : nonce (12B) || ciphertext || tag (16B)
+    - Clé : SHA-256(settings.ENCRYPTION_KEY)
+    - _derive_key() conservée pour la migration de données uniquement
 
 Key management:
-    - Key sourced from settings.ENCRYPTION_KEY (ENV variable)
-    - Key MUST be exactly 32 bytes (256 bits) for AES-256
-    - If key is shorter, it is zero-padded; if longer, truncated (dev only)
-    - In production, use a proper 32-byte random key
-
-Security:
-    - AES-256-GCM provides authenticated encryption (confidentiality + integrity)
-    - Random 12-byte nonce per encryption (never reused)
-    - Ciphertext format: nonce (12B) || ciphertext || tag (16B)
+    - TOTP_DEV_MASTER_KEY : variable d'environnement (≥ 32 chars)
+    - En production, remplacer par AWS KMS / Azure Key Vault
 """
-import os
 import hashlib
+import hmac
+import os
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from app.core.config import settings
 
 
+# ======= Legacy v1 — migration uniquement =======
+
 def _derive_key() -> bytes:
-    """Derive a 32-byte AES-256 key from the configured ENCRYPTION_KEY.
+    """Dérive une clé AES-256 depuis ENCRYPTION_KEY (v1 — migration uniquement).
 
-    Uses SHA-256 to ensure exactly 32 bytes regardless of input length.
-    This is deterministic: same input always produces same key.
-
-    Returns:
-        32-byte key suitable for AES-256-GCM
+    Déterministe : même input → même clé. Ne pas utiliser pour nouveau chiffrement.
     """
     raw = settings.ENCRYPTION_KEY.encode("utf-8")
     return hashlib.sha256(raw).digest()
 
 
-def encrypt_totp_secret(plaintext: str) -> bytes:
-    """Encrypt a TOTP secret using AES-256-GCM.
+# ======= Envelope encryption v2 =======
+
+def _get_kek_dev() -> bytes:
+    """Dérive le KEK depuis TOTP_DEV_MASTER_KEY (mode dev).
+
+    Prod : remplacer par AWS KMS GenerateDataKey / decrypt.
+    """
+    master = settings.TOTP_DEV_MASTER_KEY.encode("utf-8")
+    return hmac.new(master, b"totp-kek-v1", hashlib.sha256).digest()
+
+
+def _encrypt_dek(dek: bytes, kek: bytes) -> bytes:
+    """Chiffre le DEK avec le KEK. Retourne nonce_12b + ct_dek_tag."""
+    nonce = os.urandom(12)
+    return nonce + AESGCM(kek).encrypt(nonce, dek, None)
+
+
+def _decrypt_dek(encrypted_dek: bytes, kek: bytes) -> bytes:
+    """Déchiffre le DEK. Format attendu : nonce_12b + ct_dek_tag."""
+    if len(encrypted_dek) < 12 + 16:
+        raise ValueError("encrypted_dek trop court (minimum 28 bytes)")
+    nonce, ct = encrypted_dek[:12], encrypted_dek[12:]
+    return AESGCM(kek).decrypt(nonce, ct, None)
+
+
+def encrypt_totp_secret(plaintext: str) -> tuple[bytes, bytes, bytes, str]:
+    """Chiffre un secret TOTP via envelope encryption v2 (spec §05-MFA-TOTP §5.4).
+
+    Un DEK aléatoire 256 bits est généré par opération et chiffré avec le KEK.
+    Le secret est chiffré avec le DEK (AES-256-GCM).
 
     Args:
-        plaintext: The TOTP secret string to encrypt
+        plaintext: Secret TOTP en clair (base32)
 
     Returns:
-        Encrypted bytes: nonce (12B) || ciphertext || tag (16B)
+        (ciphertext, nonce, encrypted_dek, key_version) :
+        - ciphertext   : bytes → colonne encrypted_secret (sans nonce)
+        - nonce        : bytes 12 → colonne totp_secret_nonce
+        - encrypted_dek: bytes → colonne totp_encrypted_dek
+        - key_version  : str → colonne totp_key_version
 
     Raises:
-        ValueError: If plaintext is empty
+        ValueError: Si plaintext est vide
     """
     if not plaintext:
         raise ValueError("Cannot encrypt empty plaintext")
 
-    key = _derive_key()
-    aesgcm = AESGCM(key)
-
-    # 12-byte random nonce (recommended for GCM)
+    dek = os.urandom(32)
     nonce = os.urandom(12)
-    ciphertext = aesgcm.encrypt(nonce, plaintext.encode("utf-8"), None)
+    ciphertext = AESGCM(dek).encrypt(nonce, plaintext.encode("utf-8"), None)
 
-    # nonce || ciphertext+tag
-    return nonce + ciphertext
+    kek = _get_kek_dev()
+    encrypted_dek = _encrypt_dek(dek, kek)
+
+    return ciphertext, nonce, encrypted_dek, "dev-v1"
 
 
-def decrypt_totp_secret(encrypted: bytes) -> str:
-    """Decrypt a TOTP secret encrypted with encrypt_totp_secret().
+def decrypt_totp_secret(ciphertext: bytes, nonce: bytes, encrypted_dek: bytes) -> str:
+    """Déchiffre un secret TOTP via envelope encryption v2 (spec §05-MFA-TOTP §5.4).
 
     Args:
-        encrypted: Encrypted bytes (nonce + ciphertext + tag)
+        ciphertext   : Ciphertext + GCM tag (colonne encrypted_secret)
+        nonce        : GCM nonce 12 bytes (colonne totp_secret_nonce)
+        encrypted_dek: DEK chiffré par KEK (colonne totp_encrypted_dek)
 
     Returns:
-        Decrypted TOTP secret string
+        Secret TOTP en clair (base32)
 
     Raises:
-        ValueError: If encrypted data is too short or tampered with
+        ValueError: Si colonnes manquantes ou données corrompues
     """
-    if len(encrypted) < 12 + 16:
-        raise ValueError("Encrypted data too short (need at least 28 bytes)")
+    if not nonce or not encrypted_dek:
+        raise ValueError(
+            "Colonnes envelope encryption manquantes (totp_secret_nonce / "
+            "totp_encrypted_dek) — migration alembic requise"
+        )
 
-    key = _derive_key()
-    aesgcm = AESGCM(key)
-
-    nonce = encrypted[:12]
-    ciphertext = encrypted[12:]
-
-    plaintext_bytes = aesgcm.decrypt(nonce, ciphertext, None)
-    return plaintext_bytes.decode("utf-8")
+    kek = _get_kek_dev()
+    dek = _decrypt_dek(encrypted_dek, kek)
+    return AESGCM(dek).decrypt(nonce, ciphertext, None).decode("utf-8")

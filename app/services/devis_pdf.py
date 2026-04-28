@@ -30,7 +30,14 @@ def generate_devis_pdf(devis: Devis) -> bytes:
         customer_name = f"{customer.first_name} {customer.last_name}".strip()
 
     lines_html = ""
+    total_weight_g = 0
+    total_volume_cm3 = 0
     for line in devis.lines:
+        product = getattr(line, "product", None)
+        w = (getattr(product, "weight_grams", 0) or 0) if product else 0
+        v = (getattr(product, "volume_cm3", 0) or 0) if product else 0
+        total_weight_g += w * line.quantity
+        total_volume_cm3 += v * line.quantity
         lines_html += f"""
         <tr>
             <td>{line.label}</td>
@@ -100,6 +107,14 @@ def generate_devis_pdf(devis: Devis) -> bytes:
     {"<tr><td>Caution</td><td style='text-align:right'>" + _cents_to_eur(devis.caution_amount_cents) + "</td></tr>" if devis.caution_required else ""}
   </table>
 </div>
+
+{"" if not total_weight_g and not total_volume_cm3 else f'''
+<div style="margin-top:20px;padding:12px 16px;background:#f5f5f7;border-radius:6px;font-size:11px;color:#333">
+  <strong>Récapitulatif logistique</strong><br>
+  {"Poids total : " + f"{total_weight_g / 1000:.1f}".replace(".", ",") + " kg" if total_weight_g else ""}
+  {"&nbsp;&nbsp;—&nbsp;&nbsp;" if total_weight_g and total_volume_cm3 else ""}
+  {"Volume total : " + f"{total_volume_cm3 / 1000:.1f}".replace(".", ",") + " L" if total_volume_cm3 else ""}
+</div>'''}
 
 {"<p style='margin-top:20px;font-size:11px;color:#555'>Notes : " + devis.notes + "</p>" if devis.notes else ""}
 

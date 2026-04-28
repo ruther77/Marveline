@@ -1,0 +1,72 @@
+{
+  "id": "page:profile",
+  "type": "page",
+  "name": "Profil",
+  "description": "Page principale \"Profil\". Contient : Informations du compte, Champ : PRÉNOM, Champ : NOM, Champ : EMAIL. Paramètres : first-name, last-name, email.",
+  "route": "/profile",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "staff",
+      "manager",
+      "admin"
+    ],
+    "group": "Compte",
+    "dom_h1": "Mon profil"
+  },
+  "params": {
+    "first-name": "text",
+    "last-name": "text",
+    "email": "email"
+  },
+  "features": [
+    "Informations du compte",
+    "Champ : PRÉNOM",
+    "Champ : NOM",
+    "Champ : EMAIL"
+  ],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    }
+  ]
+}

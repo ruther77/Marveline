@@ -1,0 +1,107 @@
+{
+  "dashboard": {
+    "title": "CaroCorp API Overview",
+    "uid": "carocorp-overview",
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": { "from": "now-1h", "to": "now" },
+    "panels": [
+      {
+        "title": "Request Rate (req/s)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+        "targets": [{
+          "expr": "sum(rate(http_requests_total{job=\"carocorp-api\"}[5m]))",
+          "legendFormat": "Total"
+        }, {
+          "expr": "sum(rate(http_requests_total{job=\"carocorp-api\",status=~\"5..\"}[5m]))",
+          "legendFormat": "5xx Errors"
+        }]
+      },
+      {
+        "title": "Latency p50 / p95 / p99",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+        "targets": [{
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"carocorp-api\"}[5m])) by (le))",
+          "legendFormat": "p50"
+        }, {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"carocorp-api\"}[5m])) by (le))",
+          "legendFormat": "p95"
+        }, {
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"carocorp-api\"}[5m])) by (le))",
+          "legendFormat": "p99"
+        }],
+        "fieldConfig": { "defaults": { "unit": "s" } }
+      },
+      {
+        "title": "Error Rate by Status",
+        "type": "piechart",
+        "gridPos": { "h": 8, "w": 6, "x": 0, "y": 8 },
+        "targets": [{
+          "expr": "sum by (status) (increase(http_requests_total{job=\"carocorp-api\",status=~\"[45]..\"}[1h]))",
+          "legendFormat": "{{status}}"
+        }]
+      },
+      {
+        "title": "Cache Hit Rate",
+        "type": "gauge",
+        "gridPos": { "h": 8, "w": 6, "x": 6, "y": 8 },
+        "targets": [{
+          "expr": "cache_hit_rate",
+          "legendFormat": "Hit Rate"
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "thresholds": {
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 0.5, "color": "yellow" },
+                { "value": 0.8, "color": "green" }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "DB Query Duration (p95)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 6, "x": 12, "y": 8 },
+        "targets": [{
+          "expr": "histogram_quantile(0.95, sum(rate(db_query_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        }],
+        "fieldConfig": { "defaults": { "unit": "s" } }
+      },
+      {
+        "title": "Redis Latency (p95)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 6, "x": 18, "y": 8 },
+        "targets": [{
+          "expr": "histogram_quantile(0.95, sum(rate(redis_command_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        }],
+        "fieldConfig": { "defaults": { "unit": "s" } }
+      },
+      {
+        "title": "Rate Limit Hits",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+        "targets": [{
+          "expr": "sum by (scope) (rate(rate_limit_hits_total[5m])) * 60",
+          "legendFormat": "{{scope}}"
+        }]
+      },
+      {
+        "title": "Active Requests",
+        "type": "stat",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+        "targets": [{
+          "expr": "sum(http_requests_in_progress{job=\"carocorp-api\"})",
+          "legendFormat": "In Progress"
+        }]
+      }
+    ]
+  }
+}

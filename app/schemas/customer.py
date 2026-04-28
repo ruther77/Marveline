@@ -77,6 +77,20 @@ class CustomerBase(BaseSchema):
         description="Pays"
     )
 
+    # B2B
+    siret: Optional[str] = Field(
+        default=None,
+        max_length=14,
+        pattern=r"^\d{14}$",
+        description="SIRET (14 chiffres)"
+    )
+
+    vat_number: Optional[str] = Field(
+        default=None,
+        max_length=20,
+        description="TVA intracommunautaire (ex: FR12345678901)"
+    )
+
     notes: Optional[str] = Field(
         default=None,
         max_length=2000,
@@ -198,6 +212,19 @@ class CustomerUpdate(BaseSchema):
         description="Pays"
     )
 
+    siret: Optional[str] = Field(
+        default=None,
+        max_length=14,
+        pattern=r"^\d{14}$",
+        description="SIRET (14 chiffres)"
+    )
+
+    vat_number: Optional[str] = Field(
+        default=None,
+        max_length=20,
+        description="TVA intracommunautaire"
+    )
+
     notes: Optional[str] = Field(
         default=None,
         max_length=2000,
@@ -222,6 +249,10 @@ class CustomerList(EntityResponseSchema):
     city: Optional[str] = None
     postal_code: Optional[str] = None
     country: str
+
+    # B2B
+    siret: Optional[str] = None
+    vat_number: Optional[str] = None
 
     # Note interne
     notes: Optional[str] = None
@@ -254,6 +285,10 @@ class CustomerResponse(EntityResponseSchema):
     city: Optional[str] = None
     postal_code: Optional[str] = None
     country: str
+
+    # B2B
+    siret: Optional[str] = None
+    vat_number: Optional[str] = None
 
     # Note interne
     notes: Optional[str] = None
@@ -299,7 +334,7 @@ class CustomerHistoryReservation(BaseSchema):
     reference: str
     event_date: date
     status: str
-    total_amount: int = Field(description="Montant total en centimes")
+    total_amount_cents: int
 
 
 class CustomerHistoryInvoice(BaseSchema):
@@ -308,8 +343,8 @@ class CustomerHistoryInvoice(BaseSchema):
     id: int
     invoice_number: str
     status: str
-    total_amount: int = Field(description="Montant total en centimes")
-    paid_amount: int = Field(description="Montant payé en centimes")
+    total_amount_cents: int
+    paid_amount_cents: int
 
 
 class CustomerHistoryStats(BaseSchema):

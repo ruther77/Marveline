@@ -148,3 +148,28 @@ class MFALoginResponse(BaseSchema):
         default="mfa_session",
         description="Type de token (toujours 'mfa_session')"
     )
+
+
+class StepUpVerifyRequest(BaseSchema):
+    """Requête pour valider le MFA step-up sur une action sensible (spec §05.3)."""
+
+    totp_code: str = Field(
+        ...,
+        min_length=6,
+        max_length=8,
+        description="Code TOTP 6-8 chiffres de l'app authenticator"
+    )
+
+
+class StepUpVerifyResponse(BaseSchema):
+    """Réponse après validation du MFA step-up."""
+
+    status: str = Field(
+        default="verified",
+        description="Statut de la vérification step-up"
+    )
+
+    valid_for_seconds: int = Field(
+        default=900,
+        description="Durée de validité du step-up en secondes (15 min)"
+    )

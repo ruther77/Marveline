@@ -19,7 +19,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from app.core.database import get_db_context
+from app.core.database import get_async_db_context
 from app.core.deps import X_API_KEY_HEADER
 from app.core.logging import set_request_context, clear_request_context
 from app.services.api_key import ApiKeyService
@@ -54,7 +54,7 @@ def _extract_jwt_claims(request: Request) -> Dict[str, Any]:
         return {}
 
 
-def _extract_api_key_info(request: Request) -> Dict[str, Any]:
+async def _extract_api_key_info(request: Request) -> Dict[str, Any]:
     """Extrait les infos API key depuis le header X-API-Key.
 
     Valide la cle via ApiKeyService (cache Redis + DB fallback).
@@ -68,23 +68,20 @@ def _extract_api_key_info(request: Request) -> Dict[str, Any]:
         return {}
 
     try:
-        # Creer session DB temporaire pour validation
-        with get_db_context() as db:
+        async with get_async_db_context() as db:
             api_key_service = ApiKeyService(db)
-            api_key = api_key_service.validate_key(api_key_value)
+            api_key = await api_key_service.validate_key(api_key_value)
 
             if not api_key or not api_key.is_active:
                 return {}
 
-            # Retourner infos pour request.state
             return {
                 "tenant_id": api_key.tenant_id,
                 "api_key_id": api_key.id,
                 "scopes": api_key.scopes,
             }
     except Exception as e:
-        # Log erreur mais ne bloque pas la requete (fail-safe)
-        logger.warning(f"API key validation error: {e}")
+        logger.warning("API key validation error: %s", e)
         return {}
 
 
@@ -101,12 +98,16 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        # Reset N+1 query counter per request
+        from app.core.slow_query import reset_query_counter
+        reset_query_counter()
+
         # 1. Request ID : recuperer ou generer
         request_id = request.headers.get(REQUEST_ID_HEADER) or str(uuid.uuid4())
 
         # 2. Dual-mode authentication : JWT d'abord, puis API key
         claims = _extract_jwt_claims(request)
-        api_key_info = _extract_api_key_info(request) if not claims else {}
+        api_key_info = await _extract_api_key_info(request) if not claims else {}
 
         # 3. Extraire tenant_id, user_id, api_key_id selon mode auth
         tenant_id: Optional[int] = None
@@ -114,9 +115,12 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         api_key_id: Optional[int] = None
         principal_type: Optional[str] = None
 
+        jwt_scopes: list = []
+
         if claims:
-            # Mode JWT : extraire tenant_id et user_id depuis claims
-            tenant_id = claims.get("tenant_id")
+            # Mode JWT : extraire tenant_id et user_id depuis claims (v3 : "tid" et "sub")
+            tid_raw = claims.get("tid") or claims.get("tenant_id")  # compat v2
+            tenant_id = int(tid_raw) if tid_raw is not None else None
             user_id_raw = claims.get("sub")
 
             # sub est un string dans le JWT (spec), on le convertit en int
@@ -126,11 +130,15 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
                     principal_type = "user"
                 except (ValueError, TypeError):
                     pass
+
+            # Extraire scopes JWT (claim "scopes" — liste de strings)
+            jwt_scopes = claims.get("scopes") or []
         elif api_key_info:
-            # Mode API key : extraire tenant_id et api_key_id depuis validation
+            # Mode API key : extraire tenant_id, api_key_id et scopes depuis validation
             tenant_id = api_key_info.get("tenant_id")
             api_key_id = api_key_info.get("api_key_id")
             principal_type = "api_key"
+            jwt_scopes = list(api_key_info.get("scopes") or [])
 
         # 4. Stocker dans request.state
         request.state.request_id = request_id
@@ -138,6 +146,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         request.state.user_id = user_id
         request.state.principal_type = principal_type
         request.state.api_key_id = api_key_id
+        request.state.jwt_scopes = jwt_scopes
 
         # 4. Positionner les ContextVars (logging structure)
         set_request_context(

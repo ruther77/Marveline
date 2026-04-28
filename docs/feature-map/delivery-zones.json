@@ -1,0 +1,119 @@
+{
+  "id": "page:delivery-zones",
+  "type": "page",
+  "name": "Zones de livraison",
+  "description": "Page principale \"Zones de livraison\". Contenu non détecté automatiquement.",
+  "route": "/products/delivery-zones",
+  "attributes": {
+    "auth_required": true,
+    "roles": [
+      "manager",
+      "admin"
+    ],
+    "group": "Catalogue",
+    "dom_h1": "Zones de livraison"
+  },
+  "params": {},
+  "features": [],
+  "children": [
+    {
+      "link_type": "navigate",
+      "label": "Marveline",
+      "trigger": "click",
+      "target_id": "page:dashboard",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Ventes",
+      "trigger": "click",
+      "target_id": "page:devis",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Opérations",
+      "trigger": "click",
+      "target_id": "page:planning-today",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Stock",
+      "trigger": "click",
+      "target_id": "page:inventory-stock",
+      "node": null
+    },
+    {
+      "link_type": "navigate",
+      "label": "Plus",
+      "trigger": "click",
+      "target_id": "page:more",
+      "node": null
+    },
+    {
+      "link_type": "action",
+      "label": "Rechercher",
+      "trigger": "click",
+      "target_id": null,
+      "node": null
+    },
+    {
+      "link_type": "modal_open",
+      "label": "Nouvelle zone",
+      "trigger": "click",
+      "target_id": "modal:nouvelle-zone",
+      "node": {
+        "id": "modal:nouvelle-zone-de-livraison",
+        "type": "form",
+        "name": "Nouvelle zone de livraison",
+        "description": "Formulaire \"Nouvelle zone de livraison\". Contient : 0 = sur devis, Champ : 60, Champ : Oise, Champ : 0 (sur devis), Champ : 0, Champ : Informations complémentaires.... Paramètres : department-code, department-name, delivery-fee-cents, sunday-surcharge-cents, notes.",
+        "attributes": {
+          "depth": 1,
+          "opened_from_depth": 0
+        },
+        "params": {
+          "department-code": "text",
+          "department-name": "text",
+          "delivery-fee-cents": "number",
+          "sunday-surcharge-cents": "number",
+          "notes": "textarea"
+        },
+        "features": [
+          "0 = sur devis",
+          "Champ : 60",
+          "Champ : Oise",
+          "Champ : 0 (sur devis)",
+          "Champ : 0",
+          "Champ : Informations complémentaires...",
+          "Fermer",
+          "Annuler",
+          "Créer"
+        ],
+        "children": [
+          {
+            "link_type": "action",
+            "label": "Fermer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "action",
+            "label": "Annuler",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          },
+          {
+            "link_type": "form_submit",
+            "label": "Créer",
+            "trigger": "click",
+            "target_id": null,
+            "node": null
+          }
+        ]
+      }
+    }
+  ]
+}

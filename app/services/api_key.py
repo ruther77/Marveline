@@ -8,13 +8,13 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import ErrorMessages, RedisKeys
 from app.core.permissions import Permission
 from app.core.redis import redis_client
 from app.models.api_key import ApiKey
-from app.repositories.api_key import ApiKeyRepository
+from app.repositories.api_key import AsyncApiKeyRepository
 from app.schemas.api_key import ApiKeyCreate, ApiKeyUpdate
 
 logger = logging.getLogger(__name__)
@@ -40,9 +40,9 @@ class ApiKeyService:
         - Scopes valides contre Permission enum
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
-        self.repo = ApiKeyRepository(db)
+        self.repo = AsyncApiKeyRepository(db)
 
     @staticmethod
     def _generate_key() -> tuple[str, str, str]:
@@ -89,7 +89,7 @@ class ApiKeyService:
                 detail=f"Scopes invalides: {invalid}"
             )
 
-    def create_key(
+    async def create_key(
         self,
         data: ApiKeyCreate,
         tenant_id: int,
@@ -123,10 +123,11 @@ class ApiKeyService:
             created_by=created_by,
         )
 
-        self.repo.create(api_key)
+        self.db.add(api_key)
+        await self.db.flush()
         return api_key, full_key
 
-    def update_key(
+    async def update_key(
         self,
         api_key_id: int,
         data: ApiKeyUpdate,
@@ -146,7 +147,7 @@ class ApiKeyService:
             HTTPException 404: Si cle non trouvee
             HTTPException 400: Si scopes invalides
         """
-        api_key = self.repo.get_by_id_and_tenant(api_key_id, tenant_id)
+        api_key = await self.repo.get_by_id_and_tenant(api_key_id, tenant_id)
         if not api_key:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -166,11 +167,11 @@ class ApiKeyService:
         if data.is_active is not None:
             api_key.is_active = data.is_active
 
-        self.repo.update(api_key)
-        self._invalidate_cache(api_key.key_hash)
+        await self.db.flush()
+        await self._invalidate_cache(api_key.key_hash)
         return api_key
 
-    def revoke_key(self, api_key_id: int, tenant_id: int) -> ApiKey:
+    async def revoke_key(self, api_key_id: int, tenant_id: int) -> ApiKey:
         """Revoque (soft delete) une API key.
 
         Args:
@@ -183,7 +184,7 @@ class ApiKeyService:
         Raises:
             HTTPException 404: Si cle non trouvee
         """
-        api_key = self.repo.get_by_id_and_tenant(api_key_id, tenant_id)
+        api_key = await self.repo.get_by_id_and_tenant(api_key_id, tenant_id)
         if not api_key:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -191,11 +192,11 @@ class ApiKeyService:
             )
 
         api_key.is_active = False
-        self.repo.update(api_key)
-        self._invalidate_cache(api_key.key_hash)
+        await self.db.flush()
+        await self._invalidate_cache(api_key.key_hash)
         return api_key
 
-    def rotate_key(
+    async def rotate_key(
         self,
         api_key_id: int,
         tenant_id: int,
@@ -212,7 +213,7 @@ class ApiKeyService:
         Raises:
             HTTPException 404: Si cle non trouvee
         """
-        old_key = self.repo.get_by_id_and_tenant(api_key_id, tenant_id)
+        old_key = await self.repo.get_by_id_and_tenant(api_key_id, tenant_id)
         if not old_key:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -221,8 +222,8 @@ class ApiKeyService:
 
         # Revoquer l'ancienne
         old_key.is_active = False
-        self.repo.update(old_key)
-        self._invalidate_cache(old_key.key_hash)
+        await self.db.flush()
+        await self._invalidate_cache(old_key.key_hash)
 
         # Creer la nouvelle avec memes parametres
         full_key, key_prefix, key_hash = self._generate_key()
@@ -236,11 +237,12 @@ class ApiKeyService:
             expires_at=old_key.expires_at,
             created_by=old_key.created_by,
         )
-        self.repo.create(new_key)
+        self.db.add(new_key)
+        await self.db.flush()
 
         return new_key, full_key
 
-    def validate_key(self, full_key: str) -> Optional[ApiKey]:
+    async def validate_key(self, full_key: str) -> Optional[ApiKey]:
         """Valide une API key et retourne le modele si valide.
 
         Flow:
@@ -259,19 +261,19 @@ class ApiKeyService:
         key_hash = self.hash_key(full_key)
 
         # Check cache Redis
-        cached = self._get_from_cache(key_hash)
+        cached = await self._get_from_cache(key_hash)
         if cached is not None:
             if not cached:
                 return None  # Cache indique cle invalide
             # Cache hit — on a besoin de l'objet complet pour les updates
-            api_key = self.repo.get_by_key_hash(key_hash)
+            api_key = await self.repo.get_by_key_hash(key_hash)
         else:
             # Cache miss — lookup DB
-            api_key = self.repo.get_by_key_hash(key_hash)
+            api_key = await self.repo.get_by_key_hash(key_hash)
             if api_key:
-                self._set_cache(api_key)
+                await self._set_cache(api_key)
             else:
-                self._set_cache_negative(key_hash)
+                await self._set_cache_negative(key_hash)
                 return None
 
         if not api_key:
@@ -283,7 +285,7 @@ class ApiKeyService:
 
         return api_key
 
-    def get_key(self, api_key_id: int, tenant_id: int) -> ApiKey:
+    async def get_key(self, api_key_id: int, tenant_id: int) -> ApiKey:
         """Recupere une API key par ID.
 
         Args:
@@ -296,7 +298,7 @@ class ApiKeyService:
         Raises:
             HTTPException 404: Si non trouvee
         """
-        api_key = self.repo.get_by_id_and_tenant(api_key_id, tenant_id)
+        api_key = await self.repo.get_by_id_and_tenant(api_key_id, tenant_id)
         if not api_key:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -304,7 +306,7 @@ class ApiKeyService:
             )
         return api_key
 
-    def list_keys(
+    async def list_keys(
         self,
         tenant_id: int,
         skip: int = 0,
@@ -322,7 +324,7 @@ class ApiKeyService:
         Returns:
             Tuple (liste, total)
         """
-        return self.repo.list_by_tenant(
+        return await self.repo.list_by_tenant(
             tenant_id=tenant_id,
             include_inactive=include_inactive,
             skip=skip,
@@ -331,7 +333,7 @@ class ApiKeyService:
 
     # ── Cache Redis ──────────────────────────────────────────────────────
 
-    def _get_from_cache(self, key_hash: str) -> Optional[dict]:
+    async def _get_from_cache(self, key_hash: str) -> Optional[dict]:
         """Recupere une API key depuis le cache Redis.
 
         Returns:
@@ -339,7 +341,7 @@ class ApiKeyService:
         """
         try:
             cache_key = f"{RedisKeys.API_KEY_CACHE}{key_hash[:16]}"
-            raw = redis_client.client.get(cache_key)
+            raw = await redis_client.client.get(cache_key)
             if raw is None:
                 return None
             data = json.loads(raw)
@@ -350,7 +352,7 @@ class ApiKeyService:
             logger.debug("Redis cache miss for API key (error)")
             return None
 
-    def _set_cache(self, api_key: ApiKey) -> None:
+    async def _set_cache(self, api_key: ApiKey) -> None:
         """Met en cache une API key valide."""
         try:
             cache_key = f"{RedisKeys.API_KEY_CACHE}{api_key.key_hash[:16]}"
@@ -361,22 +363,22 @@ class ApiKeyService:
                 "rate_limit": api_key.rate_limit,
                 "expires_at": api_key.expires_at.isoformat() if api_key.expires_at else None,
             }
-            redis_client.client.setex(cache_key, REDIS_API_KEY_TTL, json.dumps(data))
+            await redis_client.client.setex(cache_key, REDIS_API_KEY_TTL, json.dumps(data))
         except Exception:
             logger.debug("Failed to cache API key")
 
-    def _set_cache_negative(self, key_hash: str) -> None:
+    async def _set_cache_negative(self, key_hash: str) -> None:
         """Met en cache un resultat negatif (cle inexistante)."""
         try:
             cache_key = f"{RedisKeys.API_KEY_CACHE}{key_hash[:16]}"
-            redis_client.client.setex(cache_key, 60, json.dumps({"_invalid": True}))
+            await redis_client.client.setex(cache_key, 60, json.dumps({"_invalid": True}))
         except Exception:
             logger.debug("Failed to set negative cache for API key")
 
-    def _invalidate_cache(self, key_hash: str) -> None:
+    async def _invalidate_cache(self, key_hash: str) -> None:
         """Invalide le cache pour une API key."""
         try:
             cache_key = f"{RedisKeys.API_KEY_CACHE}{key_hash[:16]}"
-            redis_client.client.delete(cache_key)
+            await redis_client.client.delete(cache_key)
         except Exception:
             logger.debug("Failed to invalidate API key cache")

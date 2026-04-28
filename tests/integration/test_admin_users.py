@@ -20,7 +20,9 @@ from fastapi.testclient import TestClient
 
 from app.core.redis import redis_client
 from app.core.security import create_access_token, get_password_hash
-from app.models.user import User
+from app.core.deps import UserCompat
+from app.models.account import Account
+from app.models.tenant_membership import TenantMembership
 from tests.conftest import csrf_token_for_user
 
 
@@ -28,33 +30,43 @@ from tests.conftest import csrf_token_for_user
 
 
 @pytest.fixture
-def test_manager(test_db):
-    """Utilisateur manager de test (tenant_id=1)."""
-    user = User(
-        tenant_id=1,
+def test_manager(test_db, test_tenant_record, _role_manager):
+    """Utilisateur manager de test (tenant_id=1) — IAM v2."""
+    account = Account(
         email="manager@carocorp.com",
         hashed_password=get_password_hash("manager123"),
         first_name="Manager",
         last_name="User",
-        role="manager",
         is_active=True,
     )
-    test_db.add(user)
+    test_db.add(account)
+    test_db.flush()
+    membership = TenantMembership(
+        account_id=account.id,
+        tenant_id=test_tenant_record.id,
+        role_name="manager",
+        status="active",
+    )
+    test_db.add(membership)
     test_db.commit()
-    test_db.refresh(user)
-    return user
+    test_db.refresh(account)
+    test_db.refresh(membership)
+    return UserCompat(account=account, membership=membership)
 
 
 @pytest.fixture
 def auth_headers_manager(test_manager):
-    """Headers d'authentification pour manager (tenant_id=1)."""
+    """Headers d'authentification pour manager (tenant_id=1) — IAM v2 (claim 'tid')."""
+    import uuid as _uuid
+    sid = str(_uuid.uuid4())
     token = create_access_token({
         "sub": test_manager.id,
-        "tenant_id": test_manager.tenant_id,
+        "tid": str(test_manager.tenant_id),
         "email": test_manager.email,
         "role": test_manager.role,
+        "sid": sid,
     })
-    csrf = csrf_token_for_user(test_manager.id)
+    csrf = csrf_token_for_user(test_manager.id, session_id=sid)
     return {
         "Authorization": f"Bearer {token}",
         "X-CSRF-Token": csrf,
@@ -62,25 +74,33 @@ def auth_headers_manager(test_manager):
 
 
 @pytest.fixture
-def extra_users(test_db):
-    """Cree 3 utilisateurs supplementaires dans le tenant 1 pour tests de liste."""
-    users = []
+def extra_users(test_db, test_tenant_record, _role_staff):
+    """Cree 3 utilisateurs supplementaires dans le tenant 1 — IAM v2."""
+    result = []
     for i in range(3):
-        u = User(
-            tenant_id=1,
+        account = Account(
             email=f"extra{i}@carocorp.com",
             hashed_password=get_password_hash("testpass123"),
             first_name=f"Extra{i}",
             last_name="User",
-            role="staff",
             is_active=True,
         )
-        test_db.add(u)
-        users.append(u)
+        test_db.add(account)
+        test_db.flush()
+        membership = TenantMembership(
+            account_id=account.id,
+            tenant_id=test_tenant_record.id,
+            role_name="staff",
+            status="active",
+        )
+        test_db.add(membership)
+        test_db.flush()
+        result.append(UserCompat(account=account, membership=membership))
     test_db.commit()
-    for u in users:
-        test_db.refresh(u)
-    return users
+    for uc in result:
+        test_db.refresh(uc._account)
+        test_db.refresh(uc._membership)
+    return result
 
 
 # ── CREATE ──────────────────────────────────────────────────────────────
@@ -90,7 +110,7 @@ class TestAdminCreateUser:
     """POST /api/v1/users — creation utilisateur par admin."""
 
     def test_create_user_success(
-        self, client: TestClient, test_db, test_admin, auth_headers_admin
+        self, client: TestClient, test_db, test_admin, auth_headers_admin, _role_staff
     ):
         """Admin cree un staff -> 201 avec donnees correctes."""
         response = client.post(
@@ -116,7 +136,7 @@ class TestAdminCreateUser:
         assert "id" in data
 
     def test_create_user_manager_role(
-        self, client: TestClient, test_admin, auth_headers_admin
+        self, client: TestClient, test_admin, auth_headers_admin, _role_manager
     ):
         """Admin cree un manager -> 201."""
         response = client.post(
@@ -317,19 +337,27 @@ class TestAdminListUsers:
         test_db,
         test_admin,
         auth_headers_admin,
+        _role_staff,
     ):
         """include_inactive=True inclut les comptes desactives."""
-        # Creer un user inactif
-        inactive = User(
-            tenant_id=1,
+        # Creer un user inactif — IAM v2
+        tenant_id = 1  # tenant par defaut des tests
+        inactive_account = Account(
             email="inactive@carocorp.com",
             hashed_password=get_password_hash("testpass123"),
             first_name="Inactive",
             last_name="User",
-            role="staff",
             is_active=False,
         )
-        test_db.add(inactive)
+        test_db.add(inactive_account)
+        test_db.flush()
+        inactive_membership = TenantMembership(
+            account_id=inactive_account.id,
+            tenant_id=tenant_id,
+            role_name="staff",
+            status="suspended",
+        )
+        test_db.add(inactive_membership)
         test_db.commit()
 
         # Sans include_inactive
@@ -360,16 +388,16 @@ class TestAdminListUsers:
 
         assert response.status_code == 403
 
-    def test_list_users_manager_forbidden(
+    def test_list_users_manager_allowed(
         self, client: TestClient, test_manager, auth_headers_manager
     ):
-        """Manager ne peut pas lister les utilisateurs -> 403."""
+        """Manager peut lister les utilisateurs (users:read dans RBAC) -> 200."""
         response = client.get(
             "/api/v1/users",
             headers=auth_headers_manager,
         )
 
-        assert response.status_code == 403
+        assert response.status_code == 200
 
 
 # ── GET ─────────────────────────────────────────────────────────────────
@@ -453,7 +481,7 @@ class TestAdminUpdateUser:
         assert data["last_name"] == test_user.last_name  # Inchange
 
     def test_update_user_role(
-        self, client: TestClient, test_db, test_admin, test_user, auth_headers_admin
+        self, client: TestClient, test_db, test_admin, test_user, auth_headers_admin, _role_manager
     ):
         """Admin change le role d'un user staff -> manager -> 200."""
         response = client.patch(
@@ -497,31 +525,42 @@ class TestAdminUpdateUser:
         assert response.status_code == 400
 
     def test_update_self_promotion_forbidden(
-        self, client: TestClient, test_db, test_admin, auth_headers_admin
+        self, client: TestClient, test_db, test_admin, auth_headers_admin, _role_manager
     ):
         """Admin ne peut pas se promouvoir lui-meme (deja admin, test le guard)."""
-        # Creer un manager puis essayer de s'auto-promouvoir
-        manager = User(
-            tenant_id=1,
+        # Creer un manager puis essayer de s'auto-promouvoir — IAM v2
+        mgr_account = Account(
             email="selfpromo@carocorp.com",
             hashed_password=get_password_hash("testpass123"),
             first_name="Self",
             last_name="Promo",
-            role="manager",
             is_active=True,
         )
-        test_db.add(manager)
+        test_db.add(mgr_account)
+        test_db.flush()
+        mgr_membership = TenantMembership(
+            account_id=mgr_account.id,
+            tenant_id=1,
+            role_name="manager",
+            status="active",
+        )
+        test_db.add(mgr_membership)
         test_db.commit()
-        test_db.refresh(manager)
+        test_db.refresh(mgr_account)
+        test_db.refresh(mgr_membership)
+        manager = UserCompat(account=mgr_account, membership=mgr_membership)
 
-        # Creer token pour ce manager
+        # Creer token pour ce manager — IAM v2 (claim 'tid')
+        import uuid as _uuid2
+        sid2 = str(_uuid2.uuid4())
         token = create_access_token({
             "sub": manager.id,
-            "tenant_id": manager.tenant_id,
+            "tid": str(manager.tenant_id),
             "email": manager.email,
             "role": manager.role,
+            "sid": sid2,
         })
-        csrf = csrf_token_for_user(manager.id)
+        csrf = csrf_token_for_user(manager.id, session_id=sid2)
         manager_headers = {
             "Authorization": f"Bearer {token}",
             "X-CSRF-Token": csrf,
@@ -602,8 +641,8 @@ class TestAdminDeleteUser:
         assert data["is_active"] is False
 
         # Verifier en DB
-        test_db.refresh(test_user)
-        assert test_user.is_active is False
+        test_db.refresh(test_user._account)
+        assert test_user._account.is_active is False
 
     def test_delete_self_forbidden(
         self, client: TestClient, test_admin, auth_headers_admin
@@ -697,3 +736,103 @@ class TestMeEndpoints:
 
         assert response.status_code == 200
         assert response.json()["first_name"] == "UpdatedMe"
+
+
+# ── POST /users/invite ────────────────────────────────────────────────
+
+
+class TestInviteUser:
+    """Tests pour POST /api/v1/users/invite."""
+
+    def test_invite_ok(self, client: TestClient, auth_headers_admin: dict, _role_staff):
+        """Admin invite un nouvel utilisateur → 201 + invite_sent True."""
+        import uuid
+        email = f"invite-{uuid.uuid4().hex[:8]}@example.com"
+        resp = client.post(
+            "/api/v1/users/invite",
+            json={"email": email, "role": "staff", "first_name": "Invite", "last_name": "Test"},
+            headers=auth_headers_admin,
+        )
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+        assert data["email"] == email
+        assert data["role"] == "staff"
+        assert "invite_sent" in data  # True si SMTP dispo, False sinon — on vérifie la présence
+        assert "id" in data
+
+    def test_invite_duplicate_email_409(
+        self, client: TestClient, auth_headers_admin: dict, test_db, _role_staff
+    ):
+        """Inviter un email déjà existant dans le tenant → 409 (IAM v2)."""
+        import uuid
+
+        email = f"dup-{uuid.uuid4().hex[:8]}@example.com"
+        # Créer Account + TenantMembership dans tenant 1
+        dup_account = Account(
+            email=email,
+            hashed_password=get_password_hash("Test1234!@#$"),
+            first_name="Dup", last_name="User",
+            is_active=True,
+        )
+        test_db.add(dup_account)
+        test_db.flush()
+        dup_membership = TenantMembership(
+            account_id=dup_account.id,
+            tenant_id=1,
+            role_name="staff",
+            status="active",
+        )
+        test_db.add(dup_membership)
+        test_db.commit()
+
+        resp = client.post(
+            "/api/v1/users/invite",
+            json={"email": email, "role": "manager"},
+            headers=auth_headers_admin,
+        )
+        assert resp.status_code == 409
+
+    def test_invite_non_admin_403(self, client: TestClient, auth_headers_real: dict):
+        """Un utilisateur non-admin ne peut pas inviter → 403."""
+        import uuid
+        resp = client.post(
+            "/api/v1/users/invite",
+            json={"email": f"noadmin-{uuid.uuid4().hex[:8]}@example.com", "role": "staff"},
+            headers=auth_headers_real,
+        )
+        assert resp.status_code == 403
+
+    def test_invite_cross_tenant_isolation(
+        self, client: TestClient, auth_headers_admin_tenant2: dict, test_db, _role_staff
+    ):
+        """Un email de tenant1 peut être invité dans tenant2 (Account partagé, IAM v2)."""
+        import uuid
+
+        email = f"cross-{uuid.uuid4().hex[:8]}@example.com"
+        # Créer Account + TenantMembership dans tenant 1
+        cross_account = Account(
+            email=email,
+            hashed_password=get_password_hash("Test1234!@#$"),
+            first_name="Cross", last_name="T1",
+            is_active=True,
+        )
+        test_db.add(cross_account)
+        test_db.flush()
+        cross_membership = TenantMembership(
+            account_id=cross_account.id,
+            tenant_id=1,
+            role_name="staff",
+            status="active",
+        )
+        test_db.add(cross_membership)
+        test_db.commit()
+
+        # Le même email peut être invité dans tenant2 (même Account, nouveau membership)
+        resp2 = client.post(
+            "/api/v1/users/invite",
+            json={"email": email, "role": "staff"},
+            headers=auth_headers_admin_tenant2,
+        )
+        assert resp2.status_code == 201, resp2.text
+        assert resp2.json()["email"] == email
+        # En IAM v2, l'Account est partagé entre tenants ; l'isolation est garantie par le membership

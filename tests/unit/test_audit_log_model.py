@@ -59,7 +59,7 @@ class TestAuditLogModel:
     def test_create_audit_log(self, test_db):
         """AuditLog créé avec succès."""
         audit_log = AuditLog(
-            user_id=1,
+            account_id=1,
             tenant_id=1,
             action="CREATE",
             entity_type="Customer",
@@ -76,7 +76,7 @@ class TestAuditLogModel:
         test_db.refresh(audit_log)
 
         assert audit_log.id is not None
-        assert audit_log.user_id == 1
+        assert audit_log.account_id == 1
         assert audit_log.tenant_id == 1
         assert audit_log.action == "CREATE"
         assert audit_log.entity_type == "Customer"
@@ -92,7 +92,7 @@ class TestAuditLogModel:
     def test_audit_log_nullable_fields(self, test_db):
         """AuditLog avec champs optionnels NULL (actions système)."""
         audit_log = AuditLog(
-            user_id=None,  # Action système sans user
+            account_id=None,  # Action système sans user
             tenant_id=1,
             action="SYSTEM_CLEANUP",
             entity_type=None,
@@ -109,7 +109,7 @@ class TestAuditLogModel:
         test_db.refresh(audit_log)
 
         assert audit_log.id is not None
-        assert audit_log.user_id is None
+        assert audit_log.account_id is None
         assert audit_log.tenant_id == 1
         assert audit_log.action == "SYSTEM_CLEANUP"
         assert audit_log.entity_type is None
@@ -122,7 +122,7 @@ class TestAuditLogModel:
     def test_audit_log_update_blocked_by_trigger(self, trigger_session):
         """Trigger PostgreSQL empêche UPDATE (immutabilité)."""
         audit_log = AuditLog(
-            user_id=1,
+            account_id=1,
             tenant_id=1,
             action="CREATE",
             description="Original description — trigger test"
@@ -144,7 +144,7 @@ class TestAuditLogModel:
     def test_audit_log_delete_blocked_by_trigger(self, trigger_session):
         """Trigger PostgreSQL empêche DELETE (immutabilité)."""
         audit_log = AuditLog(
-            user_id=1,
+            account_id=1,
             tenant_id=1,
             action="CREATE",
             description="Cannot be deleted — trigger test"
@@ -176,7 +176,7 @@ class TestAuditLogModel:
         """JSONB changes stocke structures complexes (before/after multiples champs)."""
         complex_changes = {
             "status": {"before": "draft", "after": "confirmed"},
-            "total_amount": {"before": 10000, "after": 12000},
+            "total_amount_cents": {"before": 10000, "after": 12000},
             "notes": {"before": None, "after": "Important client"},
             "metadata": {
                 "before": {"priority": "normal"},
@@ -185,7 +185,7 @@ class TestAuditLogModel:
         }
 
         audit_log = AuditLog(
-            user_id=1,
+            account_id=1,
             tenant_id=1,
             action="UPDATE",
             entity_type="Reservation",
@@ -260,7 +260,7 @@ class TestAuditLogModel:
     def test_audit_log_tenant_isolation(self, test_db):
         """Logs différents tenants isolés correctement."""
         log_tenant1 = AuditLog(
-            user_id=1,
+            account_id=1,
             tenant_id=1,
             action="CREATE",
             entity_type="Customer",
@@ -269,7 +269,7 @@ class TestAuditLogModel:
         )
 
         log_tenant2 = AuditLog(
-            user_id=2,
+            account_id=2,
             tenant_id=2,
             action="CREATE",
             entity_type="Customer",

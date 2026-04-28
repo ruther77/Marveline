@@ -130,8 +130,13 @@ test.describe('CSRF Debug Interactif', () => {
     console.log('\nAPPEL MANUEL: fetchCsrfToken()')
     // Appeler manuellement fetchCsrfToken depuis la console
     await page.evaluate(() => {
-      // @ts-ignore - useUIStore existe dans le contexte de la page
-      const { useUIStore } = window as any
+      const { useUIStore } = window as {
+        useUIStore?: {
+          getState: () => {
+            fetchCsrfToken: () => Promise<unknown> | void
+          }
+        }
+      }
       if (useUIStore) {
         console.log('[TEST] Appel manuel de fetchCsrfToken()')
         useUIStore.getState().fetchCsrfToken()

@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.core.security import create_access_token, decode_token
 from app.core.redis import redis_client
+from app.core.database import get_db
 from app.middleware.security import CSRFProtectionMiddleware
 from app.constants import (
     AuthEndpoints,
@@ -29,10 +30,18 @@ from tests.conftest import csrf_token_for_user
 
 
 @pytest.fixture
-def raw_client():
-    """TestClient sans DB override (middleware-only tests)."""
+def raw_client(test_db):
+    """TestClient avec DB de test — teste les middlewares avec DB isolée."""
+    def override_get_db():
+        try:
+            yield test_db
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
         yield c
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture
@@ -98,7 +107,7 @@ class TestCSRFPublicEndpoints:
         """POST /auth/refresh ne nécessite pas de CSRF."""
         resp = raw_client.post(
             AuthEndpoints.REFRESH,
-            json={"refresh_token": "invalid"},
+            cookies={"refresh_token": "invalid"},
         )
         assert resp.status_code != 403
 
@@ -107,7 +116,6 @@ class TestCSRFPublicEndpoints:
         resp = raw_client.post(
             AuthEndpoints.LOGOUT,
             headers={"Authorization": f"Bearer {user_jwt}"},
-            json={"refresh_token": "invalid"},
         )
         assert resp.status_code != 403
 
@@ -331,8 +339,11 @@ class TestRateLimitLoginScope:
 class TestRateLimitClientIP:
     """Vérifie l'extraction d'IP depuis X-Forwarded-For."""
 
-    def test_x_forwarded_for_used(self, raw_client):
-        """Si X-Forwarded-For est présent, c'est l'IP utilisée pour rate limit."""
+    def test_x_forwarded_for_used(self, raw_client, monkeypatch):
+        """Si X-Forwarded-For est présent et TRUSTED_PROXY_HEADERS=True, c'est l'IP utilisée."""
+        from app.core.config import settings
+        monkeypatch.setattr(settings, "TRUSTED_PROXY_HEADERS", True)
+
         # Deux IPs différentes via X-Forwarded-For ne partagent pas le rate limit
         for _ in range(5):
             raw_client.post(

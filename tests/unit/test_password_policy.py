@@ -34,7 +34,7 @@ class TestPasswordLength:
         """Password < 8 chars rejeté."""
         is_valid, msg = validate_password("Ab1!xyz")  # 7 chars
         assert not is_valid
-        assert "at least 8" in msg
+        assert "au moins 8" in msg
 
     def test_exactly_min_length_accepted(self):
         """Password de 8 chars exactement accepté."""
@@ -49,7 +49,7 @@ class TestPasswordLength:
         assert len(pw) > 128
         is_valid, msg = validate_password(pw)
         assert not is_valid
-        assert "at most 128" in msg
+        assert "depasser 128" in msg
 
     def test_exactly_max_length_accepted(self):
         """Password de 128 chars exactement accepté."""
@@ -71,14 +71,14 @@ class TestPasswordLength:
         # Mais pas pour admin
         is_valid, msg = validate_password(pw, role="admin")
         assert not is_valid
-        assert "at least 12" in msg
+        assert "au moins 12" in msg
 
     def test_manager_min_12_chars(self):
         """Manager aussi doit avoir 12 chars minimum."""
         pw = "Xk9!mPwzRt5"  # 11 chars
         is_valid, msg = validate_password(pw, role="manager")
         assert not is_valid
-        assert "at least 12" in msg
+        assert "au moins 12" in msg
 
     def test_admin_12_chars_accepted(self):
         """Admin avec 12 chars accepté."""
@@ -99,25 +99,25 @@ class TestPasswordComplexity:
         """Password sans majuscule rejeté."""
         is_valid, msg = validate_password("abcdef1!")
         assert not is_valid
-        assert "uppercase" in msg
+        assert "majuscule" in msg
 
     def test_no_lowercase_rejected(self):
         """Password sans minuscule rejeté."""
         is_valid, msg = validate_password("ABCDEF1!")
         assert not is_valid
-        assert "lowercase" in msg
+        assert "minuscule" in msg
 
     def test_no_digit_rejected(self):
         """Password sans chiffre rejeté."""
         is_valid, msg = validate_password("Abcdefgh!")
         assert not is_valid
-        assert "digit" in msg
+        assert "chiffre" in msg
 
     def test_no_special_char_rejected(self):
         """Password sans caractère spécial rejeté."""
         is_valid, msg = validate_password("Abcdefg1")
         assert not is_valid
-        assert "special character" in msg
+        assert "special" in msg
 
     def test_all_criteria_met_accepted(self):
         """Password avec toutes les exigences accepté."""
@@ -181,7 +181,7 @@ class TestContextualChecks:
             "MyJohn99!x", username="john"
         )
         assert not is_valid
-        assert "username" in msg
+        assert "utilisateur" in msg
 
     def test_username_case_insensitive(self):
         """Username check est case-insensitive."""
@@ -189,7 +189,7 @@ class TestContextualChecks:
             "MYJOHN99!x", username="john"
         )
         assert not is_valid
-        assert "username" in msg
+        assert "utilisateur" in msg
 
     def test_short_username_ignored(self):
         """Username < 3 chars n'est pas vérifié (trop de faux positifs)."""
@@ -240,13 +240,13 @@ class TestSequences:
         """Password avec caractères répétitifs rejeté (aaa, 111)."""
         is_valid, msg = validate_password("Aaaa1!xy")
         assert not is_valid
-        assert "repeating" in msg
+        assert "repetitifs" in msg
 
     def test_repeating_digits_rejected(self):
         """Chiffres répétitifs rejetés."""
         is_valid, msg = validate_password("Ab111!xy")
         assert not is_valid
-        assert "repeating" in msg
+        assert "repetitifs" in msg
 
     def test_two_repeats_ok(self):
         """2 caractères identiques sont OK (seul 3+ est bloqué)."""
@@ -258,13 +258,13 @@ class TestSequences:
         """Séquence de chiffres consécutifs rejetée (1234)."""
         is_valid, msg = validate_password("Ab1234!x")
         assert not is_valid
-        assert "sequential" in msg
+        assert "sequences" in msg
 
     def test_sequential_alpha_rejected(self):
         """Séquence alphabétique consécutive rejetée (abcd)."""
         is_valid, msg = validate_password("Xabcd1!y")
         assert not is_valid
-        assert "sequential" in msg
+        assert "sequences" in msg
 
     def test_three_sequential_ok(self):
         """3 caractères consécutifs sont OK (seul 4+ est bloqué)."""
@@ -369,4 +369,4 @@ class TestValidatePasswordStrengthIntegration:
 
         is_valid, msg = validate_password_strength(pw, role="admin")
         assert not is_valid
-        assert "at least 12" in msg
+        assert "au moins 12" in msg

@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-03-05",
+  "policy": "No direct '@/api/*' imports outside src/api/** and src/api/queries/**. Runtime code only (tests are excluded from this gate).",
+  "budget": {
+    "max_allowlist_entries": 0,
+    "max_active_allowlisted_files": 0
+  },
+  "allowlist": []
+}
