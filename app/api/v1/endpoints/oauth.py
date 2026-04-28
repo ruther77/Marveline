@@ -29,9 +29,12 @@ from app.models.account import Account
 from app.models.account_oauth_identity import AccountOAuthIdentity
 from app.models.tenant_membership import TenantMembership
 from app.schemas.auth import TokenResponse
+from app.schemas.mfa import MFALoginResponse
 from app.services.audit import AuditService
+from app.services.mfa import mfa_service
 from app.services.session import generate_device_id, session_service
 from app.services.token import token_service
+from typing import Union
 
 logger = logging.getLogger(__name__)
 
@@ -272,8 +275,35 @@ async def _issue_oauth_tokens(
     ip_address: str,
     user_agent: str,
     response: Response,
-) -> TokenResponse:
-    """Crée session + émet JWT + pose cookie refresh_token (même pattern que login classique)."""
+) -> Union[TokenResponse, MFALoginResponse]:
+    """Crée session + émet JWT + pose cookie refresh_token (même pattern que login classique).
+
+    S1.T10 (F404 / OAUTH-MFA-BYPASS-01) — Check MFA enrolement AVANT emission
+    tokens : si l'account a un MFA enrole (TOTP / WebAuthn), retourner un
+    `MFALoginResponse(mfa_required=True, mfa_session_token=...)` au lieu des
+    access/refresh tokens. Le client doit alors appeler POST /api/v1/auth/mfa/verify
+    pour finaliser. Sans ce gate, la compromission d'un compte Google donnait
+    acces total au compte CaroCorp meme avec MFA enrolee (bypass complet).
+    """
+    # F404 fix : MFA gate sur le flow OAuth (sinon bypass complet).
+    has_mfa = await mfa_service.is_mfa_enabled(
+        db, user_id=user.id, tenant_id=user.tenant_id
+    )
+    if has_mfa:
+        mfa_token = await mfa_service.create_mfa_session(
+            user_id=user.id,
+            tenant_id=user.tenant_id,
+            email=user.email,
+            role=user.role or "viewer",
+            ip_address=ip_address or "",
+        )
+        return MFALoginResponse(
+            mfa_required=True,
+            mfa_session_token=mfa_token,
+            token_type="mfa_session",
+        )
+
+    # Pas de MFA enrolee -> flow nominal : audit + session + tokens.
     device_id = generate_device_id(user_agent, ip_address)
     audit_service = AuditService(db)
 

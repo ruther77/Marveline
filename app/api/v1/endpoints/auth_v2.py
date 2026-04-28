@@ -322,7 +322,7 @@ async def oauth_callback_v2(
     request: Request,
     response: Response,
     db: AsyncSession = Depends(get_async_db),
-) -> TokenResponse:
+) -> TokenResponse | MFALoginResponse:
     """Traite le callback OAuth après retour du provider (IAM v2).
 
     Security :
@@ -340,16 +340,25 @@ async def oauth_callback_v2(
     user_agent = request.headers.get("User-Agent")
     request_id = getattr(request.state, "request_id", None)
 
-    access_token, refresh_token, expires_in, password_change_required = (
-        await OAuthV2Service(db).callback(
-            provider=provider,
-            code=body.code,
-            state=body.state,
-            ip_address=ip_address,
-            user_agent=user_agent,
-            request_id=request_id,
-        )
+    result = await OAuthV2Service(db).callback(
+        provider=provider,
+        code=body.code,
+        state=body.state,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        request_id=request_id,
     )
+
+    # S1.T10 (F404) — Si MFA enrole, retourner MFALoginResponse au lieu des tokens.
+    # Le client doit appeler POST /api/v1/auth/mfa/verify pour finaliser.
+    if isinstance(result, MFARequiredResult):
+        return MFALoginResponse(
+            mfa_required=True,
+            mfa_session_token=result.mfa_session_token,
+            token_type="mfa_session",
+        )
+
+    access_token, refresh_token, expires_in, password_change_required = result
 
     response.set_cookie(
         key="refresh_token",

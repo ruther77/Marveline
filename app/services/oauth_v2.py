@@ -26,11 +26,14 @@ from app.constants import ErrorMessages
 from app.core.config import settings
 from app.core.exceptions import NotFound
 from app.core.redis import redis_sec
+from typing import Union
 from app.repositories.account import AsyncAccountRepository
 from app.repositories.account_oauth_identity import AsyncAccountOAuthIdentityRepository
 from app.services.account_session import AccountSessionService
 from app.services.audit import AuditService
+from app.services.auth_v2 import MFARequiredResult
 from app.services.membership import MembershipService
+from app.services.mfa import mfa_service
 from app.services.session import generate_device_id
 from app.services.token import token_service
 
@@ -246,7 +249,7 @@ class OAuthV2Service:
         ip_address: str,
         user_agent: Optional[str],
         request_id: Optional[str],
-    ) -> tuple[str, str, int, bool]:
+    ) -> Union[tuple[str, str, int, bool], MFARequiredResult]:
         """Flow complet OAuth callback — retourne (access_token, refresh_token, expires_in, pcr).
 
         Séquence :
@@ -357,8 +360,29 @@ class OAuthV2Service:
         ip_address: str,
         user_agent: Optional[str],
         request_id: Optional[str],
-    ) -> tuple[str, str, int, bool]:
-        """Ouvre session IAM v2, audit log, émet tokens JWT v3."""
+    ) -> Union[tuple[str, str, int, bool], MFARequiredResult]:
+        """Ouvre session IAM v2, audit log, émet tokens JWT v3.
+
+        S1.T10 (F404 / OAUTH-MFA-BYPASS-01) — Si l'account a un MFA enrole,
+        retourne MFARequiredResult au lieu d'ouvrir la session : le client
+        doit finaliser via POST /api/v1/auth/mfa/verify. Sans ce gate, la
+        compromission d'un compte Google permettait acces total au compte
+        CaroCorp meme avec MFA enrolee.
+        """
+        # F404 fix : MFA gate avant emission tokens (sinon bypass complet OAuth).
+        has_mfa = await mfa_service.is_mfa_enabled(
+            self.db, user_id=account.id, tenant_id=membership.tenant_id
+        )
+        if has_mfa:
+            mfa_token = await mfa_service.create_mfa_session(
+                user_id=account.id,
+                tenant_id=membership.tenant_id,
+                email=account.email,
+                role=membership.role_name,
+                ip_address=ip_address or "",
+            )
+            return MFARequiredResult(mfa_session_token=mfa_token)
+
         device_id = generate_device_id(user_agent or "unknown", ip_address)
         audit_service = AuditService(self.db)
 
