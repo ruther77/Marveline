@@ -72,14 +72,16 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         Notes:
             - Seuls IDs numériques remplacés (\d+)
             - UUID/slugs préservés (pas de pattern match)
-            - Paths inconnus retournés tels quels
+            - Paths inconnus -> 'other' (S1.T12 / F1126 : anti-DoS cardinalité)
         """
         for pattern, replacement in PATH_NORMALIZATION_PATTERNS:
             if pattern.match(path):
                 return pattern.sub(replacement, path)
 
-        # Path sans ID numérique → retourner tel quel
-        return path
+        # S1.T12 (F1126) : aucun pattern -> "other" pour bloquer la cardinalite
+        # explosion via paths random (UUID arbitraires) qui causerait un OOM
+        # Prometheus en quelques minutes (exploit DoS sur monitoring).
+        return "other"
 
 
     def _get_identifier_type(self, request: Request, scope: str) -> str:
