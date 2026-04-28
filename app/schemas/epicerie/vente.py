@@ -21,7 +21,10 @@ class EncaissementRequest(BaseModel):
     remise_centimes: int = Field(default=0, ge=0)
     remise_motif: Optional[str] = None
     client_nom: Optional[str] = None
-    check_stock: bool = False
+    check_stock: bool = True
+    """S1.T3 (F870 / EPI-CHECKSTK-01) : default True pour eviter IntegrityError 500
+    sur stock insuffisant. Le service verifie en phase 5 et raise 409 STOCK_INSUFFISANT
+    propre. Override `False` reserve aux admins (force-validate + backfill manuel)."""
 
 
 class EncaissementResponse(BaseModel):
