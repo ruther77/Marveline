@@ -59,11 +59,20 @@ class AccountService:
     ) -> Optional[Account]:
         """Vérifie email + password, retourne l'Account ou None.
 
-        Toujours exécuter DUMMY_HASH si compte absent — timing-safe.
+        Toujours exécuter DUMMY_HASH si compte absent OU sans password (OAuth-only)
+        — timing-safe contre user enumeration.
         Rehash transparent bcrypt → Argon2id si nécessaire.
         """
         account = await self._repo.get_by_email(email.lower().strip())
         if not account:
+            verify_password(password, DUMMY_HASH)
+            return None
+
+        # S1.T9 (F296) — Compte OAuth-only : hashed_password=None.
+        # `verify_password(password, None)` levait TypeError 500 + permettait
+        # de distinguer OAuth-only (500) vs identifiants invalides (401).
+        # Fix : appeler verify_password sur DUMMY_HASH (timing-safe) puis None.
+        if not account.hashed_password:
             verify_password(password, DUMMY_HASH)
             return None
 
