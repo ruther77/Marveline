@@ -416,6 +416,12 @@ def _resolve_api_key(
     repo.update_last_used(api_key, ip_address)
     db.flush()
 
+    # F02 fix (B1.S1.T2) : RLS context (chemin sync, parité avec _resolve_api_key_async).
+    from app.core.database import set_tenant_context
+    set_tenant_context(api_key.tenant_id)
+    request.state.api_key_id = api_key.id
+    request.state.tenant_id = api_key.tenant_id
+
     return ApiKeyClient(
         _tenant_id=api_key.tenant_id,
         _api_key_id=api_key.id,
@@ -573,6 +579,14 @@ async def _resolve_api_key_async(
     api_key.last_used_ip = ip_address
     api_key.usage_count = (api_key.usage_count or 0) + 1
     await db.flush()
+
+    # F02 fix (B1.S1.T2) : RLS context — sinon les requêtes via ApiKey
+    # contournent les policies tenant_id côté DB une fois RLS activée (B1.S2).
+    # Symétrie avec get_current_user (chemin JWT, ligne 349-350).
+    from app.core.database import set_tenant_context
+    set_tenant_context(api_key.tenant_id)
+    request.state.api_key_id = api_key.id
+    request.state.tenant_id = api_key.tenant_id
 
     return ApiKeyClient(
         _tenant_id=api_key.tenant_id,
