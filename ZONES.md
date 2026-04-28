@@ -23,7 +23,7 @@
 | `products.py`, `categories.py`, `bundles.py`, `pricing.py` | 🔵 Page | B4.S3, B4.S4 |
 | `devis.py`, `reservations.py`, `invoices.py`, `ventes.py` | 🔵 Page | B3.S2-S5 |
 | `inventory_movements.py`, `stock_items.py` | 🔵 Page | B4.S2 |
-| `audit.py` | 🟢 Torvalds | B6.S2 |
+| `audit.py` | 🟡 Coordination | Page B1.S1 (endpoint base lecture log), Torvalds B6.S2 (HMAC chain + verify endpoint) |
 | `health.py`, `metrics.py` | 🟢 Torvalds | B6.S6 |
 | `features.py` (feature flags) | 🟢 Torvalds | B6.S4 |
 | `dashboard.py` | 🟡 Coordination | Page contribue (revenue), Torvalds contribue (audit) |
@@ -53,7 +53,7 @@
 | `evenements.py`, `orders.py` | 🔵 Page | B4.S6 |
 | `restaurant/*`, `epicerie/*`, `transfer_request.py` | 🟢 Torvalds | Bloc 5 |
 | `etl/*` | 🟢 Torvalds | B5.S2, B5.S6 |
-| `audit.py` | 🟢 Torvalds | B6.S2 |
+| `audit.py` | 🟡 Coordination | Page B1.S1 (service base : append_log, key versioning seed, helper compute_hmac) **avant** Torvalds B6.S2 (chain enforcement + verify_chain) |
 | `feature_flag.py` | 🟢 Torvalds | B6.S4 |
 | `notification.py` | 🟡 Coordination | Page B3.S5 (EmailGateway interface) **avant** Torvalds B6.S1 (Postmark backend) |
 | `printer.py` | 🟢 Torvalds | B6.S5 |
@@ -72,7 +72,7 @@
 | `stock_item.py`, `stock_management.py`, `inventory_movement.py`, `movement_*.py` | 🔵 Page | B4.S2 |
 | `devis.py`, `reservation*.py`, `invoice*.py`, `vente.py`, `payment.py`, `pricing.py`, `deposit.py`, `relance.py`, `loyalty.py` | 🔵 Page | Bloc 3 + B4.S4 |
 | `evenements.py`, `customer.py` | 🟡 Coordination | Page propriétaire mais Torvalds touche pour PII |
-| `audit_log.py` | 🟢 Torvalds | B6.S2 HMAC |
+| `audit_log.py`, `audit_log_key.py` (NEW) | 🟡 Coordination | Page B1.S1 (modèles base + colonnes hmac_value/hmac_key_version/prev_hash nullable) **avant** Torvalds B6.S2 (NOT NULL + trigger immutability + chain) |
 | `notification.py` | 🟢 Torvalds | B6.S1 |
 | `feature_flag.py` | 🟢 Torvalds | B6.S4 |
 | `restaurant/*`, `epicerie/*` | 🟢 Torvalds | Bloc 5 |
@@ -94,7 +94,7 @@
 
 | Fichier | Owner | Sprint |
 |---|---|---|
-| `audit.py` | 🟢 Torvalds | B6.S2 (Page consomme via decorator) |
+| `audit.py` | 🟡 Coordination | Page B1.S1 (middleware base : capture mutations + dispatch service.append_log) **avant** Torvalds B6.S2 (HMAC chain enforcement) |
 | `security.py` | 🟢 Torvalds | B6.S2 |
 | `request_context.py` | 🟢 Torvalds | B2 |
 | `exception_handler.py` | 🟡 Coordination | rare, append-only |
@@ -114,7 +114,8 @@
 | `etl_tasks.py` | 🟢 Torvalds | B5.S2 |
 | `restaurant_export.py` | 🟢 Torvalds | B5.S5 |
 | `printing.py` | 🟢 Torvalds | B6.S5 |
-| `risk_detection.py`, `access_review.py` | 🟢 Torvalds | B6.S2 |
+| `risk_detection.py` | 🟢 Torvalds | B6.S2 |
+| `access_review.py` | 🟡 Coordination | Page B1.S1 (task base + seed access_reviews table) **avant** Torvalds B6.S2 (alerting + cascade revoke) |
 
 ### `app/permissions/`
 
@@ -199,3 +200,4 @@ Si conflit Git malgré tout :
 | Date | Auteur | Changement |
 |---|---|---|
 | 2026-04-28 | Lead | Création initiale, partition Bloc 1+3+4 vs Bloc 2+5+6+7 |
+| 2026-04-28 | Page | Clarification audit/access_reviews : base modèle/table/helper en B1.S1 (Page) cohérent PLAN_PAGE.md §28-34 ; HMAC chain + verify reste B6.S2 (Torvalds). Entrées passées de 🟢 à 🟡. Annonce Torvalds requise en daily avant entrée dans la zone. |
