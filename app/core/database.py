@@ -67,19 +67,38 @@ async_engine = create_async_engine(
 
 install_slow_query_listener(async_engine.sync_engine)
 
-# ─── RLS : injecter tenant_id dans chaque transaction PostgreSQL ──────────────
+# ─── RLS : injecter tenant_id à chaque début de transaction PostgreSQL ────────
 
-@event.listens_for(async_engine.sync_engine, "before_cursor_execute")
-def _inject_rls_tenant(conn, cursor, statement, parameters, context, executemany):
-    """SET LOCAL app.current_tenant_id avant chaque requete SQL.
+@event.listens_for(async_engine.sync_engine, "begin")
+def _set_rls_tenant_on_begin(conn):
+    """Définit app.current_tenant_id pour le RLS PostgreSQL — début de transaction.
 
     Le RLS PostgreSQL utilise current_setting('app.current_tenant_id') dans
     les policies USING pour filtrer par tenant.
-    SET LOCAL = valide uniquement dans la transaction courante.
+
+    F01 fix (B1.S1.T1) : paramétrisation SQLAlchemy text() + bind dict
+    au lieu de f-string interpolée (defense-in-depth contre injection sur
+    le contexte RLS). Le cast int() reste comme garde supplémentaire.
+
+    set_config(name, value, is_local=true) est l'équivalent paramétrable
+    de SET LOCAL (PostgreSQL n'accepte pas les params liés sur SET LOCAL,
+    set_config oui — sémantique RLS strictement identique).
+
+    Event 'begin' (vs ancien 'before_cursor_execute') : fire 1× par TX
+    au lieu d'1× par cursor execute. Cohérent avec SET LOCAL scope.
     """
     tid = _current_tenant_id.get()
-    if tid is not None:
-        cursor.execute(f"SET LOCAL app.current_tenant_id = '{tid}'")
+    if tid is None:
+        return
+    try:
+        tid_int = int(tid)
+    except (TypeError, ValueError):
+        logger.error("RLS rejected non-int tenant_id: %r", tid)
+        return
+    conn.execute(
+        text("SELECT set_config('app.current_tenant_id', :tid, true)"),
+        {"tid": str(tid_int)},
+    )
 
 AsyncSessionLocal = async_sessionmaker(
     bind=async_engine,
