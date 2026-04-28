@@ -1,6 +1,10 @@
-"""Endpoints WebAuthn/FIDO2 — registration + authentication (M-03)."""
+"""Endpoints WebAuthn/FIDO2 — registration + authentication (M-03).
+
+S1.T11 (F368) — RP_ID + expected_origin lus per-tenant via `request.state.tenant`
+(injecte par `RequestContextMiddleware`). Fallback settings.* si tenant inconnu.
+"""
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_async_db
@@ -21,11 +25,13 @@ router = APIRouter(prefix="/webauthn", tags=["WebAuthn"])
 @router.post("/register/options")
 async def get_register_options(
     body: WebAuthnRegisterRequest,
+    request: Request,
     current_user: UserCompat = Depends(get_current_user_async),
     db: AsyncSession = Depends(get_async_db),
 ) -> dict:
     """Genere les options pour enregistrer un nouveau credential WebAuthn."""
-    svc = WebAuthnService(db)
+    tenant = getattr(request.state, "tenant", None)
+    svc = WebAuthnService(db, tenant)
     return await svc.generate_registration_options(
         account_id=current_user.id,
         email=current_user.email,
@@ -36,11 +42,13 @@ async def get_register_options(
 @router.post("/register/verify")
 async def verify_register(
     body: WebAuthnRegisterResponse,
+    request: Request,
     current_user: UserCompat = Depends(get_current_user_async),
     db: AsyncSession = Depends(get_async_db),
 ) -> dict:
     """Verifie l'attestation et enregistre le credential."""
-    svc = WebAuthnService(db)
+    tenant = getattr(request.state, "tenant", None)
+    svc = WebAuthnService(db, tenant)
     cred = await svc.verify_registration(
         account_id=current_user.id,
         credential_id_b64=body.credential_id,
@@ -54,22 +62,26 @@ async def verify_register(
 
 @router.post("/authenticate/options")
 async def get_authenticate_options(
+    request: Request,
     current_user: UserCompat = Depends(get_current_user_async),
     db: AsyncSession = Depends(get_async_db),
 ) -> dict:
     """Genere les options pour authentification WebAuthn (step-up MFA)."""
-    svc = WebAuthnService(db)
+    tenant = getattr(request.state, "tenant", None)
+    svc = WebAuthnService(db, tenant)
     return await svc.generate_authentication_options(current_user.id)
 
 
 @router.post("/authenticate/verify")
 async def verify_authenticate(
     body: WebAuthnAuthenticateResponse,
+    request: Request,
     current_user: UserCompat = Depends(get_current_user_async),
     db: AsyncSession = Depends(get_async_db),
 ) -> dict:
     """Verifie l'assertion WebAuthn (step-up MFA)."""
-    svc = WebAuthnService(db)
+    tenant = getattr(request.state, "tenant", None)
+    svc = WebAuthnService(db, tenant)
     await svc.verify_authentication(
         account_id=current_user.id,
         credential_id_b64=body.credential_id,

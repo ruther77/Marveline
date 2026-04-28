@@ -2,11 +2,15 @@
 
 Utilise py_webauthn pour la verification cryptographique.
 Les challenges sont stockes dans Redis-SEC avec TTL 5 min.
+
+S1.T11 (F368/WEBAUTHN-RPID-MULTITENANT-01) : RP_ID/expected_origin per-tenant
+via `tenant.rp_id` et `tenant.frontend_url`. Fallback settings.* si NULL.
 """
 import base64
 import logging
 import secrets
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -14,13 +18,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.redis import redis_sec
+from app.models.tenant import Tenant
 from app.models.webauthn_credential import WebAuthnCredential
 
 logger = logging.getLogger(__name__)
 
 CHALLENGE_TTL_SECONDS = 300  # 5 min
-RP_ID = settings.JWT_ISSUER.replace("www.", "")  # "marveline.com"
-RP_NAME = settings.APP_NAME
 
 
 def _b64url_encode(data: bytes) -> str:
@@ -35,10 +38,32 @@ def _b64url_decode(s: str) -> bytes:
 
 
 class WebAuthnService:
-    """Service pour les ceremonies WebAuthn (register + authenticate)."""
+    """Service pour les ceremonies WebAuthn (register + authenticate).
 
-    def __init__(self, db: AsyncSession):
+    S1.T11 — Le service est instancie avec le `tenant` courant pour resoudre
+    `rp_id` et `expected_origin` per-tenant (F368 WebAuthn multi-tenant).
+    Si `tenant` est None (cas legacy/tests), fallback sur les settings globaux.
+    """
+
+    def __init__(self, db: AsyncSession, tenant: Optional[Tenant] = None):
         self.db = db
+        self.tenant = tenant
+        # F368 (S1.T11) — RP_ID + origin + name per-tenant, fallback settings.*
+        self.rp_id = (
+            tenant.rp_id
+            if tenant is not None and tenant.rp_id
+            else settings.JWT_ISSUER.replace("www.", "")
+        )
+        self.rp_name = (
+            tenant.name
+            if tenant is not None and tenant.name
+            else settings.APP_NAME
+        )
+        self.expected_origin = (
+            tenant.frontend_url
+            if tenant is not None and tenant.frontend_url
+            else settings.FRONTEND_URL
+        )
 
     async def generate_registration_options(
         self, account_id: int, email: str, device_name: str = "Security Key"
@@ -63,7 +88,7 @@ class WebAuthnService:
 
         return {
             "challenge": challenge_b64,
-            "rp": {"id": RP_ID, "name": RP_NAME},
+            "rp": {"id": self.rp_id, "name": self.rp_name},
             "user": {
                 "id": _b64url_encode(str(account_id).encode()),
                 "name": email,
@@ -123,8 +148,8 @@ class WebAuthnService:
                     type="public-key",
                 ),
                 expected_challenge=_b64url_decode(challenge_b64),
-                expected_rp_id=RP_ID,
-                expected_origin=settings.FRONTEND_URL,
+                expected_rp_id=self.rp_id,
+                expected_origin=self.expected_origin,
             )
         except Exception as e:
             logger.warning("WebAuthn registration verification failed: %s", e)
@@ -160,7 +185,7 @@ class WebAuthnService:
 
         return {
             "challenge": challenge_b64,
-            "rpId": RP_ID,
+            "rpId": self.rp_id,
             "timeout": 60000,
             "userVerification": "preferred",
             "allowCredentials": [
@@ -215,8 +240,8 @@ class WebAuthnService:
                     type="public-key",
                 ),
                 expected_challenge=_b64url_decode(challenge_b64),
-                expected_rp_id=RP_ID,
-                expected_origin=settings.FRONTEND_URL,
+                expected_rp_id=self.rp_id,
+                expected_origin=self.expected_origin,
                 credential_public_key=cred.public_key,
                 credential_current_sign_count=cred.sign_count,
             )

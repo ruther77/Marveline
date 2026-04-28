@@ -1,9 +1,10 @@
 """Middleware de contexte de requete pour CaroCorp API.
 
-Fusionne 4 preoccupations en un seul middleware (performance) :
+Fusionne 5 preoccupations en un seul middleware (performance) :
 - Generation / propagation du X-Request-ID
 - Extraction tenant_id + user_id depuis le JWT OU API key (fix M2: plus de hardcode, fix M3: parse unique)
 - Detection dual-mode authentication (Bearer JWT vs X-API-Key header)
+- Resolution de l'objet Tenant complet -> request.state.tenant (S1.T11 — F368 WebAuthn multi-tenant)
 - Positionnement des ContextVars pour le structured logging
 
 Usage :
@@ -15,6 +16,7 @@ import logging
 import uuid
 from typing import Any, Dict, Optional
 
+from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -22,6 +24,7 @@ from starlette.responses import Response
 from app.core.database import get_async_db_context
 from app.core.deps import X_API_KEY_HEADER
 from app.core.logging import set_request_context, clear_request_context
+from app.models.tenant import Tenant
 from app.services.api_key import ApiKeyService
 
 logger = logging.getLogger(__name__)
@@ -52,6 +55,28 @@ def _extract_jwt_claims(request: Request) -> Dict[str, Any]:
         return claims if claims else {}
     except Exception:
         return {}
+
+
+async def _load_tenant(tenant_id: Optional[int]) -> Optional[Tenant]:
+    """Charge l'objet Tenant complet depuis tenant_id (S1.T11 — F368).
+
+    Utilise par WebAuthnService et autres services per-tenant (rp_id, frontend_url, brand).
+    Ne bloque jamais — retourne None si tenant_id absent ou DB error.
+    Renvoie une instance detachee de la session (utilisable hors request scope).
+    """
+    if tenant_id is None:
+        return None
+    try:
+        async with get_async_db_context() as db:
+            result = await db.execute(select(Tenant).where(Tenant.id == tenant_id))
+            tenant = result.scalar_one_or_none()
+            if tenant is not None:
+                # Detacher de la session pour usage hors scope (request.state)
+                db.expunge(tenant)
+            return tenant
+    except Exception as exc:
+        logger.warning("Failed to load tenant id=%s in request context: %s", tenant_id, exc)
+        return None
 
 
 async def _extract_api_key_info(request: Request) -> Dict[str, Any]:
@@ -140,9 +165,15 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             principal_type = "api_key"
             jwt_scopes = list(api_key_info.get("scopes") or [])
 
-        # 4. Stocker dans request.state
+        # 4. Resoudre l'objet Tenant complet (S1.T11 — F368)
+        # Utilise par WebAuthnService (rp_id, frontend_url) et services per-tenant.
+        # Si tenant_id None ou tenant introuvable -> request.state.tenant = None (consumers font fallback).
+        tenant = await _load_tenant(tenant_id)
+
+        # 5. Stocker dans request.state
         request.state.request_id = request_id
         request.state.tenant_id = tenant_id
+        request.state.tenant = tenant
         request.state.user_id = user_id
         request.state.principal_type = principal_type
         request.state.api_key_id = api_key_id

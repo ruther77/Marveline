@@ -74,6 +74,16 @@ class Tenant(Base, TimestampMixin):
     max_users = Column(Integer, nullable=False, default=50)
     max_sessions_per_user = Column(Integer, nullable=False, default=5)
 
+    # WebAuthn multi-tenant (S1.T11 — F368)
+    rp_id = Column(String(253), nullable=True)
+    """WebAuthn Relying Party ID (domaine sans protocole, ex: 'marveline.com', 'splendid.events').
+    NULL = fallback sur settings.JWT_ISSUER (rétrocompatibilité avant backfill)."""
+
+    frontend_url = Column(String(512), nullable=True)
+    """URL frontend per-tenant (ex: 'https://marveline.com').
+    Sert de `expected_origin` WebAuthn et de base URL pour emails transactionnels.
+    NULL = fallback sur settings.FRONTEND_URL."""
+
     # Transitions légales (§10 state machine)
     TRANSITIONS: dict[str, list[str]] = {
         "provisioning": ["active"],
