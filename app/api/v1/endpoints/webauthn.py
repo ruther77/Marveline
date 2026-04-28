@@ -2,6 +2,10 @@
 
 S1.T11 (F368) — RP_ID + expected_origin lus per-tenant via `request.state.tenant`
 (injecte par `RequestContextMiddleware`). Fallback settings.* si tenant inconnu.
+
+S1.T8 (F370) — device_id pour la cle stepup extrait du claim `did` du JWT
+(meme pattern que `app/core/deps.py:require_stepup` et
+`app/api/v1/endpoints/mfa.py:verify_mfa_stepup`).
 """
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -9,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_async_db
 from app.core.deps import get_current_user_async, UserCompat
+from app.core.security import decode_token
 from app.schemas.webauthn import (
     WebAuthnRegisterRequest,
     WebAuthnRegisterResponse,
@@ -20,6 +25,25 @@ from app.services.webauthn import WebAuthnService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webauthn", tags=["WebAuthn"])
+
+
+def _extract_did_from_request(request: Request) -> str:
+    """Extrait le claim `did` du JWT Bearer pour la cle stepup Redis (S1.T8).
+
+    Doit matcher exactement la logique du guard `require_stepup` (deps.py)
+    et de `verify_mfa_stepup` (mfa.py) : meme write, meme read.
+
+    Returns:
+        device_id (claim `did`) ou "" si pas de JWT / token invalide.
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return ""
+    try:
+        tok = decode_token(auth_header[len("Bearer "):])
+        return tok.get("did", "") if tok else ""
+    except Exception:
+        return ""
 
 
 @router.post("/register/options")
@@ -91,10 +115,12 @@ async def verify_authenticate(
     )
     await db.commit()
 
-    # Ecrire step-up token (meme pattern que TOTP)
+    # S1.T8 (F370) — Ecrire step-up token avec device_id = claim 'did' du JWT.
+    # Meme cle que celle lue par require_stepup (deps.py) -> matching garanti.
     from app.core.redis import redis_sec
     from app.constants.security import MFAConfig
-    device_id = getattr(current_user, '_device_id', '') or ''
+
+    device_id = _extract_did_from_request(request)
     stepup_key = f"stepup:{current_user.id}:{device_id}"
     await redis_sec.client.setex(stepup_key, MFAConfig.STEPUP_TTL, "1")
 
